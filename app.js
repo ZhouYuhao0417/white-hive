@@ -11,6 +11,8 @@ const state = {
   },
 };
 
+const DATA_URL = "./marketplace-data.json";
+
 const TONE_SEQUENCE = ["cyan", "blue", "violet", "lime", "amber"];
 const CATEGORY_TONES = {
   all: "cyan",
@@ -50,7 +52,6 @@ boot();
 async function boot() {
   bindEvents();
   await loadBootstrap();
-  await loadGigs();
   setupMotion();
 }
 
@@ -72,7 +73,7 @@ function bindEvents() {
 }
 
 async function loadBootstrap() {
-  const response = await fetch("/api/bootstrap");
+  const response = await fetch(DATA_URL);
   const payload = await response.json();
   state.bootstrap = payload;
   state.activeRole = payload.defaultRole || "buyer";
@@ -87,19 +88,12 @@ async function loadBootstrap() {
   renderBriefs(payload.briefs || []);
   renderFlow(payload.flow || []);
   renderRoadmap(payload.roadmap || []);
+  await loadGigs();
+  syncMotionTargets();
 }
 
 async function loadGigs() {
-  const params = new URLSearchParams({
-    search: state.filters.search,
-    category: state.activeCategory,
-    delivery: state.filters.delivery,
-    sort: state.filters.sort,
-  });
-
-  const response = await fetch(`/api/gigs?${params.toString()}`);
-  const payload = await response.json();
-  state.gigs = payload.items || [];
+  state.gigs = filterGigs(state.bootstrap?.gigs || []);
 
   if (!state.gigs.length) {
     state.selectedGigId = null;
@@ -109,6 +103,7 @@ async function loadGigs() {
 
   renderGigGrid();
   renderGigDetail();
+  syncMotionTargets();
 }
 
 function renderHero(payload) {
@@ -456,6 +451,8 @@ function renderWorkspace() {
       </div>
     </div>
   `;
+
+  syncMotionTargets();
 }
 
 function renderBriefs(items) {
@@ -528,6 +525,85 @@ function toneForCategory(categoryId) {
 
 function toneForIndex(index) {
   return TONE_SEQUENCE[index % TONE_SEQUENCE.length];
+}
+
+function filterGigs(items) {
+  const search = normalizeText(state.filters.search);
+  const category = normalizeText(state.activeCategory || "all") || "all";
+  const delivery = normalizeText(state.filters.delivery || "all") || "all";
+  const sort = normalizeText(state.filters.sort || "recommended") || "recommended";
+
+  let result = [...items];
+
+  if (category !== "all") {
+    result = result.filter((item) => item.category === category);
+  }
+
+  if (search) {
+    result = result.filter((item) => {
+      const haystack = [
+        item.title,
+        item.summary,
+        item.detail,
+        ...(item.tags || []),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(search);
+    });
+  }
+
+  result = result.filter((item) => matchesDelivery(item, delivery));
+
+  if (sort === "price-asc") {
+    result.sort((left, right) => parseMoney(left.priceFrom) - parseMoney(right.priceFrom));
+  } else if (sort === "delivery-asc") {
+    result.sort((left, right) => Number(left.deliveryDays || 999) - Number(right.deliveryDays || 999));
+  } else if (sort === "rating-desc") {
+    result.sort((left, right) => parseRating(right.rating) - parseRating(left.rating));
+  } else {
+    result.sort((left, right) => Number(right.featuredRank || 0) - Number(left.featuredRank || 0));
+  }
+
+  return result;
+}
+
+function matchesDelivery(gig, delivery) {
+  const days = Number(gig.deliveryDays || 0);
+
+  if (delivery === "all") {
+    return true;
+  }
+  if (delivery === "three-days") {
+    return days <= 3;
+  }
+  if (delivery === "one-week") {
+    return days <= 7;
+  }
+  if (delivery === "two-weeks") {
+    return days <= 14;
+  }
+
+  return true;
+}
+
+function parseMoney(value) {
+  const digits = String(value || "")
+    .split("")
+    .filter((char) => /\d/.test(char))
+    .join("");
+
+  return Number(digits || 0);
+}
+
+function parseRating(value) {
+  const head = String(value || "").split("/")[0].trim();
+  return Number(head || 0);
+}
+
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function setupMotion() {

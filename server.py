@@ -19,6 +19,7 @@ STATIC_FILES = {
     "/index.html": "index.html",
     "/app.js": "app.js",
     "/styles.css": "styles.css",
+    "/marketplace-data.json": "marketplace-data.json",
 }
 
 CONTENT_TYPES = {
