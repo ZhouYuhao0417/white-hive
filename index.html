@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>白色蜂巢 WhiteHive | 面向中国的线上交付自由职业平台</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-glow glow-a"></div>
+    <div class="page-glow glow-b"></div>
+    <div class="scroll-spectrum spectrum-a"></div>
+    <div class="scroll-spectrum spectrum-b"></div>
+    <div class="scroll-spectrum spectrum-c"></div>
+    <div class="grid-noise"></div>
+
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand-lockup">
+          <span class="brand-mark">WH</span>
+          <div>
+            <p class="brand-label">白色蜂巢</p>
+            <p class="brand-subtitle">Remote Delivery Marketplace</p>
+          </div>
+        </div>
+
+        <nav class="topbar-nav">
+          <a href="#market">服务市场</a>
+          <a href="#workspace">角色工作台</a>
+          <a href="#flow">交易流程</a>
+        </nav>
+
+        <a class="topbar-cta" href="#roadmap">产品路线图</a>
+      </header>
+
+      <section class="hero-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">WhiteHive / 面向中国市场的线上交付协作与交易平台</p>
+          <h1 id="hero-title">让开发、设计、AI 自动化等线上服务，像产品一样被展示、购买和交付。</h1>
+          <p class="hero-text" id="hero-description"></p>
+
+          <div class="hero-actions">
+            <a class="button button-primary" href="#market">看市场原型</a>
+            <a class="button button-secondary" href="#workspace">看角色流程</a>
+          </div>
+
+          <div class="signal-strip" id="hero-stats"></div>
+        </div>
+
+        <aside class="hero-board">
+          <div class="hero-board-label">for partners / project scope</div>
+          <div class="hero-board-title">WhiteHive v0.1 聚焦可远程交付服务，先把展示、下单、托管和验收跑通。</div>
+          <div class="hero-terminal">
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+            <code>market.sync(trust, delivery, escrow)</code>
+          </div>
+          <div class="hero-board-list" id="hero-pillars"></div>
+          <div class="hero-mini-flow" id="hero-flow-preview"></div>
+        </aside>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">市场判断</p>
+            <h2>这个方向为什么值得做</h2>
+          </div>
+          <p class="section-summary">
+            中国并不缺自由职业者，也不缺需求；真正缺的是一个把服务展示、托管付款、阶段交付、验收修改和评价沉淀串起来的平台。
+          </p>
+        </div>
+        <div class="insight-grid" id="insight-grid"></div>
+      </section>
+
+      <section class="section" id="market">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">服务市场 MVP</p>
+            <h2>先做标准化上架，再做交易闭环</h2>
+          </div>
+          <p class="section-summary">
+            第一版先覆盖开发、设计、AI 自动化、视频、PPT、翻译等可在线交付服务，把服务边界、交付物、价格梯度和验收方式讲清楚。
+          </p>
+        </div>
+
+        <div class="category-strip" id="category-strip"></div>
+
+        <div class="filter-bar">
+          <label class="field">
+            <span>搜索服务</span>
+            <input id="search-input" type="search" placeholder="例如：AI 自动化、官网开发、剪辑、PPT" />
+          </label>
+
+          <label class="field">
+            <span>交付周期</span>
+            <select id="delivery-filter">
+              <option value="all">全部</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>排序方式</span>
+            <select id="sort-filter">
+              <option value="recommended">推荐优先</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="market-layout">
+          <div class="gig-grid" id="gig-grid"></div>
+          <aside class="gig-detail" id="gig-detail"></aside>
+        </div>
+      </section>
+
+      <section class="section" id="workspace">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">角色工作台</p>
+            <h2>买家和自由职业者，需要在同一笔订单里看到同一套状态</h2>
+          </div>
+          <p class="section-summary">
+            WhiteHive 不是信息发布栏，而是把需求确认、里程碑、交付文件、修改记录和评价沉淀到同一条订单里。
+          </p>
+        </div>
+
+        <div class="workspace-switcher" id="workspace-switcher"></div>
+
+        <div class="workspace-layout">
+          <section class="workspace-panel" id="workspace-panel"></section>
+          <aside class="brief-panel">
+            <div class="brief-head">
+              <h3>需求墙</h3>
+              <p>用于承接不适合标准套餐、但依然可以远程交付的定制项目。</p>
+            </div>
+            <div class="brief-list" id="brief-list"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="section flow-section" id="flow">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">交易闭环</p>
+            <h2>真正决定平台价值的，不是撮合本身，而是把项目安全交付完成</h2>
+          </div>
+          <p class="section-summary">
+            如果没有清晰的交易链路，平台最终只会退化成联系人列表。WhiteHive 必须把托管、交付、验收、修改和争议处理做成一条完整流程。
+          </p>
+        </div>
+
+        <div class="flow-grid" id="flow-grid"></div>
+      </section>
+
+      <section class="section roadmap-section" id="roadmap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">从 0 到 1</p>
+            <h2>建议按这个顺序推进开发</h2>
+          </div>
+          <p class="section-summary">
+            先说明白卖什么、怎么交易、怎么验收，再补账号、支付和增长。这样团队和合作伙伴都更容易判断这是不是值得投入的方向。
+          </p>
+        </div>
+
+        <div class="roadmap-grid" id="roadmap-grid"></div>
+      </section>
+    </main>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+  </html>
