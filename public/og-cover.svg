@@ -1,0 +1,28 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#0A0B10"/>
+  <rect x="40" y="40" width="1120" height="550" rx="32" fill="url(#panel)" stroke="rgba(255,255,255,0.08)"/>
+  <circle cx="170" cy="136" r="58" fill="url(#glow)"/>
+  <circle cx="1012" cy="492" r="92" fill="url(#glow2)"/>
+  <path d="M155 120L191 156L155 192L119 156L155 120Z" fill="#7FD3FF"/>
+  <text x="240" y="180" fill="#F8FAFC" font-size="72" font-family="Inter, Arial, sans-serif" font-weight="700">WhiteHive</text>
+  <text x="240" y="246" fill="#A1A1AA" font-size="30" font-family="Inter, Arial, sans-serif">可信数字服务交易平台</text>
+  <text x="120" y="352" fill="#E4E4E7" font-size="42" font-family="Inter, Arial, sans-serif" font-weight="500">让服务更容易被理解</text>
+  <text x="120" y="408" fill="#E4E4E7" font-size="42" font-family="Inter, Arial, sans-serif" font-weight="500">让需求更结构化</text>
+  <text x="120" y="464" fill="#E4E4E7" font-size="42" font-family="Inter, Arial, sans-serif" font-weight="500">让交付真正可信</text>
+  <rect x="120" y="506" width="240" height="52" rx="26" fill="rgba(127,211,255,0.12)" stroke="rgba(127,211,255,0.32)"/>
+  <text x="154" y="539" fill="#9FDBFF" font-size="24" font-family="Inter, Arial, sans-serif">whitehive.cn</text>
+  <defs>
+    <linearGradient id="panel" x1="90" y1="78" x2="1118" y2="590" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#121622"/>
+      <stop offset="1" stop-color="#0D111A"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(170 136) rotate(90) scale(58)">
+      <stop stop-color="#7FD3FF" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#7FD3FF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1012 492) rotate(90) scale(92)">
+      <stop stop-color="#FBBF24" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#FBBF24" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+</svg>
