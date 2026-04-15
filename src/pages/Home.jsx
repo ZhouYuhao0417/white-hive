@@ -1,6 +1,5 @@
-import { useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { motion, useScroll, useTransform } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { Section, SectionHeader, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
 import {
@@ -19,7 +18,6 @@ function Hero() {
       <div className="absolute inset-0 bg-grid opacity-40 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" />
 
       <div className="relative mx-auto max-w-7xl px-6 lg:px-10">
-        {/* 放大的品牌 chip */}
         <motion.div
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
@@ -27,12 +25,11 @@ function Hero() {
           className="flex justify-center"
         >
           <span className="chip-hero">
-            <span className="h-2 w-2 rounded-full bg-[#F5C451] shadow-[0_0_12px_#F5C451]" />
+            <span className="h-2 w-2 rounded-full bg-[#7FD3FF] shadow-[0_0_12px_#7FD3FF]" />
             whitehive.cn · 可信数字服务交易平台
           </span>
         </motion.div>
 
-        {/* 主标题 */}
         <motion.h1
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
@@ -41,7 +38,7 @@ function Hero() {
         >
           把每一次线上合作,
           <br className="hidden sm:block" />
-          做成一件可以<span className="text-honey-gradient">被托付</span>的事。
+          做成一件可以<span className="text-cool-gradient">被托付</span>的事。
         </motion.h1>
 
         <motion.p
@@ -51,7 +48,7 @@ function Hero() {
           className="mt-6 max-w-2xl mx-auto text-center text-white/65 text-base md:text-lg leading-relaxed"
         >
           WhiteHive 面向青年创作者、自由职业者、学生卖家, 以及个人与小微团队买家。
-          让服务更容易被理解、让需求更结构化、让交付真正可信。
+          服务被结构化地描述, 需求被结构化地拆解, 交付被结构化地验收。
         </motion.p>
 
         {/* 买家入口 / 卖家入口 —— 双轨 CTA */}
@@ -77,7 +74,6 @@ function Hero() {
           </Link>
         </motion.div>
 
-        {/* 细节:三个信任徽章 */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -85,15 +81,15 @@ function Hero() {
           className="mt-12 flex items-center justify-center gap-6 text-[12px] text-white/45"
         >
           <span className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#F5C451]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[#7FD3FF]" />
             资金托管
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#7FD3FF]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[#A5B4FC]" />
             结构化需求
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#34D399]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[#5EEAD4]" />
             可验收交付
           </span>
         </motion.div>
@@ -103,11 +99,9 @@ function Hero() {
 }
 
 /* ============================================================
-   PopularCategories · 热门分类 (交易入口, 前置)
-   6 个主要方向 + 第 7 格 AI 精准匹配 (大横卡)
+   PopularCategories · 热门分类 (点击直达 /services/:slug)
    ============================================================ */
 function PopularCategories() {
-  // 只展示前 6 个 (web, design, resume, data, video, ai), 游戏代肝留在 /services 全集里
   const list = services.slice(0, 6)
   return (
     <Section className="!py-20 md:!py-24">
@@ -115,7 +109,7 @@ function PopularCategories() {
         <SectionHeader
           eyebrow="CATEGORIES · 热门分类"
           title="六个方向, 同一套结构。"
-          desc="每一个分类都按相同的字段设计: 交付物、适用对象、范围边界。点击进入对应分类详情。"
+          desc="每一个分类都有自己的商品陈列, 结构一致, 内容不同。点击任一卡片直接进入该分类的商品页面。"
         />
         <Link to="/services" className="btn-ghost text-sm">
           查看全部分类 <Icon name="arrow" size={16} />
@@ -126,7 +120,7 @@ function PopularCategories() {
         {list.map((s, i) => (
           <Reveal key={s.slug} delay={i * 0.05}>
             <Link
-              to={`/services#${s.slug}`}
+              to={`/services/${s.slug}`}
               className="card card-hover block p-6 h-full group relative overflow-hidden"
             >
               <div
@@ -161,10 +155,10 @@ function PopularCategories() {
                 ))}
               </div>
               <div
-                className="mt-5 flex items-center gap-2 text-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                className="mt-5 flex items-center gap-2 text-sm opacity-70 group-hover:opacity-100 transition-opacity"
                 style={{ color: s.color }}
               >
-                查看详情 <Icon name="arrow" size={14} />
+                进入商品陈列 <Icon name="arrow" size={14} />
               </div>
             </Link>
           </Reveal>
@@ -175,12 +169,12 @@ function PopularCategories() {
       <Reveal delay={0.1}>
         <div className="mt-4">
           <Link
-            to="/how-it-works"
+            to="/ai-match"
             className="card card-hover block p-7 md:p-9 relative overflow-hidden group"
             style={{
               background:
-                'linear-gradient(135deg, rgba(245,196,81,0.08) 0%, rgba(127,211,255,0.06) 100%)',
-              borderColor: 'rgba(245,196,81,0.30)',
+                'linear-gradient(135deg, rgba(127,211,255,0.08) 0%, rgba(165,180,252,0.06) 50%, rgba(94,234,212,0.06) 100%)',
+              borderColor: 'rgba(127,211,255,0.30)',
             }}
           >
             <div
@@ -188,16 +182,16 @@ function PopularCategories() {
               className="absolute inset-0 opacity-60"
               style={{
                 background:
-                  'radial-gradient(40% 60% at 100% 0%, rgba(245,196,81,0.18), transparent 60%), radial-gradient(40% 60% at 0% 100%, rgba(127,211,255,0.15), transparent 60%)',
+                  'radial-gradient(40% 60% at 100% 0%, rgba(127,211,255,0.20), transparent 60%), radial-gradient(40% 60% at 0% 100%, rgba(165,180,252,0.18), transparent 60%)',
               }}
             />
             <div className="relative flex flex-col md:flex-row items-start md:items-center gap-6">
               <div
                 className="h-14 w-14 rounded-2xl flex items-center justify-center shrink-0"
                 style={{
-                  background: 'rgba(245,196,81,0.14)',
-                  border: '1px solid rgba(245,196,81,0.45)',
-                  color: '#F5C451',
+                  background: 'rgba(127,211,255,0.14)',
+                  border: '1px solid rgba(127,211,255,0.45)',
+                  color: '#7FD3FF',
                 }}
               >
                 <Icon name="spark" size={26} />
@@ -205,10 +199,10 @@ function PopularCategories() {
               <div className="flex-1 min-w-0">
                 <div className="mono-label mb-1">AI MATCH · 07</div>
                 <div className="text-white font-medium text-xl leading-tight">
-                  没找到相关的服务? 试试 AI 精准匹配需求。
+                  没找到相关的服务? 用 AI 精准匹配需求。
                 </div>
                 <p className="mt-2 text-sm text-white/65 leading-relaxed max-w-2xl">
-                  把你想做的事直接告诉 AI, 它会理解你的意图、拆解需求, 并从全平台匹配到最合适的创作者
+                  把你的意图直接告诉 AI, 它会理解你想做的事、拆解关键字段, 并从全平台匹配最合适的创作者
                   —— 覆盖以上六个分类之外的长尾场景。
                 </p>
               </div>
@@ -217,7 +211,7 @@ function PopularCategories() {
                 <span className="chip">智能拆解</span>
                 <span className="chip">精准匹配</span>
               </div>
-              <div className="text-[#F5C451] hidden md:block">
+              <div className="text-[#7FD3FF] hidden md:block">
                 <Icon name="arrow" size={22} />
               </div>
             </div>
@@ -229,89 +223,84 @@ function PopularCategories() {
 }
 
 /* ============================================================
-   ProcessTimeline · 7 步流程 (Scroll-Triggered 顺序点亮)
+   ProcessTimeline · 7 步流程 (入场一次性级联点亮)
    ============================================================ */
-function StepCard({ step, index, progress, total }) {
-  const startAt = index / total
-  const endAt = (index + 0.6) / total
-  const stepOpacity = useTransform(progress, [startAt, endAt], [0.25, 1])
-  const stepY = useTransform(progress, [startAt, endAt], [18, 0])
-  const borderColor = useTransform(
-    progress,
-    [startAt, endAt],
-    ['rgba(255,255,255,0.08)', 'rgba(245,196,81,0.55)']
-  )
-  const bgColor = useTransform(
-    progress,
-    [startAt, endAt],
-    ['rgba(255,255,255,0.025)', 'rgba(245,196,81,0.08)']
-  )
-  const labelColor = useTransform(
-    progress,
-    [startAt, endAt],
-    ['#7FD3FF', '#F5C451']
-  )
-
-  return (
-    <motion.div style={{ opacity: stepOpacity, y: stepY }} className="relative">
-      <motion.div
-        style={{ borderColor, background: bgColor }}
-        className="h-[58px] rounded-xl border flex items-center justify-center"
-      >
-        <motion.span
-          style={{ color: labelColor }}
-          className="font-mono text-xs tracking-wider font-semibold"
-        >
-          STEP {step.k}
-        </motion.span>
-      </motion.div>
-      <div className="mt-3 text-sm text-white font-medium">{step.title}</div>
-      <div className="mt-1 text-xs text-white/50 leading-relaxed">{step.desc}</div>
-    </motion.div>
-  )
-}
-
 function ProcessTimeline() {
-  const ref = useRef(null)
-  const { scrollYProgress } = useScroll({
-    target: ref,
-    offset: ['start 0.85', 'end 0.4'],
-  })
-
-  // 连接线从左到右扫过
-  const lineScale = useTransform(scrollYProgress, [0, 1], [0, 1])
+  const container = {
+    hidden: {},
+    show: {
+      transition: {
+        staggerChildren: 0.14,
+        delayChildren: 0.05,
+      },
+    },
+  }
+  const item = {
+    hidden: { opacity: 0, y: 18 },
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.5, ease: [0.2, 0.8, 0.2, 1] },
+    },
+  }
+  const line = {
+    hidden: { scaleX: 0 },
+    show: {
+      scaleX: 1,
+      transition: { duration: 1.25, ease: [0.2, 0.8, 0.2, 1] },
+    },
+  }
 
   return (
     <Section className="!py-20 md:!py-24">
       <SectionHeader
         eyebrow="HOW IT WORKS · 交易流程"
         title="一次交易, 七个结构化节点。"
-        desc="从浏览服务到完成评价, 每一步都是一个明确的状态, 而不是一次模糊的聊天。往下滚, 看它一步一步点亮。"
+        desc="从浏览服务到完成评价, 每一步都是一个明确的状态, 而不是一次模糊的聊天。"
       />
 
-      <div ref={ref} className="mt-12 relative">
+      <motion.div
+        variants={container}
+        initial="hidden"
+        whileInView="show"
+        viewport={{ once: true, margin: '-80px' }}
+        className="mt-12 relative"
+      >
         {/* 背景线 */}
         <div className="absolute left-0 right-0 top-[29px] h-px bg-white/8 hidden lg:block" />
-        {/* 动画扫过的亮线 */}
+        {/* 动画扫过的亮线 (入场一次) */}
         <motion.div
-          style={{ scaleX: lineScale, transformOrigin: '0% 50%' }}
+          variants={line}
+          style={{ transformOrigin: '0% 50%' }}
           className="absolute left-0 right-0 top-[29px] h-px hidden lg:block"
         >
-          <div className="h-full w-full bg-gradient-to-r from-[#7FD3FF] via-[#F5C451] to-[#FBE29A]" />
+          <div className="h-full w-full bg-gradient-to-r from-[#7FD3FF] via-[#A5B4FC] to-[#5EEAD4]" />
         </motion.div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-          {steps.map((s, i) => (
-            <StepCard
-              key={s.k}
-              step={s}
-              index={i}
-              progress={scrollYProgress}
-              total={steps.length}
-            />
+          {steps.map((s) => (
+            <motion.div key={s.k} variants={item} className="relative">
+              <div
+                className="h-[58px] rounded-xl border flex items-center justify-center"
+                style={{
+                  borderColor: 'rgba(127,211,255,0.45)',
+                  background:
+                    'linear-gradient(180deg, rgba(127,211,255,0.10), rgba(165,180,252,0.04))',
+                }}
+              >
+                <span
+                  className="font-mono text-xs tracking-wider font-semibold"
+                  style={{ color: '#BEE6FF' }}
+                >
+                  STEP {s.k}
+                </span>
+              </div>
+              <div className="mt-3 text-sm text-white font-medium">{s.title}</div>
+              <div className="mt-1 text-xs text-white/50 leading-relaxed">{s.desc}</div>
+            </motion.div>
           ))}
         </div>
-      </div>
+      </motion.div>
 
       <div className="mt-12 flex justify-center">
         <Link to="/how-it-works" className="btn-ghost text-sm">
@@ -323,7 +312,7 @@ function ProcessTimeline() {
 }
 
 /* ============================================================
-   Problem → Solution · 主要信任内容 (双卡对齐)
+   Problem → Solution · 主要信任内容
    ============================================================ */
 function ProblemSolution() {
   const rowClass = 'min-h-[96px] flex items-start gap-4'
@@ -369,23 +358,23 @@ function ProblemSolution() {
             </ul>
           </div>
 
-          {/* 解法卡 —— 改为蜂蜜金主调 */}
+          {/* 解法卡 —— 冰蓝主调 */}
           <div
             className="card p-7 md:p-8 relative overflow-hidden"
             style={{
               background:
-                'linear-gradient(180deg, rgba(245,196,81,0.06), rgba(245,196,81,0.01))',
-              borderColor: 'rgba(245,196,81,0.30)',
+                'linear-gradient(180deg, rgba(127,211,255,0.07), rgba(165,180,252,0.02))',
+              borderColor: 'rgba(127,211,255,0.30)',
             }}
           >
-            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#F5C451]/55 to-transparent" />
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#7FD3FF]/55 to-transparent" />
             <div className="flex items-center gap-3 mb-7">
               <div
                 className="h-9 w-9 rounded-xl flex items-center justify-center"
                 style={{
-                  background: 'rgba(245,196,81,0.12)',
-                  border: '1px solid rgba(245,196,81,0.38)',
-                  color: '#F5C451',
+                  background: 'rgba(127,211,255,0.14)',
+                  border: '1px solid rgba(127,211,255,0.40)',
+                  color: '#7FD3FF',
                 }}
               >
                 <Icon name="check" size={16} />
@@ -401,16 +390,16 @@ function ProblemSolution() {
                   key={i}
                   className={`${rowClass} rounded-xl p-4`}
                   style={{
-                    background: 'rgba(245,196,81,0.05)',
-                    border: '1px solid rgba(245,196,81,0.22)',
+                    background: 'rgba(127,211,255,0.05)',
+                    border: '1px solid rgba(127,211,255,0.22)',
                   }}
                 >
                   <div
                     className="h-6 w-6 rounded-md flex items-center justify-center shrink-0 mt-[1px]"
                     style={{
-                      background: 'rgba(245,196,81,0.16)',
-                      border: '1px solid rgba(245,196,81,0.38)',
-                      color: '#F5C451',
+                      background: 'rgba(127,211,255,0.16)',
+                      border: '1px solid rgba(127,211,255,0.38)',
+                      color: '#7FD3FF',
                     }}
                   >
                     <Icon name="arrow" size={12} />
@@ -427,7 +416,6 @@ function ProblemSolution() {
           </div>
         </div>
 
-        {/* 指引到 /trust */}
         <div className="mt-8 flex justify-center">
           <Link to="/trust" className="btn-ghost text-sm">
             查看完整可信机制 · 6 大支柱 <Icon name="arrow" size={16} />
@@ -454,22 +442,22 @@ function VibeCoding() {
       k: '02',
       icon: 'wand',
       title: 'AI 生成初版交付',
-      desc: '调用平台的 Vibe Coding API, 用结构化的需求直接跑出一版可运行的成品。',
-      color: '#F5C451',
+      desc: '调用平台的 Vibe Coding API, 用结构化需求直接跑出一版可运行的成品。',
+      color: '#A5B4FC',
     },
     {
       k: '03',
       icon: 'check',
       title: '满意? 直接结算。',
-      desc: '如果初版已经达到你的预期, 可以直接付款收走, 省去一轮人工沟通。',
-      color: '#34D399',
+      desc: '如果初版已经达到预期, 可以直接付款收走, 省去一轮人工沟通。',
+      color: '#5EEAD4',
     },
     {
       k: '04',
       icon: 'route',
       title: '不满意? AI 精准匹配卖家。',
       desc: '平台根据已经说清的需求和初版反馈, 挑出最契合的真人卖家继续打磨。',
-      color: '#FBE29A',
+      color: '#C7D2FE',
     },
   ]
   return (
@@ -477,7 +465,7 @@ function VibeCoding() {
       <SectionHeader
         eyebrow="VIBE CODING · AI 辅助交付"
         title="当你需要的是一段代码、一页设计、一份文档。"
-        desc="Vibe Coding 在国内还不算流行。WhiteHive 想做的是: 把它做成一个人人都能用、而且用得放心的入口。"
+        desc="WhiteHive 把 Vibe Coding 做成了一个人人都能用、而且用得放心的入口: 先让 AI 跑一版, 不行再交给真人。"
       />
       <Reveal>
         <div className="mt-12 relative card p-8 md:p-10 overflow-hidden">
@@ -486,7 +474,7 @@ function VibeCoding() {
             className="absolute inset-0 opacity-60"
             style={{
               background:
-                'radial-gradient(60% 70% at 100% 0%, rgba(245,196,81,0.14), transparent 60%), radial-gradient(50% 60% at 0% 100%, rgba(127,211,255,0.14), transparent 60%)',
+                'radial-gradient(60% 70% at 100% 0%, rgba(127,211,255,0.16), transparent 60%), radial-gradient(50% 60% at 0% 100%, rgba(165,180,252,0.14), transparent 60%)',
             }}
           />
           <div className="relative grid md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -538,7 +526,7 @@ function VibeCoding() {
               <span className="chip">文档生成</span>
               <span className="chip">内容初稿</span>
             </div>
-            <Link to="/how-it-works" className="btn-ghost text-sm">
+            <Link to="/ai-match" className="btn-ghost text-sm">
               试试 AI 引导式提交 <Icon name="arrow" size={16} />
             </Link>
           </div>
@@ -549,7 +537,7 @@ function VibeCoding() {
 }
 
 /* ============================================================
-   ValueProps · 核心价值 (放到后半段作为品牌叙事)
+   ValueProps · 核心价值
    ============================================================ */
 function ValueProps() {
   const items = [
@@ -561,19 +549,19 @@ function ValueProps() {
     },
     {
       icon: 'shield',
-      color: '#F5C451',
+      color: '#A5B4FC',
       title: '前置化的信任治理',
       desc: '纠纷防控、版权保护、合规边界, 全部在交易开始前就已建立。',
     },
     {
       icon: 'vault',
-      color: '#34D399',
+      color: '#5EEAD4',
       title: '可追溯的交易流程',
       desc: '从下单到验收, 每一步都有记录, 关键节点支持上链存证。',
     },
     {
       icon: 'spark',
-      color: '#FBE29A',
+      color: '#C7D2FE',
       title: '像产品一样的体验',
       desc: 'WhiteHive 不是一个接单广场, 而是一个成熟产品化的交易环境。',
     },
@@ -583,7 +571,7 @@ function ValueProps() {
       <SectionHeader
         eyebrow="CORE VALUE · 核心价值"
         title="我们在解决一个真实存在的问题。"
-        desc="线上数字服务的交易, 长期依赖聊天、转账和个人信誉。我们想把这件事做成产品。"
+        desc="线上数字服务的交易, 过去依赖聊天、转账和个人信誉。WhiteHive 把它重做成了一个结构化的产品。"
       />
       <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {items.map((it, i) => (
@@ -610,7 +598,7 @@ function ValueProps() {
 }
 
 /* ============================================================
-   UseCases · 真实场景
+   UseCases
    ============================================================ */
 function UseCasesSection() {
   return (
@@ -648,7 +636,7 @@ function CTA() {
             className="absolute inset-0 opacity-60"
             style={{
               background:
-                'radial-gradient(60% 70% at 80% 0%, rgba(245,196,81,0.22), transparent 60%), radial-gradient(50% 60% at 0% 100%, rgba(127,211,255,0.14), transparent 60%)',
+                'radial-gradient(60% 70% at 80% 0%, rgba(127,211,255,0.22), transparent 60%), radial-gradient(50% 60% at 0% 100%, rgba(165,180,252,0.18), transparent 60%)',
             }}
           />
           <div className="relative grid lg:grid-cols-2 gap-10 items-center">
@@ -660,8 +648,8 @@ function CTA() {
                 都不再依赖运气。
               </h3>
               <p className="mt-5 text-white/65 max-w-lg leading-relaxed">
-                无论你是想把事情做成的买家, 还是想把技能变成稳定收入的创作者,
-                WhiteHive 都会陪你走完第一步。
+                无论你是要把事情做成的买家, 还是要把技能变成稳定收入的创作者,
+                WhiteHive 都提供一整套结构化的工具和流程。
               </p>
             </div>
             <div className="flex flex-col sm:flex-row lg:justify-end gap-3">
@@ -680,22 +668,17 @@ function CTA() {
 }
 
 /* ============================================================
-   页面装配 —— 交易模块前置
+   页面装配
    ============================================================ */
 export default function Home() {
   return (
     <>
       <Hero />
       <div className="divider-line mx-auto max-w-7xl" />
-      {/* 交易入口前置 */}
       <PopularCategories />
-      {/* 主要交付流程(动画) */}
       <ProcessTimeline />
-      {/* 主要可信内容 */}
       <ProblemSolution />
-      {/* AI 辅助亮点 */}
       <VibeCoding />
-      {/* 品牌叙事放后面 */}
       <ValueProps />
       <UseCasesSection />
       <CTA />

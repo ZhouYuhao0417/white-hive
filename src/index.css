@@ -4,16 +4,17 @@
 
 :root {
   color-scheme: dark;
-  /* —— WhiteHive 统一配色 —— */
+  /* —— WhiteHive 统一配色 (冷色系, 更现代产品感) —— */
   --ink-900: #0A0B10;
   --ink-800: #0F111A;
   --ink-700: #141826;
-  --brand:   #7FD3FF;   /* 冰蓝 */
-  --brand-2: #9FDBFF;
-  --honey:   #F5C451;   /* 蜂蜜金 · 主 accent */
-  --honey-2: #FBE29A;
-  --honey-3: #E0A52E;
-  --cream:   #F8E9BF;
+  --brand:   #7FD3FF;   /* 冰蓝 · 主 */
+  --brand-2: #BEE6FF;
+  --brand-3: #4FBFF5;
+  --indigo:  #A5B4FC;   /* 柔 indigo · 辅 */
+  --indigo-2:#C7D2FE;
+  --mint:    #5EEAD4;   /* 薄荷 · 点缀 */
+  --mint-2:  #99F6E4;
 }
 
 html, body, #root {
@@ -28,7 +29,7 @@ body {
 }
 
 ::selection {
-  background: rgba(245, 196, 81, 0.30);
+  background: rgba(127, 211, 255, 0.30);
   color: #fff;
 }
 
@@ -53,8 +54,9 @@ body {
   inset: -20% -10% auto -10%;
   height: 90%;
   background:
-    radial-gradient(55% 55% at 50% 0%, rgba(127,211,255,0.16), transparent 70%),
-    radial-gradient(40% 40% at 70% 30%, rgba(245,196,81,0.10), transparent 70%);
+    radial-gradient(55% 55% at 50% 0%, rgba(127,211,255,0.18), transparent 70%),
+    radial-gradient(40% 40% at 70% 30%, rgba(165,180,252,0.12), transparent 70%),
+    radial-gradient(45% 45% at 20% 40%, rgba(94,234,212,0.08), transparent 70%);
   pointer-events: none;
 }
 
@@ -76,8 +78,8 @@ body {
 }
 .card-hover:hover {
   transform: translateY(-3px);
-  border-color: rgba(245,196,81,0.35);
-  background: linear-gradient(180deg, rgba(245,196,81,0.06), rgba(255,255,255,0.02));
+  border-color: rgba(127,211,255,0.32);
+  background: linear-gradient(180deg, rgba(127,211,255,0.06), rgba(165,180,252,0.03));
 }
 
 /* —— Chip (default 小) —— */
@@ -94,7 +96,7 @@ body {
   letter-spacing: 0.04em;
 }
 
-/* Hero chip —— 放大版, 蜂蜜描边 */
+/* Hero chip —— 放大版, 冰蓝描边 */
 .chip-hero {
   display: inline-flex;
   align-items: center;
@@ -102,13 +104,13 @@ body {
   padding: 10px 20px;
   border-radius: 999px;
   background:
-    linear-gradient(180deg, rgba(245,196,81,0.12), rgba(245,196,81,0.04));
-  border: 1px solid rgba(245,196,81,0.38);
-  color: #FFE6A8;
+    linear-gradient(180deg, rgba(127,211,255,0.12), rgba(165,180,252,0.04));
+  border: 1px solid rgba(127,211,255,0.38);
+  color: #D6EEFF;
   font-size: 14px;
   font-weight: 500;
   letter-spacing: 0.03em;
-  box-shadow: 0 8px 30px -12px rgba(245,196,81,0.35);
+  box-shadow: 0 8px 30px -12px rgba(127,211,255,0.35);
 }
 
 /* Mono label */
@@ -116,7 +118,7 @@ body {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(255, 229, 168, 0.80);
+  color: rgba(190, 230, 255, 0.80);
   font-size: 11px;
 }
 
@@ -127,19 +129,19 @@ body {
   gap: 8px;
   padding: 12px 22px;
   border-radius: 12px;
-  background: linear-gradient(180deg, #FBE29A, #F5C451);
-  color: #1A1405;
+  background: linear-gradient(180deg, #BEE6FF, #7FD3FF);
+  color: #04131F;
   font-weight: 600;
   box-shadow:
-    0 12px 40px -16px rgba(245,196,81,0.55),
-    0 0 0 1px rgba(245,196,81,0.45) inset;
+    0 12px 40px -16px rgba(127,211,255,0.55),
+    0 0 0 1px rgba(127,211,255,0.50) inset;
   transition: transform .2s ease, box-shadow .2s ease;
 }
 .btn-primary:hover {
   transform: translateY(-1px);
   box-shadow:
-    0 14px 40px -14px rgba(245,196,81,0.70),
-    0 0 0 1px rgba(245,196,81,0.55) inset;
+    0 14px 40px -14px rgba(127,211,255,0.70),
+    0 0 0 1px rgba(127,211,255,0.60) inset;
 }
 
 .btn-brand {
@@ -148,11 +150,11 @@ body {
   gap: 8px;
   padding: 12px 22px;
   border-radius: 12px;
-  background: linear-gradient(180deg, #9FDBFF, #4FBFF5);
-  color: #05121C;
+  background: linear-gradient(180deg, #C7D2FE, #A5B4FC);
+  color: #0C0E24;
   font-weight: 600;
-  box-shadow: 0 10px 40px -16px rgba(127,211,255,0.55),
-              0 0 0 1px rgba(127,211,255,0.35) inset;
+  box-shadow: 0 12px 40px -16px rgba(165,180,252,0.60),
+              0 0 0 1px rgba(165,180,252,0.45) inset;
   transition: transform .2s ease, box-shadow .2s ease;
 }
 .btn-brand:hover { transform: translateY(-1px); }
@@ -169,17 +171,25 @@ body {
   transition: border-color .2s ease, background .2s ease;
 }
 .btn-ghost:hover {
-  border-color: rgba(245,196,81,0.35);
-  background: rgba(245,196,81,0.05);
+  border-color: rgba(127,211,255,0.35);
+  background: rgba(127,211,255,0.05);
 }
 
-/* —— 高亮文字:蜂蜜色渐变 —— */
-.text-honey-gradient {
-  background: linear-gradient(180deg, #FBE29A 0%, #F5C451 55%, #E0A52E 100%);
+/* —— 高亮文字:冷色渐变 (冰蓝 → 柔紫 → 薄荷) —— */
+.text-cool-gradient {
+  background: linear-gradient(100deg, #BEE6FF 0%, #A5B4FC 50%, #5EEAD4 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  text-shadow: 0 0 40px rgba(245,196,81,0.25);
+  text-shadow: 0 0 40px rgba(127,211,255,0.22);
+}
+/* 兼容旧引用 */
+.text-honey-gradient {
+  background: linear-gradient(100deg, #BEE6FF 0%, #A5B4FC 50%, #5EEAD4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 40px rgba(127,211,255,0.22);
 }
 
 /* Utility: dotted divider */

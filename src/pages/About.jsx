@@ -32,7 +32,7 @@ export default function About() {
         <SectionHeader
           eyebrow="ABOUT · 关于我们"
           title="线上交易，值得被重新设计一次。"
-          desc="WhiteHive 来自一个很朴素的观察 —— 大多数线上数字服务的交易，是在聊天窗口和转账截图之间完成的。我们想把它做成一个更像产品的东西。"
+          desc="WhiteHive 来自一个很朴素的观察 —— 大多数线上数字服务的交易，长期停留在聊天窗口和转账截图之间。我们把它重新做成了一个有结构、有治理、有证据的产品。"
         />
       </Section>
 
@@ -65,8 +65,8 @@ export default function About() {
                 都有据可查、有章可依。
               </h3>
               <p className="mt-6 text-white/60 leading-relaxed">
-                我们不想做最大的接单平台，而是想做最可信的那个。
-                WhiteHive 每一版的迭代，都只围绕一个问题 —— 这次合作怎么才能更可靠。
+                WhiteHive 不追求做最大的接单平台，而是专注做最可信的那个。
+                每一次版本迭代，都只围绕一个问题 —— 这次合作怎么才能更可靠。
               </p>
             </div>
           </Reveal>

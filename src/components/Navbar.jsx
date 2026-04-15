@@ -7,6 +7,7 @@ import { Icon } from './Icons.jsx'
 const links = [
   { to: '/', label: '首页' },
   { to: '/services', label: '服务' },
+  { to: '/ai-match', label: 'AI 匹配', badge: 'NEW' },
   { to: '/trust', label: '可信机制' },
   { to: '/how-it-works', label: '流程' },
   { to: '/about', label: '关于' },
@@ -45,7 +46,7 @@ export default function Navbar() {
                 to={l.to}
                 end={l.to === '/'}
                 className={({ isActive }) =>
-                  `px-3.5 py-2 rounded-lg text-sm transition-colors ${
+                  `px-3.5 py-2 rounded-lg text-sm transition-colors inline-flex items-center gap-1.5 ${
                     isActive
                       ? 'text-white bg-white/5'
                       : 'text-white/65 hover:text-white hover:bg-white/5'
@@ -53,6 +54,11 @@ export default function Navbar() {
                 }
               >
                 {l.label}
+                {l.badge && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-sm font-semibold tracking-wider bg-[#7FD3FF]/15 border border-[#7FD3FF]/40 text-[#BEE6FF]">
+                    {l.badge}
+                  </span>
+                )}
               </NavLink>
             ))}
           </nav>

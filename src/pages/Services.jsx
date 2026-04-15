@@ -75,11 +75,11 @@ function ServiceCard({ s, index }) {
 
         <div className="mt-auto pt-6">
           <Link
-            to="/how-it-works"
+            to={`/services/${s.slug}`}
             className="inline-flex items-center gap-2 text-sm transition-opacity hover:opacity-80"
             style={{ color: s.color }}
           >
-            以此分类提交需求 <Icon name="arrow" size={14} />
+            进入该分类的商品陈列 <Icon name="arrow" size={14} />
           </Link>
         </div>
       </div>
@@ -99,9 +99,9 @@ export default function Services() {
     // 等 Reveal 出现再滚
     const t = setTimeout(() => {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      el.classList.add('ring-2', 'ring-[#F5C451]/60', 'ring-offset-0')
+      el.classList.add('ring-2', 'ring-[#7FD3FF]/60', 'ring-offset-0')
       setTimeout(
-        () => el.classList.remove('ring-2', 'ring-[#F5C451]/60', 'ring-offset-0'),
+        () => el.classList.remove('ring-2', 'ring-[#7FD3FF]/60', 'ring-offset-0'),
         2400
       )
     }, 250)
