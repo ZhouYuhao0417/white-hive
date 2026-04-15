@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { Section, SectionHeader, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
 import { services } from '../data/services.js'
@@ -6,10 +7,15 @@ import { services } from '../data/services.js'
 function ServiceCard({ s, index }) {
   return (
     <Reveal delay={index * 0.05}>
-      <div className="card card-hover p-8 h-full flex flex-col relative overflow-hidden">
+      <div
+        id={s.slug}
+        className="card card-hover p-8 h-full flex flex-col relative overflow-hidden scroll-mt-28"
+      >
         <div
           className="absolute inset-x-0 top-0 h-px"
-          style={{ background: `linear-gradient(to right, transparent, ${s.color}, transparent)` }}
+          style={{
+            background: `linear-gradient(to right, transparent, ${s.color}, transparent)`,
+          }}
         />
         <div className="flex items-center justify-between">
           <div
@@ -48,7 +54,10 @@ function ServiceCard({ s, index }) {
           <div className="mono-label mb-3">DELIVERABLES</div>
           <ul className="space-y-2">
             {s.deliverables.map((d) => (
-              <li key={d} className="flex items-start gap-2 text-sm text-white/70">
+              <li
+                key={d}
+                className="flex items-start gap-2 text-sm text-white/70"
+              >
                 <span
                   className="mt-[6px] h-1 w-1 rounded-full shrink-0"
                   style={{ background: s.color }}
@@ -79,13 +88,33 @@ function ServiceCard({ s, index }) {
 }
 
 export default function Services() {
+  const { hash } = useLocation()
+
+  // 支持 /services#<slug> 自动滚动并短暂高亮
+  useEffect(() => {
+    if (!hash) return
+    const id = hash.replace('#', '')
+    const el = document.getElementById(id)
+    if (!el) return
+    // 等 Reveal 出现再滚
+    const t = setTimeout(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      el.classList.add('ring-2', 'ring-[#F5C451]/60', 'ring-offset-0')
+      setTimeout(
+        () => el.classList.remove('ring-2', 'ring-[#F5C451]/60', 'ring-offset-0'),
+        2400
+      )
+    }, 250)
+    return () => clearTimeout(t)
+  }, [hash])
+
   return (
     <>
       <Section className="pt-32 md:pt-36">
         <SectionHeader
           eyebrow="SERVICES"
           title="结构化的服务分类。"
-          desc="每一个分类都用相同的字段描述：适用对象、交付物、示例场景。降低信息不对称，是 WhiteHive 的第一步。"
+          desc="每一个分类都用相同的字段描述: 适用对象、交付物、示例场景。降低信息不对称, 是 WhiteHive 的第一步。"
         />
       </Section>
 
@@ -105,18 +134,18 @@ export default function Services() {
               className="absolute inset-0 opacity-50"
               style={{
                 background:
-                  'radial-gradient(50% 60% at 100% 0%, rgba(127,211,255,0.16), transparent 60%)',
+                  'radial-gradient(50% 60% at 100% 0%, rgba(245,196,81,0.14), transparent 60%)',
               }}
             />
             <div className="relative grid lg:grid-cols-2 gap-8 items-center">
               <div>
                 <div className="mono-label mb-3">NOT FOUND?</div>
                 <h3 className="text-2xl md:text-3xl font-semibold text-white leading-tight">
-                  没找到合适的分类？
+                  没找到合适的分类?
                 </h3>
                 <p className="mt-4 text-white/60 leading-relaxed max-w-lg">
                   WhiteHive 的分类会随着真实需求持续演化。
-                  把你的需求告诉我们，我们会把它纳入新的分类体系中。
+                  把你的需求告诉我们, 我们会把它纳入新的分类体系中。
                 </p>
               </div>
               <div className="flex lg:justify-end gap-3">

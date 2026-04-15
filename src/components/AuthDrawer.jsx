@@ -58,11 +58,11 @@ export default function AuthDrawer({ open, onClose }) {
           {/* drawer */}
           <motion.aside
             key="drawer"
-            initial={{ x: '-100%' }}
+            initial={{ x: '100%' }}
             animate={{ x: 0 }}
-            exit={{ x: '-100%' }}
+            exit={{ x: '100%' }}
             transition={{ type: 'tween', ease: [0.2, 0.8, 0.2, 1], duration: 0.4 }}
-            className="fixed top-0 left-0 bottom-0 z-[90] w-[88%] max-w-[380px] bg-ink-900 border-r border-white/8 flex flex-col"
+            className="fixed top-0 right-0 bottom-0 z-[90] w-[88%] max-w-[400px] bg-ink-900 border-l border-white/8 flex flex-col"
           >
             {/* top */}
             <div className="flex items-center justify-between px-6 h-16 border-b border-white/5">
