@@ -3,7 +3,7 @@
 WhiteHive now has two storage modes:
 
 - Memory demo mode: no database URL; safe for UI demos, but data can reset.
-- Postgres mode: a database URL exists; users, sessions, orders, services, messages, mock payments and verification requests persist.
+- Postgres mode: a database URL exists; users, sessions, email verification codes, orders, services, messages, mock payments and verification requests persist.
 
 ## Recommended Provider
 

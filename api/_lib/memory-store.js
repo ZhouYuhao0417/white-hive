@@ -1,14 +1,18 @@
 import { createId, nowIso } from './ids.js'
 import {
+  createEmailVerificationCode,
   createSessionToken,
+  emailVerificationExpiresAt,
   hashPassword,
   hashToken,
   sanitizeProfileInput,
   sessionExpiresAt,
+  validateEmailVerificationCode,
   validateEmail,
   validatePassword,
   verifyPassword,
 } from './auth.js'
+import { sendEmailVerification } from './email.js'
 import {
   seedMessages,
   seedOrders,
@@ -56,6 +60,7 @@ function createMemoryState() {
     orders: clone(seedOrders),
     payments: clone(seedPayments),
     verificationRequests: clone(seedVerificationRequests),
+    emailVerificationTokens: [],
     messages: clone(seedMessages),
     sessions: [],
   }
@@ -69,13 +74,22 @@ function getState() {
 }
 
 export function storeInfo() {
+  const hasDatabaseEnv = Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.STORAGES_URL)
   return {
-    driver: process.env.DATABASE_URL ? 'database-pending' : 'memory',
+    driver: hasDatabaseEnv ? 'database-pending' : 'memory',
     persistent: false,
-    note: process.env.DATABASE_URL
-      ? 'DATABASE_URL 已存在，但当前 MVP 仍使用内存适配器；下一步接 Postgres。'
-      : '未配置 DATABASE_URL，当前使用内存种子数据，适合演示和接口联调。',
-    capabilities: ['password_auth', 'sessions', 'orders', 'messages', 'mock_payments', 'verification_requests'],
+    note: hasDatabaseEnv
+      ? '数据库连接变量已存在，但当前 MVP 仍使用内存适配器；下一步接 Postgres。'
+      : '未配置数据库连接变量，当前使用内存种子数据，适合演示和接口联调。',
+    capabilities: [
+      'password_auth',
+      'sessions',
+      'email_verification',
+      'orders',
+      'messages',
+      'mock_payments',
+      'verification_requests',
+    ],
   }
 }
 
@@ -115,6 +129,7 @@ export function upsertDemoSession(input = {}) {
       schoolOrCompany: profile.schoolOrCompany,
       city: profile.city,
       bio: profile.bio,
+      emailVerifiedAt: null,
       passwordHash: hashPassword(password),
       createdAt: nowIso(),
       updatedAt: nowIso(),
@@ -153,6 +168,95 @@ export function getSessionByToken(token) {
       tokenType: 'Bearer',
       expiresAt: session.expiresAt,
       mode: 'password',
+    },
+  })
+}
+
+export async function requestEmailVerification(token) {
+  const session = getSessionByToken(token)
+  const user = ensureUser(session.user.id)
+
+  if (user.emailVerifiedAt) {
+    return clone({
+      user: publicUser(user),
+      emailVerification: {
+        status: 'verified',
+        email: user.email,
+        expiresAt: null,
+        delivery: null,
+      },
+    })
+  }
+
+  const code = createEmailVerificationCode()
+  const createdAt = nowIso()
+  const expiresAt = emailVerificationExpiresAt()
+  const delivery = await sendEmailVerification({ to: user.email, code })
+
+  getState().emailVerificationTokens.unshift({
+    id: createId('evt'),
+    userId: user.id,
+    email: user.email,
+    codeHash: hashToken(code),
+    createdAt,
+    expiresAt,
+    usedAt: null,
+  })
+
+  return clone({
+    user: publicUser(user),
+    emailVerification: {
+      status: 'pending',
+      email: user.email,
+      expiresAt,
+      delivery,
+      mockCode: delivery.mock ? code : undefined,
+    },
+  })
+}
+
+export function confirmEmailVerification(token, input = {}) {
+  const session = getSessionByToken(token)
+  const user = ensureUser(session.user.id)
+
+  if (user.emailVerifiedAt) {
+    return clone({
+      user: publicUser(user),
+      emailVerification: {
+        status: 'verified',
+        email: user.email,
+        verifiedAt: user.emailVerifiedAt,
+      },
+    })
+  }
+
+  const code = validateEmailVerificationCode(input.code)
+  const codeHash = hashToken(code)
+  const now = new Date()
+  const challenge = getState().emailVerificationTokens.find(
+    (item) =>
+      item.userId === user.id &&
+      item.email === user.email &&
+      item.codeHash === codeHash &&
+      !item.usedAt &&
+      new Date(item.expiresAt) > now,
+  )
+
+  if (!challenge) {
+    throw new HttpError(400, 'invalid_email_code', '验证码不正确或已过期，请重新发送。')
+  }
+
+  const verifiedAt = nowIso()
+  challenge.usedAt = verifiedAt
+  user.emailVerifiedAt = verifiedAt
+  user.updatedAt = verifiedAt
+
+  return clone({
+    user: publicUser(user),
+    emailVerification: {
+      status: 'verified',
+      email: user.email,
+      verifiedAt,
     },
   })
 }
@@ -585,6 +689,8 @@ function publicUser(user) {
     verificationStatus: verificationStatuses.includes(user.verificationStatus)
       ? user.verificationStatus
       : 'unverified',
+    emailVerified: Boolean(user.emailVerifiedAt),
+    emailVerifiedAt: user.emailVerifiedAt || null,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt || user.createdAt,
   }

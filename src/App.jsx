@@ -1,5 +1,6 @@
 import { Routes, Route, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
+import { AuthProvider } from './lib/auth.jsx'
 import Navbar from './components/Navbar.jsx'
 import Footer from './components/Footer.jsx'
 import Background from './components/Background.jsx'
@@ -10,6 +11,7 @@ import AIMatch from './pages/AIMatch.jsx'
 import Sell from './pages/Sell.jsx'
 import OrderDetail from './pages/OrderDetail.jsx'
 import Dashboard from './pages/Dashboard.jsx'
+import Account from './pages/Account.jsx'
 import Trust from './pages/Trust.jsx'
 import HowItWorks from './pages/HowItWorks.jsx'
 import About from './pages/About.jsx'
@@ -21,6 +23,7 @@ const titles = {
   '/ai-match': 'AI 精准匹配 · WhiteHive',
   '/sell': '开设服务 · WhiteHive',
   '/dashboard': '工作台 · WhiteHive',
+  '/account': '账号与认证 · WhiteHive',
   '/orders': '订单详情 · WhiteHive',
   '/trust': '可信机制 · WhiteHive',
   '/how-it-works': '交易流程 · WhiteHive',
@@ -48,6 +51,7 @@ export default function App() {
   }, [location.pathname])
 
   return (
+    <AuthProvider>
     <div className="relative min-h-screen flex flex-col bg-ink-900 text-white overflow-x-hidden">
       <Background />
       <div className="relative z-10 flex flex-col flex-1 min-h-screen">
@@ -60,6 +64,7 @@ export default function App() {
           <Route path="/ai-match" element={<AIMatch />} />
           <Route path="/sell" element={<Sell />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/account" element={<Account />} />
           <Route path="/orders/:id" element={<OrderDetail />} />
           <Route path="/trust" element={<Trust />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
@@ -71,5 +76,6 @@ export default function App() {
       <Footer />
       </div>
     </div>
+    </AuthProvider>
   )
 }

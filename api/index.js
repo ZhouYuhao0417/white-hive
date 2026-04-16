@@ -5,6 +5,7 @@ import {
   createOrder,
   createPayment,
   createService,
+  confirmEmailVerification,
   getDemoUser,
   getOrder,
   getPayment,
@@ -15,6 +16,7 @@ import {
   listOrders,
   listPayments,
   listServices,
+  requestEmailVerification,
   reviewVerification,
   storeInfo,
   submitVerification,
@@ -110,6 +112,26 @@ export default {
         }
 
         return methodNotAllowed(request.method, ['GET', 'PATCH'])
+      }
+
+      if (path === 'auth/email-verification') {
+        const token = bearerToken(request)
+
+        if (request.method === 'GET' || request.method === 'POST') {
+          return ok(await requestEmailVerification(token))
+        }
+
+        return methodNotAllowed(request.method, ['GET', 'POST'])
+      }
+
+      if (path === 'auth/email-verification/confirm') {
+        if (request.method === 'POST') {
+          const token = bearerToken(request)
+          const body = await readBody(request)
+          return ok(await confirmEmailVerification(token, body))
+        }
+
+        return methodNotAllowed(request.method, ['POST'])
       }
 
       if (path === 'services') {

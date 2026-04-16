@@ -57,6 +57,14 @@ export function getSessionByToken(token) {
   return callStore('getSessionByToken', [token])
 }
 
+export function requestEmailVerification(token) {
+  return callStore('requestEmailVerification', [token])
+}
+
+export function confirmEmailVerification(token, input) {
+  return callStore('confirmEmailVerification', [token, input])
+}
+
 export function updateUserProfile(token, input) {
   return callStore('updateUserProfile', [token, input])
 }

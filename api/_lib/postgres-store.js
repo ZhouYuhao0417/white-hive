@@ -1,15 +1,19 @@
 import { neon } from '@neondatabase/serverless'
 import { createId, nowIso } from './ids.js'
 import {
+  createEmailVerificationCode,
   createSessionToken,
+  emailVerificationExpiresAt,
   hashPassword,
   hashToken,
   sanitizeProfileInput,
   sessionExpiresAt,
+  validateEmailVerificationCode,
   validateEmail,
   validatePassword,
   verifyPassword,
 } from './auth.js'
+import { sendEmailVerification } from './email.js'
 import {
   seedMessages,
   seedOrders,
@@ -101,6 +105,7 @@ async function migrateAndSeed() {
       school_or_company text not null default '',
       city text not null default '',
       bio text not null default '',
+      email_verified_at timestamptz,
       updated_at timestamptz not null default now(),
       created_at timestamptz not null default now()
     )
@@ -111,6 +116,7 @@ async function migrateAndSeed() {
   await db`alter table users add column if not exists school_or_company text not null default ''`
   await db`alter table users add column if not exists city text not null default ''`
   await db`alter table users add column if not exists bio text not null default ''`
+  await db`alter table users add column if not exists email_verified_at timestamptz`
   await db`alter table users add column if not exists updated_at timestamptz not null default now()`
 
   await db`
@@ -210,6 +216,18 @@ async function migrateAndSeed() {
     )
   `
 
+  await db`
+    create table if not exists email_verification_tokens (
+      id text primary key,
+      user_id text not null references users(id) on delete cascade,
+      email text not null,
+      code_hash text not null,
+      created_at timestamptz not null default now(),
+      expires_at timestamptz not null,
+      used_at timestamptz
+    )
+  `
+
   await db`create index if not exists services_category_status_idx on services(category, status)`
   await db`create index if not exists sessions_user_idx on sessions(user_id, expires_at)`
   await db`create index if not exists sessions_token_hash_idx on sessions(token_hash)`
@@ -218,6 +236,7 @@ async function migrateAndSeed() {
   await db`create index if not exists payments_order_idx on payments(order_id, created_at)`
   await db`create index if not exists messages_order_idx on messages(order_id, created_at)`
   await db`create index if not exists verification_requests_user_idx on verification_requests(user_id, created_at)`
+  await db`create index if not exists email_verification_tokens_user_idx on email_verification_tokens(user_id, expires_at)`
 
   await seedDatabase(db)
 }
@@ -303,7 +322,15 @@ export async function storeInfo() {
     driver: 'neon-postgres',
     persistent: true,
     note: `${databaseUrlSource} 已配置，当前 API 使用 Postgres 持久化存储。`,
-    capabilities: ['password_auth', 'sessions', 'orders', 'messages', 'mock_payments', 'verification_requests'],
+    capabilities: [
+      'password_auth',
+      'sessions',
+      'email_verification',
+      'orders',
+      'messages',
+      'mock_payments',
+      'verification_requests',
+    ],
   }
 }
 
@@ -402,6 +429,99 @@ export async function getSessionByToken(token) {
       tokenType: 'Bearer',
       expiresAt: toIso(rows[0].session_expires_at),
       mode: 'password',
+    },
+  }
+}
+
+export async function requestEmailVerification(token) {
+  const current = await getSessionByToken(token)
+  const user = await ensureUser(current.user.id)
+
+  if (user.emailVerifiedAt) {
+    return {
+      user: publicUser(user),
+      emailVerification: {
+        status: 'verified',
+        email: user.email,
+        expiresAt: null,
+        delivery: null,
+      },
+    }
+  }
+
+  const code = createEmailVerificationCode()
+  const createdAt = nowIso()
+  const expiresAt = emailVerificationExpiresAt()
+  const delivery = await sendEmailVerification({ to: user.email, code })
+
+  await query`
+    insert into email_verification_tokens (id, user_id, email, code_hash, created_at, expires_at)
+    values (${createId('evt')}, ${user.id}, ${user.email}, ${hashToken(code)}, ${createdAt}, ${expiresAt})
+  `
+
+  return {
+    user: publicUser(user),
+    emailVerification: {
+      status: 'pending',
+      email: user.email,
+      expiresAt,
+      delivery,
+      mockCode: delivery.mock ? code : undefined,
+    },
+  }
+}
+
+export async function confirmEmailVerification(token, input = {}) {
+  const current = await getSessionByToken(token)
+  const user = await ensureUser(current.user.id)
+
+  if (user.emailVerifiedAt) {
+    return {
+      user: publicUser(user),
+      emailVerification: {
+        status: 'verified',
+        email: user.email,
+        verifiedAt: user.emailVerifiedAt,
+      },
+    }
+  }
+
+  const code = validateEmailVerificationCode(input.code)
+  const rows = await query`
+    select * from email_verification_tokens
+    where user_id = ${user.id}
+      and email = ${user.email}
+      and code_hash = ${hashToken(code)}
+      and used_at is null
+      and expires_at > now()
+    order by created_at desc
+    limit 1
+  `
+
+  if (!rows[0]) {
+    throw new HttpError(400, 'invalid_email_code', '验证码不正确或已过期，请重新发送。')
+  }
+
+  const verifiedAt = nowIso()
+  await query`
+    update email_verification_tokens
+    set used_at = ${verifiedAt}
+    where id = ${rows[0].id}
+  `
+  const updated = await query`
+    update users
+    set email_verified_at = ${verifiedAt}, updated_at = ${verifiedAt}
+    where id = ${user.id}
+    returning *
+  `
+
+  const refreshed = userFromRow(updated[0])
+  return {
+    user: publicUser(refreshed),
+    emailVerification: {
+      status: 'verified',
+      email: refreshed.email,
+      verifiedAt,
     },
   }
 }
@@ -956,6 +1076,8 @@ function publicUser(user) {
     verificationStatus: verificationStatuses.includes(user.verificationStatus)
       ? user.verificationStatus
       : 'unverified',
+    emailVerified: Boolean(user.emailVerifiedAt),
+    emailVerifiedAt: user.emailVerifiedAt || null,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt || user.createdAt,
   }
@@ -1026,6 +1148,7 @@ function userFromRow(row) {
     city: row.city || '',
     bio: row.bio || '',
     verificationStatus: row.verification_status,
+    emailVerifiedAt: toIso(row.email_verified_at),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at) || toIso(row.created_at),
   }

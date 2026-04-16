@@ -6,6 +6,10 @@ function getStoredSessionToken() {
   return window.localStorage.getItem(SESSION_TOKEN_KEY) || ''
 }
 
+export function hasSessionToken() {
+  return Boolean(getStoredSessionToken())
+}
+
 function saveSessionToken(token) {
   if (typeof window === 'undefined' || !token) return
   window.localStorage.setItem(SESSION_TOKEN_KEY, token)
@@ -52,6 +56,19 @@ export async function createSession(payload) {
 
 export function getSession() {
   return request('/auth/session')
+}
+
+export function requestEmailVerification() {
+  return request('/auth/email-verification', {
+    method: 'POST',
+  })
+}
+
+export function confirmEmailVerification(code) {
+  return request('/auth/email-verification/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  })
 }
 
 export function updateProfile(profile) {

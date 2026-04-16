@@ -2,6 +2,16 @@
 
 This is the first backend contract for the buying/selling order MVP. The current implementation runs through one Vercel Function gateway (`api/index.js`). It uses Postgres through `DATABASE_URL` when available, and safely falls back to the in-memory demo store when no database is configured.
 
+Auth-related account endpoints:
+
+- `POST /api/auth/session`: sign up or sign in with email/password.
+- `GET /api/auth/session`: restore the current bearer-token session.
+- `PATCH /api/auth/profile`: update profile fields for the logged-in user.
+- `POST /api/auth/email-verification`: create and send a 6-digit email verification code.
+- `POST /api/auth/email-verification/confirm`: confirm the 6-digit code and mark the email as verified.
+- `GET /api/verification`: read the logged-in user's real-name verification status.
+- `POST /api/verification`: submit a real-name verification request.
+
 ## Response Shape
 
 Successful response:

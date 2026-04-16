@@ -8,7 +8,7 @@ import {
   PhoneLogo,
 } from './Icons.jsx'
 import Logo from './Logo.jsx'
-import { createSession } from '../lib/api.js'
+import { useAuth } from '../lib/auth.jsx'
 
 // 邮箱已经是上面的主表单登录方式, 这里不再重复出现
 const socialMethods = [
@@ -31,11 +31,18 @@ const initialForm = {
 }
 
 export default function AuthDrawer({ open, onClose }) {
+  const { login, signup, requestEmailVerification, confirmEmailVerification } = useAuth()
   const [mode, setMode] = useState('signin') // 'signin' | 'signup'
   const [form, setForm] = useState(initialForm)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSendingVerification, setIsSendingVerification] = useState(false)
+  const [isConfirmingVerification, setIsConfirmingVerification] = useState(false)
+  const [emailChallenge, setEmailChallenge] = useState(null)
+  const [verificationCode, setVerificationCode] = useState('')
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+
+  const hasEmailChallenge = emailChallenge?.status === 'pending'
 
   const updateForm = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }))
@@ -45,6 +52,7 @@ export default function AuthDrawer({ open, onClose }) {
 
   const submit = async (event) => {
     event.preventDefault()
+    if (hasEmailChallenge) return
     const isSignup = mode === 'signup'
 
     if (isSignup && form.password !== form.confirmPassword) {
@@ -62,10 +70,9 @@ export default function AuthDrawer({ open, onClose }) {
     setError('')
 
     try {
-      const result = await createSession({
+      const payload = {
         email: form.email,
         password: form.password,
-        action: isSignup ? 'signup' : 'signin',
         mode: isSignup ? form.role : 'signin',
         role: form.role,
         displayName: form.displayName,
@@ -73,13 +80,76 @@ export default function AuthDrawer({ open, onClose }) {
         schoolOrCompany: form.schoolOrCompany,
         city: form.city,
         bio: form.bio,
-      })
-      const name = result?.user?.displayName || result?.user?.email || '演示用户'
-      setNotice(isSignup ? `账户已创建，个人信息已保存：${name}` : `登录成功：${name}`)
+      }
+
+      const result = isSignup ? await signup(payload) : await login(payload)
+      const name = result?.user?.displayName || result?.user?.email || '用户'
+      if (!result?.user?.emailVerified) {
+        const challenge = await requestEmailVerification()
+        setEmailChallenge(challenge?.emailVerification || null)
+        setVerificationCode(challenge?.emailVerification?.mockCode || '')
+        setNotice(
+          isSignup
+            ? `账户已创建：${name}。请先完成邮箱验证。`
+            : `登录成功：${name}。这个邮箱还没有验证。`,
+        )
+        return
+      }
+
+      setNotice(isSignup ? `账户已创建并已验证：${name}` : `登录成功：${name}`)
+
+      setTimeout(() => {
+        onClose()
+        setForm(initialForm)
+        setEmailChallenge(null)
+        setVerificationCode('')
+        setNotice('')
+        setError('')
+        setMode('signin')
+      }, 800)
     } catch (err) {
       setError(err.message || '登录暂时失败，请稍后再试。')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const resendVerification = async () => {
+    setIsSendingVerification(true)
+    setError('')
+    setNotice('')
+    try {
+      const result = await requestEmailVerification()
+      setEmailChallenge(result?.emailVerification || null)
+      setVerificationCode(result?.emailVerification?.mockCode || '')
+      setNotice(result?.emailVerification?.delivery?.message || '验证码已重新发送。')
+    } catch (err) {
+      setError(err.message || '验证码发送失败，请稍后再试。')
+    } finally {
+      setIsSendingVerification(false)
+    }
+  }
+
+  const verifyEmailCode = async () => {
+    setIsConfirmingVerification(true)
+    setError('')
+    setNotice('')
+    try {
+      await confirmEmailVerification(verificationCode)
+      setEmailChallenge(null)
+      setVerificationCode('')
+      setNotice('邮箱验证成功，账户可信状态已更新。')
+      setTimeout(() => {
+        onClose()
+        setForm(initialForm)
+        setNotice('')
+        setError('')
+        setMode('signin')
+      }, 900)
+    } catch (err) {
+      setError(err.message || '验证码校验失败，请重新输入。')
+    } finally {
+      setIsConfirmingVerification(false)
     }
   }
 
@@ -144,7 +214,11 @@ export default function AuthDrawer({ open, onClose }) {
               <div className="relative grid grid-cols-2 p-1 rounded-xl bg-white/[0.03] border border-white/10">
                 <button
                   type="button"
-                  onClick={() => setMode('signin')}
+                  onClick={() => {
+                    setMode('signin')
+                    setEmailChallenge(null)
+                    setVerificationCode('')
+                  }}
                   className="relative z-10 h-10 text-sm font-medium transition-colors"
                   style={{ color: mode === 'signin' ? '#04131F' : 'rgba(255,255,255,0.65)' }}
                 >
@@ -152,7 +226,11 @@ export default function AuthDrawer({ open, onClose }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMode('signup')}
+                  onClick={() => {
+                    setMode('signup')
+                    setEmailChallenge(null)
+                    setVerificationCode('')
+                  }}
                   className="relative z-10 h-10 text-sm font-medium transition-colors"
                   style={{ color: mode === 'signup' ? '#04131F' : 'rgba(255,255,255,0.65)' }}
                 >
@@ -306,19 +384,80 @@ export default function AuthDrawer({ open, onClose }) {
                 )}
 
                 {notice && (
-                  <div className="rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-3 py-2 text-xs text-[#CFFDF5]">
+                  <div className="rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-3 py-2 text-xs text-[#CFFDF5] flex items-center gap-2">
+                    <Icon name="check" size={14} />
                     {notice}
                   </div>
                 )}
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="btn-primary w-full justify-center !py-3 mt-2"
-                >
-                  {isSubmitting ? '连接后端中...' : mode === 'signin' ? '登录' : '创建账户'}
-                  <Icon name="arrow" size={16} />
-                </button>
+                {hasEmailChallenge && (
+                  <div className="rounded-2xl border border-[#7FD3FF]/25 bg-[#7FD3FF]/[0.07] p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="mono-label text-[#BEE6FF]">EMAIL VERIFY</div>
+                        <div className="mt-1 text-sm font-medium text-white">验证邮箱</div>
+                      </div>
+                      <span className="rounded-full border border-[#7FD3FF]/30 bg-[#7FD3FF]/10 px-2 py-1 text-[10px] text-[#BEE6FF]">
+                        {emailChallenge.delivery?.mock ? '演示模式' : '已发送'}
+                      </span>
+                    </div>
+                    <p className="text-xs leading-relaxed text-white/55">
+                      验证码已发送到 {emailChallenge.email}。完成验证后，账号可信度会提升，后续实名认证和交易流程也会更顺。
+                    </p>
+                    {emailChallenge.mockCode && (
+                      <div className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
+                        当前还没配置真实邮件服务，演示验证码：<span className="font-semibold tracking-[0.24em]">{emailChallenge.mockCode}</span>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={verificationCode}
+                        onChange={(event) => setVerificationCode(event.target.value.replace(/[^\d]/g, '').slice(0, 6))}
+                        placeholder="6 位验证码"
+                        className="flex-1 h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+                      />
+                      <button
+                        type="button"
+                        disabled={isConfirmingVerification}
+                        onClick={verifyEmailCode}
+                        className="btn-primary !px-4"
+                      >
+                        {isConfirmingVerification ? '校验中' : '验证'}
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <button
+                        type="button"
+                        disabled={isSendingVerification}
+                        onClick={resendVerification}
+                        className="text-[#BEE6FF] hover:text-white transition-colors"
+                      >
+                        {isSendingVerification ? '发送中...' : '重新发送验证码'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="text-white/45 hover:text-white transition-colors"
+                      >
+                        稍后再验证
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!hasEmailChallenge && (
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="btn-primary w-full justify-center !py-3 mt-2"
+                  >
+                    {isSubmitting ? '连接后端中...' : mode === 'signin' ? '登录' : '创建账户'}
+                    <Icon name="arrow" size={16} />
+                  </button>
+                )}
 
                 {mode === 'signin' && (
                   <div className="pt-1 text-right">

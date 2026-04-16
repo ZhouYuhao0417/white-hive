@@ -1,0 +1,357 @@
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Section, Reveal } from '../components/Section.jsx'
+import { Icon } from '../components/Icons.jsx'
+import { confirmEmailVerification, getVerificationProfile, requestEmailVerification, submitVerification } from '../lib/api.js'
+import { useAuth } from '../lib/auth.jsx'
+
+const verificationLabels = {
+  unverified: '未认证',
+  pending: '审核中',
+  verified: '已认证',
+  rejected: '未通过',
+}
+
+const requestStatusLabels = {
+  pending: '待审核',
+  approved: '已通过',
+  rejected: '未通过',
+}
+
+const initialVerificationForm = {
+  realName: '',
+  role: '个人创作者',
+  idNumberLast4: '',
+  contactEmail: '',
+}
+
+export default function Account() {
+  const { user, isAuthenticated, isLoading, refreshUser } = useAuth()
+  const [emailCode, setEmailCode] = useState('')
+  const [emailChallenge, setEmailChallenge] = useState(null)
+  const [emailBusy, setEmailBusy] = useState(false)
+  const [verifyBusy, setVerifyBusy] = useState(false)
+  const [verificationProfile, setVerificationProfile] = useState(null)
+  const [verificationForm, setVerificationForm] = useState(initialVerificationForm)
+  const [submittingVerification, setSubmittingVerification] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    let cancelled = false
+    getVerificationProfile()
+      .then((profile) => {
+        if (cancelled) return
+        setVerificationProfile(profile)
+        setVerificationForm((current) => ({
+          ...current,
+          contactEmail: profile?.user?.email || user?.email || '',
+        }))
+      })
+      .catch(() => {
+        if (!cancelled) setError('实名认证状态暂时加载失败，请稍后刷新。')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isAuthenticated, user?.email])
+
+  const updateVerificationForm = (field, value) => {
+    setVerificationForm((current) => ({ ...current, [field]: value }))
+    setNotice('')
+    setError('')
+  }
+
+  const sendEmailCode = async () => {
+    setEmailBusy(true)
+    setNotice('')
+    setError('')
+    try {
+      const result = await requestEmailVerification()
+      setEmailChallenge(result.emailVerification)
+      setEmailCode(result.emailVerification?.mockCode || '')
+      setNotice(result.emailVerification?.delivery?.message || '验证码已发送。')
+    } catch (err) {
+      setError(err.message || '发送验证码失败，请稍后再试。')
+    } finally {
+      setEmailBusy(false)
+    }
+  }
+
+  const verifyEmail = async () => {
+    setVerifyBusy(true)
+    setNotice('')
+    setError('')
+    try {
+      await confirmEmailVerification(emailCode)
+      await refreshUser()
+      setEmailChallenge(null)
+      setEmailCode('')
+      setNotice('邮箱验证完成。')
+    } catch (err) {
+      setError(err.message || '验证码不正确，请重新输入。')
+    } finally {
+      setVerifyBusy(false)
+    }
+  }
+
+  const submitRealName = async (event) => {
+    event.preventDefault()
+    setSubmittingVerification(true)
+    setNotice('')
+    setError('')
+    try {
+      const result = await submitVerification(verificationForm)
+      await refreshUser()
+      setVerificationProfile((current) => ({
+        ...(current || {}),
+        user: result.user,
+        latestRequest: result.request,
+        history: [result.request, ...((current?.history || []).filter((item) => item.id !== result.request.id))],
+      }))
+      setNotice('实名认证申请已提交，当前状态为待审核。')
+    } catch (err) {
+      setError(err.message || '实名认证提交失败，请检查信息后重试。')
+    } finally {
+      setSubmittingVerification(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <Section className="pt-32">
+        <div className="card p-8 text-white/60">正在读取账号状态...</div>
+      </Section>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Section className="pt-32">
+        <Reveal>
+          <div className="card p-8 md:p-12">
+            <div className="mono-label">ACCOUNT · 账号与认证</div>
+            <h1 className="mt-3 text-3xl md:text-5xl font-semibold tracking-tight">先登录，再管理可信资料。</h1>
+            <p className="mt-4 max-w-2xl text-white/60 leading-relaxed">
+              邮箱验证和实名认证都绑定到真实账号。请先点击右上角「登录/注册」，完成后再回来查看。
+            </p>
+            <Link to="/" className="btn-primary mt-7">
+              回到首页 <Icon name="arrow" size={16} />
+            </Link>
+          </div>
+        </Reveal>
+      </Section>
+    )
+  }
+
+  const latestRequest = verificationProfile?.latestRequest
+
+  return (
+    <>
+      <Section className="pt-28 md:pt-32">
+        <Reveal>
+          <div className="card p-8 md:p-12 relative overflow-hidden">
+            <div
+              aria-hidden
+              className="absolute inset-0 opacity-60"
+              style={{
+                background:
+                  'radial-gradient(60% 70% at 100% 0%, rgba(127,211,255,0.18), transparent 60%), radial-gradient(50% 60% at 0% 100%, rgba(94,234,212,0.11), transparent 60%)',
+              }}
+            />
+            <div className="relative">
+              <div className="mono-label">ACCOUNT · 账号与认证</div>
+              <h1 className="mt-3 text-3xl md:text-5xl font-semibold tracking-tight">
+                让账号先可信,
+                <br className="hidden md:block" />
+                交易才走得稳。
+              </h1>
+              <p className="mt-5 max-w-2xl text-white/60 leading-relaxed">
+                这里管理 WhiteHive 的基础身份能力：邮箱验证、实名认证申请和审核状态。后续支付、接单、仲裁都会复用这些可信资料。
+              </p>
+            </div>
+          </div>
+        </Reveal>
+      </Section>
+
+      <Section className="!pt-4">
+        {(notice || error) && (
+          <div
+            className={`mb-5 rounded-xl border px-4 py-3 text-sm ${
+              error
+                ? 'border-red-400/25 bg-red-400/10 text-red-100'
+                : 'border-[#5EEAD4]/25 bg-[#5EEAD4]/10 text-[#CFFDF5]'
+            }`}
+          >
+            {error || notice}
+          </div>
+        )}
+
+        <div className="grid lg:grid-cols-[0.9fr_1.1fr] gap-6 items-start">
+          <div className="space-y-6">
+            <div className="card p-6 md:p-7">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="mono-label">PROFILE</div>
+                  <h2 className="mt-1 text-xl font-semibold text-white">{user.displayName || user.email}</h2>
+                  <p className="mt-2 text-sm text-white/50">{user.email}</p>
+                </div>
+                <span className="rounded-full border border-[#7FD3FF]/25 bg-[#7FD3FF]/10 px-3 py-1 text-xs text-[#BEE6FF]">
+                  {user.role === 'seller' ? '创作者' : '买家'}
+                </span>
+              </div>
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                <StatusTile label="邮箱" value={user.emailVerified ? '已验证' : '待验证'} active={user.emailVerified} />
+                <StatusTile
+                  label="实名认证"
+                  value={verificationLabels[user.verificationStatus] || '未认证'}
+                  active={user.verificationStatus === 'verified'}
+                />
+              </div>
+            </div>
+
+            <div className="card p-6 md:p-7">
+              <div className="mono-label">EMAIL VERIFY</div>
+              <h2 className="mt-1 text-xl font-semibold text-white">邮箱验证</h2>
+              <p className="mt-2 text-sm text-white/55 leading-relaxed">
+                邮箱验证用于找回账号、接收订单通知和后续支付提醒。当前先支持验证码流。
+              </p>
+
+              {user.emailVerified ? (
+                <div className="mt-5 rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-4 py-3 text-sm text-[#CFFDF5]">
+                  已验证：{user.emailVerifiedAt || '状态已同步'}
+                </div>
+              ) : (
+                <div className="mt-5 space-y-3">
+                  {emailChallenge?.mockCode && (
+                    <div className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
+                      当前未配置真实邮件服务，演示验证码：
+                      <span className="font-semibold tracking-[0.24em]">{emailChallenge.mockCode}</span>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      value={emailCode}
+                      onChange={(event) => setEmailCode(event.target.value.replace(/[^\d]/g, '').slice(0, 6))}
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="6 位验证码"
+                      className="flex-1 h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
+                    />
+                    <button type="button" onClick={verifyEmail} disabled={verifyBusy} className="btn-primary !px-4">
+                      {verifyBusy ? '验证中' : '验证'}
+                    </button>
+                  </div>
+                  <button type="button" onClick={sendEmailCode} disabled={emailBusy} className="btn-ghost w-full justify-center">
+                    {emailBusy ? '发送中...' : '发送 / 重发验证码'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="card p-6 md:p-7">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="mono-label">REAL-NAME VERIFY</div>
+                <h2 className="mt-1 text-xl font-semibold text-white">实名认证</h2>
+              </div>
+              <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-white/60">
+                {verificationLabels[user.verificationStatus] || '未认证'}
+              </span>
+            </div>
+
+            {latestRequest && (
+              <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium text-white">最近一次申请</div>
+                  <span className="rounded-lg border border-[#7FD3FF]/25 bg-[#7FD3FF]/10 px-2 py-1 text-xs text-[#BEE6FF]">
+                    {requestStatusLabels[latestRequest.status] || latestRequest.status}
+                  </span>
+                </div>
+                <div className="mt-3 grid sm:grid-cols-2 gap-3 text-xs text-white/50">
+                  <div>主体：{latestRequest.realName}</div>
+                  <div>身份：{latestRequest.role}</div>
+                  <div>证件尾号：{latestRequest.idNumberLast4 || '未填'}</div>
+                  <div>联系邮箱：{latestRequest.contactEmail}</div>
+                </div>
+                {latestRequest.reviewerNote && (
+                  <p className="mt-3 text-xs text-white/45">审核备注：{latestRequest.reviewerNote}</p>
+                )}
+              </div>
+            )}
+
+            <form className="mt-6 space-y-4" onSubmit={submitRealName}>
+              <label className="block">
+                <span className="mono-label">真实姓名 / 主体名称</span>
+                <input
+                  value={verificationForm.realName}
+                  onChange={(event) => updateVerificationForm('realName', event.target.value)}
+                  required
+                  minLength={2}
+                  placeholder="例如：周煜皓 / 白色蜂巢工作室"
+                  className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
+                />
+              </label>
+              <label className="block">
+                <span className="mono-label">认证身份</span>
+                <select
+                  value={verificationForm.role}
+                  onChange={(event) => updateVerificationForm('role', event.target.value)}
+                  className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-ink-900"
+                >
+                  <option value="个人创作者">个人创作者</option>
+                  <option value="买家个人">买家个人</option>
+                  <option value="团队 / 工作室">团队 / 工作室</option>
+                  <option value="企业主体">企业主体</option>
+                </select>
+              </label>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <label className="block">
+                  <span className="mono-label">证件后 4 位</span>
+                  <input
+                    value={verificationForm.idNumberLast4}
+                    onChange={(event) => updateVerificationForm('idNumberLast4', event.target.value.replace(/[^\dXx]/g, '').slice(-4))}
+                    placeholder="演示仅收后 4 位"
+                    className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mono-label">联系邮箱</span>
+                  <input
+                    type="email"
+                    value={verificationForm.contactEmail}
+                    onChange={(event) => updateVerificationForm('contactEmail', event.target.value)}
+                    required
+                    className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
+                  />
+                </label>
+              </div>
+              <p className="text-xs text-white/40 leading-relaxed">
+                MVP 阶段不上传身份证照片，只记录必要的演示字段。正式上线前需要接入合规实名服务商，并更新隐私政策与数据留存策略。
+              </p>
+              <button type="submit" disabled={submittingVerification} className="btn-primary w-full justify-center">
+                {submittingVerification ? '提交中...' : '提交实名认证申请'}
+                <Icon name="arrow" size={16} />
+              </button>
+            </form>
+          </div>
+        </div>
+      </Section>
+    </>
+  )
+}
+
+function StatusTile({ label, value, active }) {
+  return (
+    <div
+      className={`rounded-2xl border p-4 ${
+        active ? 'border-[#5EEAD4]/25 bg-[#5EEAD4]/10' : 'border-white/10 bg-white/[0.03]'
+      }`}
+    >
+      <div className="mono-label">{label}</div>
+      <div className={`mt-2 text-sm font-medium ${active ? 'text-[#CFFDF5]' : 'text-white/70'}`}>{value}</div>
+    </div>
+  )
+}

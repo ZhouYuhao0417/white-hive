@@ -1,7 +1,8 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes, randomInt, scryptSync, timingSafeEqual } from 'node:crypto'
 import { HttpError } from './http.js'
 
 const sessionDays = 30
+const emailVerificationMinutes = 20
 
 export function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase()
@@ -60,6 +61,24 @@ export function hashToken(token) {
 export function sessionExpiresAt() {
   const expiresAt = new Date()
   expiresAt.setUTCDate(expiresAt.getUTCDate() + sessionDays)
+  return expiresAt.toISOString()
+}
+
+export function createEmailVerificationCode() {
+  return String(randomInt(100000, 1000000))
+}
+
+export function validateEmailVerificationCode(code) {
+  const value = String(code || '').trim()
+  if (!/^\d{6}$/.test(value)) {
+    throw new HttpError(400, 'invalid_email_code', '请输入 6 位邮箱验证码。')
+  }
+  return value
+}
+
+export function emailVerificationExpiresAt() {
+  const expiresAt = new Date()
+  expiresAt.setUTCMinutes(expiresAt.getUTCMinutes() + emailVerificationMinutes)
   return expiresAt.toISOString()
 }
 

@@ -5,6 +5,7 @@
 The first backend milestone is not real payments or real-name verification. It is the smallest product loop that proves WhiteHive can support buying and selling digital services:
 
 1. A user can register, log in, and keep a short-lived product session.
+1. A user can request and confirm an email verification code.
 2. A seller can publish a structured service.
 3. A buyer can create an order from a service.
 4. The backend can recommend matching services before order creation.
@@ -24,6 +25,8 @@ Public endpoints:
 - `POST /api/auth/session`
 - `GET /api/auth/profile`
 - `PATCH /api/auth/profile`
+- `POST /api/auth/email-verification`
+- `POST /api/auth/email-verification/confirm`
 - `GET /api/services`
 - `POST /api/services`
 - `GET /api/orders`
@@ -46,6 +49,7 @@ Added frontend MVP routes:
 - `/services/:slug`: sends buyers into `/ai-match?category=...`
 - `/sell`: creates a seller service through `POST /api/services`
 - `/dashboard`: combines buyer orders and seller services into one MVP workspace
+- `/account`: manages email verification and real-name verification status
 
 Matching:
 
@@ -58,17 +62,18 @@ Current storage:
 
 - `api/_lib/store.js` selects the active storage adapter.
 - `api/_lib/memory-store.js` keeps the safe demo fallback.
-- `api/_lib/postgres-store.js` uses Neon/Postgres when `DATABASE_URL` exists.
+- `api/_lib/postgres-store.js` uses Neon/Postgres when a supported database URL exists.
 - Registration now stores a hashed password, personal profile fields, and a server-side session token hash.
+- Email verification now stores short-lived hashed verification codes; without `RESEND_API_KEY`, the UI shows a mock code for demos.
 - Service publishing, order creation, order messages, mock payments and verification now prefer the bearer-token user over hard-coded demo IDs.
 - Logged-in users can only pay for their own buyer-side orders and can only send messages inside orders they participate in.
-- Without `DATABASE_URL`, data is still not persistent across cold starts or redeploys.
-- With `DATABASE_URL`, the API auto-creates the MVP tables and seeds demo records.
+- Without a database URL, data is still not persistent across cold starts or redeploys.
+- With a database URL, the API auto-creates the MVP tables and seeds demo records.
 
 Database target:
 
 - Preferred: Neon Postgres through Vercel Marketplace.
-- Add `DATABASE_URL` in Vercel once the database exists.
+- Add `DATABASE_URL`, `POSTGRES_URL`, or `STORAGES_URL` in Vercel once the database exists.
 - Optional: set `WHITEHIVE_REQUIRE_DATABASE=1` only after the database is stable, so database errors fail loudly instead of falling back to memory.
 
 ## MVP Status Model
@@ -98,12 +103,11 @@ Verification statuses:
 
 ## Next Backend Steps
 
-1. Create a real Postgres database and set `DATABASE_URL` in Vercel.
-2. Verify `/api/health` reports `driver: neon-postgres`.
-3. Add rate limiting and email verification before opening registration publicly.
-4. Replace the MVP password auth with Clerk/Auth0 or email magic-link auth when the product leaves demo mode.
-5. Replace browser cache fallback with Postgres-backed user data everywhere.
-6. Split `/dashboard` into real buyer/seller dashboards after auth is connected across all flows.
-7. Add the final payment confirmation UI on top of `/api/payments`.
-8. Replace `whitehive-rule-match-v1` with LLM + embedding search after service data grows.
-9. Connect a real payment provider and real-name verification provider only after the demo loop is stable.
+1. Add rate limiting before opening registration publicly.
+2. Connect a real email sender such as Resend or Alibaba Cloud email, then remove mock-code display.
+3. Replace the MVP password auth with Clerk/Auth0 or email magic-link auth when the product leaves demo mode.
+4. Replace browser cache fallback with Postgres-backed user data everywhere.
+5. Split `/dashboard` into real buyer/seller dashboards after auth is connected across all flows.
+6. Add the final payment confirmation UI on top of `/api/payments`.
+7. Replace `whitehive-rule-match-v1` with LLM + embedding search after service data grows.
+8. Connect a real payment provider and real-name verification provider only after the demo loop is stable.
