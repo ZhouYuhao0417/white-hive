@@ -4,7 +4,7 @@
 
 The first backend milestone is not real payments or real-name verification. It is the smallest product loop that proves WhiteHive can support buying and selling digital services:
 
-1. A user can create a demo session.
+1. A user can register, log in, and keep a short-lived product session.
 2. A seller can publish a structured service.
 3. A buyer can create an order from a service.
 4. The backend can recommend matching services before order creation.
@@ -22,6 +22,8 @@ Public endpoints:
 - `GET /api/health`
 - `GET /api/auth/session`
 - `POST /api/auth/session`
+- `GET /api/auth/profile`
+- `PATCH /api/auth/profile`
 - `GET /api/services`
 - `POST /api/services`
 - `GET /api/orders`
@@ -57,6 +59,7 @@ Current storage:
 - `api/_lib/store.js` selects the active storage adapter.
 - `api/_lib/memory-store.js` keeps the safe demo fallback.
 - `api/_lib/postgres-store.js` uses Neon/Postgres when `DATABASE_URL` exists.
+- Registration now stores a hashed password, personal profile fields, and a server-side session token hash.
 - Without `DATABASE_URL`, data is still not persistent across cold starts or redeploys.
 - With `DATABASE_URL`, the API auto-creates the MVP tables and seeds demo records.
 
@@ -95,9 +98,10 @@ Verification statuses:
 
 1. Create a real Postgres database and set `DATABASE_URL` in Vercel.
 2. Verify `/api/health` reports `driver: neon-postgres`.
-3. Add real auth provider or email magic-link auth.
-4. Replace browser cache fallback with Postgres-backed user data.
-5. Split `/dashboard` into real buyer/seller dashboards after auth is connected.
-6. Add the final payment confirmation UI on top of `/api/payments`.
-7. Replace `whitehive-rule-match-v1` with LLM + embedding search after service data grows.
-8. Connect a real payment provider and real-name verification provider only after the demo loop is stable.
+3. Add rate limiting and email verification before opening registration publicly.
+4. Replace the MVP password auth with Clerk/Auth0 or email magic-link auth when the product leaves demo mode.
+5. Replace browser cache fallback with Postgres-backed user data everywhere.
+6. Split `/dashboard` into real buyer/seller dashboards after auth is connected across all flows.
+7. Add the final payment confirmation UI on top of `/api/payments`.
+8. Replace `whitehive-rule-match-v1` with LLM + embedding search after service data grows.
+9. Connect a real payment provider and real-name verification provider only after the demo loop is stable.

@@ -18,9 +18,21 @@ const socialMethods = [
   { key: 'github', label: 'GitHub', Logo: GithubLogo, color: '#E6E9F2' },
 ]
 
+const initialForm = {
+  email: '',
+  password: '',
+  confirmPassword: '',
+  displayName: '',
+  role: 'buyer',
+  phone: '',
+  schoolOrCompany: '',
+  city: '',
+  bio: '',
+}
+
 export default function AuthDrawer({ open, onClose }) {
   const [mode, setMode] = useState('signin') // 'signin' | 'signup'
-  const [form, setForm] = useState({ email: '', password: '', confirmPassword: '' })
+  const [form, setForm] = useState(initialForm)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
@@ -33,9 +45,15 @@ export default function AuthDrawer({ open, onClose }) {
 
   const submit = async (event) => {
     event.preventDefault()
+    const isSignup = mode === 'signup'
 
-    if (mode === 'signup' && form.password !== form.confirmPassword) {
+    if (isSignup && form.password !== form.confirmPassword) {
       setError('两次输入的密码不一致。')
+      return
+    }
+
+    if (isSignup && form.displayName.trim().length < 2) {
+      setError('请填写至少 2 个字的昵称或团队名。')
       return
     }
 
@@ -47,10 +65,17 @@ export default function AuthDrawer({ open, onClose }) {
       const result = await createSession({
         email: form.email,
         password: form.password,
-        mode: mode === 'signup' ? 'buyer' : 'signin',
+        action: isSignup ? 'signup' : 'signin',
+        mode: isSignup ? form.role : 'signin',
+        role: form.role,
+        displayName: form.displayName,
+        phone: form.phone,
+        schoolOrCompany: form.schoolOrCompany,
+        city: form.city,
+        bio: form.bio,
       })
       const name = result?.user?.displayName || result?.user?.email || '演示用户'
-      setNotice(`已连接后端演示会话：${name}`)
+      setNotice(isSignup ? `账户已创建，个人信息已保存：${name}` : `登录成功：${name}`)
     } catch (err) {
       setError(err.message || '登录暂时失败，请稍后再试。')
     } finally {
@@ -183,18 +208,95 @@ export default function AuthDrawer({ open, onClose }) {
                   />
                 </label>
                 {mode === 'signup' && (
-                  <label className="block">
-                    <span className="mono-label">确认密码</span>
-                    <input
-                      type="password"
-                      value={form.confirmPassword}
-                      onChange={(event) => updateForm('confirmPassword', event.target.value)}
-                      placeholder="再输入一次"
-                      minLength={8}
-                      required
-                      className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
-                    />
-                  </label>
+                  <>
+                    <label className="block">
+                      <span className="mono-label">确认密码</span>
+                      <input
+                        type="password"
+                        value={form.confirmPassword}
+                        onChange={(event) => updateForm('confirmPassword', event.target.value)}
+                        placeholder="再输入一次"
+                        minLength={8}
+                        required
+                        className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+                      />
+                    </label>
+
+                    <div className="pt-2">
+                      <div className="mono-label mb-3">个人信息</div>
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3 space-y-3">
+                        <label className="block">
+                          <span className="mono-label">昵称 / 团队名</span>
+                          <input
+                            type="text"
+                            value={form.displayName}
+                            onChange={(event) => updateForm('displayName', event.target.value)}
+                            placeholder="例如：周同学 / 蜂巢工作室"
+                            minLength={2}
+                            required
+                            className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="mono-label">账户身份</span>
+                          <select
+                            value={form.role}
+                            onChange={(event) => updateForm('role', event.target.value)}
+                            className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-ink-900 transition-colors"
+                          >
+                            <option value="buyer">我是买家：发布需求、找人接单</option>
+                            <option value="seller">我是创作者：发布服务、承接订单</option>
+                          </select>
+                        </label>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <label className="block">
+                            <span className="mono-label">手机</span>
+                            <input
+                              type="tel"
+                              value={form.phone}
+                              onChange={(event) => updateForm('phone', event.target.value)}
+                              placeholder="选填"
+                              className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mono-label">城市</span>
+                            <input
+                              type="text"
+                              value={form.city}
+                              onChange={(event) => updateForm('city', event.target.value)}
+                              placeholder="选填"
+                              className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+                            />
+                          </label>
+                        </div>
+
+                        <label className="block">
+                          <span className="mono-label">学校 / 公司</span>
+                          <input
+                            type="text"
+                            value={form.schoolOrCompany}
+                            onChange={(event) => updateForm('schoolOrCompany', event.target.value)}
+                            placeholder="选填，例如：四川某某大学"
+                            className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+                          />
+                        </label>
+
+                        <label className="block">
+                          <span className="mono-label">一句话介绍</span>
+                          <textarea
+                            value={form.bio}
+                            onChange={(event) => updateForm('bio', event.target.value)}
+                            placeholder="选填：你想买什么服务，或你擅长交付什么。"
+                            rows={3}
+                            className="mt-2 w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors resize-none"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 {error && (

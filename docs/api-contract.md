@@ -29,17 +29,53 @@ Error response:
 
 ### `GET /api/auth/session`
 
-Returns the demo session user.
+Returns the current session user when the frontend sends `Authorization: Bearer <token>`. If no token is present, it still returns the seeded demo buyer so the public MVP pages can keep working during early demos.
 
 ### `POST /api/auth/session`
 
-Creates a demo session. This is not real authentication yet.
+Creates a password-based session. Passwords are hashed on the server with Node crypto `scrypt`; the API returns a random bearer token that the browser stores locally for later requests.
 
 ```json
 {
   "email": "founder@whitehive.cn",
   "password": "demo-password",
-  "mode": "buyer"
+  "action": "signup",
+  "role": "buyer",
+  "displayName": "WhiteHive Founder",
+  "phone": "13800000000",
+  "schoolOrCompany": "WhiteHive",
+  "city": "Chengdu",
+  "bio": "I want to buy and sell trusted digital services."
+}
+```
+
+For login, send:
+
+```json
+{
+  "email": "founder@whitehive.cn",
+  "password": "demo-password",
+  "action": "signin",
+  "mode": "signin"
+}
+```
+
+### `GET /api/auth/profile`
+
+Returns the current bearer-token user profile.
+
+### `PATCH /api/auth/profile`
+
+Updates the current user profile.
+
+```json
+{
+  "displayName": "蜂巢创作者",
+  "role": "seller",
+  "phone": "13800000000",
+  "schoolOrCompany": "WhiteHive Studio",
+  "city": "Chengdu",
+  "bio": "I can deliver landing pages and AI workflow services."
 }
 ```
 

@@ -1,6 +1,16 @@
 import { neon } from '@neondatabase/serverless'
 import { createId, nowIso } from './ids.js'
 import {
+  createSessionToken,
+  hashPassword,
+  hashToken,
+  sanitizeProfileInput,
+  sessionExpiresAt,
+  validateEmail,
+  validatePassword,
+  verifyPassword,
+} from './auth.js'
+import {
   seedMessages,
   seedOrders,
   seedPayments,
@@ -78,7 +88,31 @@ async function migrateAndSeed() {
       role text not null check (role in ('buyer', 'seller', 'admin')),
       verification_status text not null default 'unverified'
         check (verification_status in ('unverified', 'pending', 'verified', 'rejected')),
+      password_hash text,
+      phone text not null default '',
+      school_or_company text not null default '',
+      city text not null default '',
+      bio text not null default '',
+      updated_at timestamptz not null default now(),
       created_at timestamptz not null default now()
+    )
+  `
+
+  await db`alter table users add column if not exists password_hash text`
+  await db`alter table users add column if not exists phone text not null default ''`
+  await db`alter table users add column if not exists school_or_company text not null default ''`
+  await db`alter table users add column if not exists city text not null default ''`
+  await db`alter table users add column if not exists bio text not null default ''`
+  await db`alter table users add column if not exists updated_at timestamptz not null default now()`
+
+  await db`
+    create table if not exists sessions (
+      id text primary key,
+      user_id text not null references users(id) on delete cascade,
+      token_hash text unique not null,
+      created_at timestamptz not null default now(),
+      expires_at timestamptz not null,
+      last_seen_at timestamptz not null default now()
     )
   `
 
@@ -169,6 +203,8 @@ async function migrateAndSeed() {
   `
 
   await db`create index if not exists services_category_status_idx on services(category, status)`
+  await db`create index if not exists sessions_user_idx on sessions(user_id, expires_at)`
+  await db`create index if not exists sessions_token_hash_idx on sessions(token_hash)`
   await db`create index if not exists orders_buyer_idx on orders(buyer_id)`
   await db`create index if not exists orders_seller_idx on orders(seller_id)`
   await db`create index if not exists payments_order_idx on payments(order_id, created_at)`
@@ -259,7 +295,7 @@ export async function storeInfo() {
     driver: 'neon-postgres',
     persistent: true,
     note: 'DATABASE_URL 已配置，当前 API 使用 Postgres 持久化存储。',
-    capabilities: ['orders', 'messages', 'mock_payments', 'verification_requests'],
+    capabilities: ['password_auth', 'sessions', 'orders', 'messages', 'mock_payments', 'verification_requests'],
   }
 }
 
@@ -268,38 +304,132 @@ export async function getDemoUser() {
   return publicUser(user)
 }
 
-export async function upsertDemoSession({ email, mode }) {
-  const normalizedEmail = String(email || '').trim().toLowerCase()
-
-  if (!normalizedEmail.includes('@')) {
-    throw new HttpError(400, 'invalid_email', '请输入有效邮箱。')
-  }
-
+export async function upsertDemoSession(input = {}) {
+  const normalizedEmail = validateEmail(input.email)
+  const password = validatePassword(input.password)
+  const profile = sanitizeProfileInput(input, normalizedEmail)
+  const action = input.action || (input.mode === 'signin' ? 'signin' : 'signup')
   const existing = await query`select * from users where email = ${normalizedEmail} limit 1`
   let user = existing[0]
+
+  if (action === 'signin') {
+    if (!user || !user.password_hash || !verifyPassword(password, user.password_hash)) {
+      throw new HttpError(401, 'invalid_credentials', '邮箱或密码不正确。')
+    }
+
+    return createSessionForUser(userFromRow(user))
+  }
+
+  if (user?.password_hash) {
+    throw new HttpError(409, 'account_exists', '这个邮箱已经注册，请直接登录。')
+  }
+
+  const passwordHash = hashPassword(password)
 
   if (!user) {
     const id = createId('usr')
     const createdAt = nowIso()
     const inserted = await query`
-      insert into users (id, email, display_name, role, verification_status, created_at)
+      insert into users (
+        id, email, display_name, role, verification_status, password_hash,
+        phone, school_or_company, city, bio, created_at, updated_at
+      )
       values (
-        ${id}, ${normalizedEmail}, ${normalizedEmail.split('@')[0]},
-        ${mode === 'seller' ? 'seller' : 'buyer'}, 'unverified', ${createdAt}
+        ${id}, ${normalizedEmail}, ${profile.displayName}, ${profile.role}, 'unverified',
+        ${passwordHash}, ${profile.phone}, ${profile.schoolOrCompany}, ${profile.city},
+        ${profile.bio}, ${createdAt}, ${createdAt}
       )
       returning *
     `
     user = inserted[0]
+  } else {
+    const updatedAt = nowIso()
+    const updated = await query`
+      update users
+      set
+        display_name = ${profile.displayName},
+        role = ${profile.role},
+        password_hash = ${passwordHash},
+        phone = ${profile.phone},
+        school_or_company = ${profile.schoolOrCompany},
+        city = ${profile.city},
+        bio = ${profile.bio},
+        updated_at = ${updatedAt}
+      where id = ${user.id}
+      returning *
+    `
+    user = updated[0]
   }
 
-  const publicProfile = publicUser(user)
+  return createSessionForUser(userFromRow(user))
+}
+
+export async function getSessionByToken(token) {
+  const rows = await query`
+    select
+      sessions.id as session_id,
+      sessions.expires_at as session_expires_at,
+      users.*
+    from sessions
+    join users on users.id = sessions.user_id
+    where sessions.token_hash = ${hashToken(token)}
+      and sessions.expires_at > now()
+    limit 1
+  `
+
+  if (!rows[0]) {
+    throw new HttpError(401, 'invalid_session', '登录状态已失效，请重新登录。')
+  }
+
+  await query`
+    update sessions set last_seen_at = ${nowIso()}
+    where id = ${rows[0].session_id}
+  `
+
   return {
-    user: publicProfile,
+    user: publicUser(userFromRow(rows[0])),
     session: {
-      token: `demo_${publicProfile.id}`,
-      expiresAt: null,
-      mode: 'demo',
+      id: rows[0].session_id,
+      token: null,
+      tokenType: 'Bearer',
+      expiresAt: toIso(rows[0].session_expires_at),
+      mode: 'password',
     },
+  }
+}
+
+export async function updateUserProfile(token, input = {}) {
+  const current = await getSessionByToken(token)
+  const profile = sanitizeProfileInput(
+    {
+      displayName: input.displayName ?? current.user.displayName,
+      role: input.role ?? current.user.role,
+      phone: input.phone ?? current.user.phone,
+      schoolOrCompany: input.schoolOrCompany ?? current.user.schoolOrCompany,
+      city: input.city ?? current.user.city,
+      bio: input.bio ?? current.user.bio,
+    },
+    current.user.email,
+    current.user.role,
+  )
+  const updatedAt = nowIso()
+  const rows = await query`
+    update users
+    set
+      display_name = ${profile.displayName},
+      role = ${profile.role},
+      phone = ${profile.phone},
+      school_or_company = ${profile.schoolOrCompany},
+      city = ${profile.city},
+      bio = ${profile.bio},
+      updated_at = ${updatedAt}
+    where id = ${current.user.id}
+    returning *
+  `
+
+  return {
+    user: publicUser(userFromRow(rows[0])),
+    session: current.session,
   }
 }
 
@@ -810,10 +940,38 @@ function publicUser(user) {
     email: user.email,
     displayName: user.displayName,
     role: user.role,
+    phone: user.phone || '',
+    schoolOrCompany: user.schoolOrCompany || '',
+    city: user.city || '',
+    bio: user.bio || '',
     verificationStatus: verificationStatuses.includes(user.verificationStatus)
       ? user.verificationStatus
       : 'unverified',
     createdAt: user.createdAt,
+    updatedAt: user.updatedAt || user.createdAt,
+  }
+}
+
+async function createSessionForUser(user) {
+  const token = createSessionToken()
+  const createdAt = nowIso()
+  const expiresAt = sessionExpiresAt()
+  const rows = await query`
+    insert into sessions (id, user_id, token_hash, created_at, expires_at, last_seen_at)
+    values (${createId('ses')}, ${user.id}, ${hashToken(token)}, ${createdAt}, ${expiresAt}, ${createdAt})
+    returning *
+  `
+  const session = rows[0]
+
+  return {
+    user: publicUser(user),
+    session: {
+      id: session.id,
+      token,
+      tokenType: 'Bearer',
+      expiresAt: toIso(session.expires_at),
+      mode: 'password',
+    },
   }
 }
 
@@ -854,8 +1012,13 @@ function userFromRow(row) {
     email: row.email,
     displayName: row.display_name,
     role: row.role,
+    phone: row.phone || '',
+    schoolOrCompany: row.school_or_company || '',
+    city: row.city || '',
+    bio: row.bio || '',
     verificationStatus: row.verification_status,
     createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at) || toIso(row.created_at),
   }
 }
 

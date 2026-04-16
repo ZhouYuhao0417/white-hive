@@ -1,12 +1,30 @@
 const API_BASE = '/api'
+const SESSION_TOKEN_KEY = 'whitehive.sessionToken'
+
+function getStoredSessionToken() {
+  if (typeof window === 'undefined') return ''
+  return window.localStorage.getItem(SESSION_TOKEN_KEY) || ''
+}
+
+function saveSessionToken(token) {
+  if (typeof window === 'undefined' || !token) return
+  window.localStorage.setItem(SESSION_TOKEN_KEY, token)
+}
+
+export function clearSession() {
+  if (typeof window === 'undefined') return
+  window.localStorage.removeItem(SESSION_TOKEN_KEY)
+}
 
 async function request(path, options = {}) {
+  const token = getStoredSessionToken()
   const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
     headers: {
       'content-type': 'application/json',
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },
-    ...options,
   })
 
   const payload = await response.json().catch(() => null)
@@ -19,15 +37,28 @@ async function request(path, options = {}) {
   return payload?.data
 }
 
-export function createSession({ email, password, mode }) {
-  return request('/auth/session', {
+export async function createSession(payload) {
+  const data = await request('/auth/session', {
     method: 'POST',
-    body: JSON.stringify({ email, password, mode }),
+    body: JSON.stringify(payload),
   })
+
+  if (data?.session?.token) {
+    saveSessionToken(data.session.token)
+  }
+
+  return data
 }
 
 export function getSession() {
   return request('/auth/session')
+}
+
+export function updateProfile(profile) {
+  return request('/auth/profile', {
+    method: 'PATCH',
+    body: JSON.stringify(profile),
+  })
 }
 
 export function listBackendServices(params = {}) {

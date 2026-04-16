@@ -8,7 +8,22 @@ create table if not exists users (
   role text not null check (role in ('buyer', 'seller', 'admin')),
   verification_status text not null default 'unverified'
     check (verification_status in ('unverified', 'pending', 'verified', 'rejected')),
-  created_at timestamptz not null default now()
+  password_hash text,
+  phone text not null default '',
+  school_or_company text not null default '',
+  city text not null default '',
+  bio text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists sessions (
+  id text primary key,
+  user_id text not null references users(id) on delete cascade,
+  token_hash text unique not null,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  last_seen_at timestamptz not null default now()
 );
 
 create table if not exists services (
@@ -88,6 +103,8 @@ create table if not exists verification_requests (
 );
 
 create index if not exists services_category_status_idx on services(category, status);
+create index if not exists sessions_user_idx on sessions(user_id, expires_at);
+create index if not exists sessions_token_hash_idx on sessions(token_hash);
 create index if not exists orders_buyer_idx on orders(buyer_id);
 create index if not exists orders_seller_idx on orders(seller_id);
 create index if not exists payments_order_idx on payments(order_id, created_at);

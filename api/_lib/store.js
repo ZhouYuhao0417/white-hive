@@ -53,6 +53,14 @@ export function upsertDemoSession(input) {
   return callStore('upsertDemoSession', [input])
 }
 
+export function getSessionByToken(token) {
+  return callStore('getSessionByToken', [token])
+}
+
+export function updateUserProfile(token, input) {
+  return callStore('updateUserProfile', [token, input])
+}
+
 export function listServices(input) {
   return callStore('listServices', [input])
 }

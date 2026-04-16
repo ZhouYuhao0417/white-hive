@@ -1,5 +1,15 @@
 import { createId, nowIso } from './ids.js'
 import {
+  createSessionToken,
+  hashPassword,
+  hashToken,
+  sanitizeProfileInput,
+  sessionExpiresAt,
+  validateEmail,
+  validatePassword,
+  verifyPassword,
+} from './auth.js'
+import {
   seedMessages,
   seedOrders,
   seedPayments,
@@ -47,6 +57,7 @@ function createMemoryState() {
     payments: clone(seedPayments),
     verificationRequests: clone(seedVerificationRequests),
     messages: clone(seedMessages),
+    sessions: [],
   }
 }
 
@@ -64,7 +75,7 @@ export function storeInfo() {
     note: process.env.DATABASE_URL
       ? 'DATABASE_URL 已存在，但当前 MVP 仍使用内存适配器；下一步接 Postgres。'
       : '未配置 DATABASE_URL，当前使用内存种子数据，适合演示和接口联调。',
-    capabilities: ['orders', 'messages', 'mock_payments', 'verification_requests'],
+    capabilities: ['password_auth', 'sessions', 'orders', 'messages', 'mock_payments', 'verification_requests'],
   }
 }
 
@@ -73,35 +84,106 @@ export function getDemoUser() {
   return clone(publicUser(user))
 }
 
-export function upsertDemoSession({ email, mode }) {
+export function upsertDemoSession(input = {}) {
   const state = getState()
-  const normalizedEmail = String(email || '').trim().toLowerCase()
+  const normalizedEmail = validateEmail(input.email)
+  const password = validatePassword(input.password)
+  const profile = sanitizeProfileInput(input, normalizedEmail)
+  const action = input.action || (input.mode === 'signin' ? 'signin' : 'signup')
+  let user = state.users.find((item) => item.email === normalizedEmail)
 
-  if (!normalizedEmail.includes('@')) {
-    throw new HttpError(400, 'invalid_email', '请输入有效邮箱。')
+  if (action === 'signin') {
+    if (!user || !user.passwordHash || !verifyPassword(password, user.passwordHash)) {
+      throw new HttpError(401, 'invalid_credentials', '邮箱或密码不正确。')
+    }
+
+    return clone(createSessionForUser(user))
   }
 
-  let user = state.users.find((item) => item.email === normalizedEmail)
+  if (user?.passwordHash) {
+    throw new HttpError(409, 'account_exists', '这个邮箱已经注册，请直接登录。')
+  }
 
   if (!user) {
     user = {
       id: createId('usr'),
       email: normalizedEmail,
-      displayName: normalizedEmail.split('@')[0],
-      role: mode === 'seller' ? 'seller' : 'buyer',
+      displayName: profile.displayName,
+      role: profile.role,
       verificationStatus: 'unverified',
+      phone: profile.phone,
+      schoolOrCompany: profile.schoolOrCompany,
+      city: profile.city,
+      bio: profile.bio,
+      passwordHash: hashPassword(password),
       createdAt: nowIso(),
+      updatedAt: nowIso(),
     }
     state.users.push(user)
+  } else {
+    user.displayName = profile.displayName
+    user.role = profile.role
+    user.phone = profile.phone
+    user.schoolOrCompany = profile.schoolOrCompany
+    user.city = profile.city
+    user.bio = profile.bio
+    user.passwordHash = hashPassword(password)
+    user.updatedAt = nowIso()
   }
+
+  return clone(createSessionForUser(user))
+}
+
+export function getSessionByToken(token) {
+  const tokenHash = hashToken(token)
+  const session = getState().sessions.find((item) => item.tokenHash === tokenHash)
+
+  if (!session || new Date(session.expiresAt) <= new Date()) {
+    throw new HttpError(401, 'invalid_session', '登录状态已失效，请重新登录。')
+  }
+
+  const user = ensureUser(session.userId)
+  session.lastSeenAt = nowIso()
 
   return clone({
     user: publicUser(user),
     session: {
-      token: `demo_${user.id}`,
-      expiresAt: null,
-      mode: 'demo',
+      id: session.id,
+      token: null,
+      tokenType: 'Bearer',
+      expiresAt: session.expiresAt,
+      mode: 'password',
     },
+  })
+}
+
+export function updateUserProfile(token, input = {}) {
+  const session = getSessionByToken(token)
+  const user = ensureUser(session.user.id)
+  const profile = sanitizeProfileInput(
+    {
+      displayName: input.displayName ?? user.displayName,
+      role: input.role ?? user.role,
+      phone: input.phone ?? user.phone,
+      schoolOrCompany: input.schoolOrCompany ?? user.schoolOrCompany,
+      city: input.city ?? user.city,
+      bio: input.bio ?? user.bio,
+    },
+    user.email,
+    user.role,
+  )
+
+  user.displayName = profile.displayName || user.displayName
+  user.role = profile.role || user.role
+  user.phone = profile.phone
+  user.schoolOrCompany = profile.schoolOrCompany
+  user.city = profile.city
+  user.bio = profile.bio
+  user.updatedAt = nowIso()
+
+  return clone({
+    user: publicUser(user),
+    session: session.session,
   })
 }
 
@@ -495,10 +577,42 @@ function publicUser(user) {
     email: user.email,
     displayName: user.displayName,
     role: user.role,
+    phone: user.phone || '',
+    schoolOrCompany: user.schoolOrCompany || '',
+    city: user.city || '',
+    bio: user.bio || '',
     verificationStatus: verificationStatuses.includes(user.verificationStatus)
       ? user.verificationStatus
       : 'unverified',
     createdAt: user.createdAt,
+    updatedAt: user.updatedAt || user.createdAt,
+  }
+}
+
+function createSessionForUser(user) {
+  const state = getState()
+  const token = createSessionToken()
+  const createdAt = nowIso()
+  const session = {
+    id: createId('ses'),
+    userId: user.id,
+    tokenHash: hashToken(token),
+    createdAt,
+    expiresAt: sessionExpiresAt(),
+    lastSeenAt: createdAt,
+  }
+
+  state.sessions.unshift(session)
+
+  return {
+    user: publicUser(user),
+    session: {
+      id: session.id,
+      token,
+      tokenType: 'Bearer',
+      expiresAt: session.expiresAt,
+      mode: 'password',
+    },
   }
 }
 

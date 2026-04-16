@@ -3,7 +3,7 @@
 WhiteHive now has two storage modes:
 
 - Memory demo mode: no `DATABASE_URL`; safe for UI demos, but data can reset.
-- Postgres mode: `DATABASE_URL` exists; orders, services, messages, mock payments and verification requests persist.
+- Postgres mode: `DATABASE_URL` exists; users, sessions, orders, services, messages, mock payments and verification requests persist.
 
 ## Recommended Provider
 
@@ -30,6 +30,8 @@ WHITEHIVE_REQUIRE_DATABASE=1
 The public API does not change. The frontend still calls:
 
 - `/api/services`
+- `/api/auth/session`
+- `/api/auth/profile`
 - `/api/orders`
 - `/api/payments`
 - `/api/messages`
