@@ -13,6 +13,7 @@ create table if not exists users (
   school_or_company text not null default '',
   city text not null default '',
   bio text not null default '',
+  avatar_url text not null default '',
   email_verified_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -113,6 +114,13 @@ create table if not exists email_verification_tokens (
   used_at timestamptz
 );
 
+create table if not exists rate_limit_events (
+  id text primary key,
+  bucket text not null,
+  identifier_hash text not null,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists services_category_status_idx on services(category, status);
 create index if not exists sessions_user_idx on sessions(user_id, expires_at);
 create index if not exists sessions_token_hash_idx on sessions(token_hash);
@@ -122,3 +130,4 @@ create index if not exists payments_order_idx on payments(order_id, created_at);
 create index if not exists messages_order_idx on messages(order_id, created_at);
 create index if not exists verification_requests_user_idx on verification_requests(user_id, created_at);
 create index if not exists email_verification_tokens_user_idx on email_verification_tokens(user_id, expires_at);
+create index if not exists rate_limit_events_lookup_idx on rate_limit_events(bucket, identifier_hash, created_at);

@@ -3,6 +3,7 @@ import {
   clearSession,
   confirmEmailVerification as confirmEmailVerificationRequest,
   createSession,
+  deleteAccount as deleteAccountRequest,
   getSession,
   hasSessionToken,
   requestEmailVerification as requestEmailVerificationRequest,
@@ -56,6 +57,13 @@ export function AuthProvider({ children }) {
     setUser(null)
   }, [])
 
+  const deleteAccount = useCallback(async () => {
+    const data = await deleteAccountRequest()
+    clearSession()
+    setUser(null)
+    return data
+  }, [])
+
   const requestEmailVerification = useCallback(async () => {
     const data = await requestEmailVerificationRequest()
     if (data?.user) setUser(data.user)
@@ -90,6 +98,7 @@ export function AuthProvider({ children }) {
         login,
         signup,
         logout,
+        deleteAccount,
         refreshUser,
         requestEmailVerification,
         confirmEmailVerification,

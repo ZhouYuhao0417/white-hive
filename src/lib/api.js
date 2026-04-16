@@ -78,6 +78,12 @@ export function updateProfile(profile) {
   })
 }
 
+export function deleteAccount() {
+  return request('/auth/account', {
+    method: 'DELETE',
+  })
+}
+
 export function listBackendServices(params = {}) {
   const search = new URLSearchParams(params)
   return request(`/services${search.size ? `?${search.toString()}` : ''}`)

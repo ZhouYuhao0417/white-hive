@@ -7,6 +7,7 @@ Auth-related account endpoints:
 - `POST /api/auth/session`: sign up or sign in with email/password.
 - `GET /api/auth/session`: restore the current bearer-token session.
 - `PATCH /api/auth/profile`: update profile fields for the logged-in user.
+- `DELETE /api/auth/account`: delete a disposable test account when it has no linked services, orders, payments or messages.
 - `POST /api/auth/email-verification`: create and send a 6-digit email verification code.
 - `POST /api/auth/email-verification/confirm`: confirm the 6-digit code and mark the email as verified.
 - `GET /api/verification`: read the logged-in user's real-name verification status.
@@ -44,6 +45,7 @@ Returns the current session user when the frontend sends `Authorization: Bearer 
 ### `POST /api/auth/session`
 
 Creates a password-based session. Passwords are hashed on the server with Node crypto `scrypt`; the API returns a random bearer token that the browser stores locally for later requests.
+Registration and login are rate-limited by IP and email to reduce brute-force attempts. New profile payloads may include `avatarUrl`, currently a compressed image data URL from the frontend MVP.
 
 ```json
 {
@@ -55,7 +57,8 @@ Creates a password-based session. Passwords are hashed on the server with Node c
   "phone": "13800000000",
   "schoolOrCompany": "WhiteHive",
   "city": "Chengdu",
-  "bio": "I want to buy and sell trusted digital services."
+  "bio": "I want to buy and sell trusted digital services.",
+  "avatarUrl": "data:image/jpeg;base64,..."
 }
 ```
 
@@ -85,9 +88,22 @@ Updates the current user profile.
   "phone": "13800000000",
   "schoolOrCompany": "WhiteHive Studio",
   "city": "Chengdu",
-  "bio": "I can deliver landing pages and AI workflow services."
+  "bio": "I can deliver landing pages and AI workflow services.",
+  "avatarUrl": "https://example.com/avatar.jpg"
 }
 ```
+
+### `DELETE /api/auth/account`
+
+Deletes the current logged-in test account and clears server-side session data. To protect order history, the backend refuses deletion when the account already owns services, orders, payments or messages.
+
+### `POST /api/auth/email-verification`
+
+Creates a short-lived hashed verification code and sends it by email. Production delivery requires `RESEND_API_KEY` and `EMAIL_FROM` in Vercel. Without a real email key, the API no longer returns mock codes to the browser; local demos can opt into mock delivery with `WHITEHIVE_EMAIL_MOCK=1`, but the code remains hidden from the UI.
+
+### `POST /api/auth/email-verification/confirm`
+
+Confirms the 6-digit email code. Send/confirm endpoints are rate-limited by IP and session token to reduce verification-code abuse.
 
 ## Services
 

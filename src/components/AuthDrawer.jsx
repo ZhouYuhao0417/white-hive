@@ -28,6 +28,51 @@ const initialForm = {
   schoolOrCompany: '',
   city: '',
   bio: '',
+  avatarUrl: '',
+}
+
+const avatarMaxFileSize = 2 * 1024 * 1024
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(new Error('头像读取失败，请换一张图片。'))
+    reader.readAsDataURL(file)
+  })
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('头像图片无法识别，请换一张 PNG、JPG 或 WebP。'))
+    image.src = src
+  })
+}
+
+async function createAvatarDataUrl(file) {
+  if (!file) return ''
+  if (!file.type.startsWith('image/')) {
+    throw new Error('请上传图片格式的头像。')
+  }
+
+  if (file.size > avatarMaxFileSize) {
+    throw new Error('头像文件请控制在 2MB 以内。')
+  }
+
+  const rawDataUrl = await readFileAsDataUrl(file)
+  const image = await loadImage(rawDataUrl)
+  const size = 256
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const context = canvas.getContext('2d')
+  const side = Math.min(image.width, image.height)
+  const sourceX = Math.max(0, (image.width - side) / 2)
+  const sourceY = Math.max(0, (image.height - side) / 2)
+  context.drawImage(image, sourceX, sourceY, side, side, 0, 0, size, size)
+  return canvas.toDataURL('image/jpeg', 0.82)
 }
 
 export default function AuthDrawer({ open, onClose }) {
@@ -35,6 +80,7 @@ export default function AuthDrawer({ open, onClose }) {
   const [mode, setMode] = useState('signin') // 'signin' | 'signup'
   const [form, setForm] = useState(initialForm)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isProcessingAvatar, setIsProcessingAvatar] = useState(false)
   const [isSendingVerification, setIsSendingVerification] = useState(false)
   const [isConfirmingVerification, setIsConfirmingVerification] = useState(false)
   const [emailChallenge, setEmailChallenge] = useState(null)
@@ -80,6 +126,7 @@ export default function AuthDrawer({ open, onClose }) {
         schoolOrCompany: form.schoolOrCompany,
         city: form.city,
         bio: form.bio,
+        avatarUrl: form.avatarUrl,
       }
 
       const result = isSignup ? await signup(payload) : await login(payload)
@@ -87,11 +134,12 @@ export default function AuthDrawer({ open, onClose }) {
       if (!result?.user?.emailVerified) {
         const challenge = await requestEmailVerification()
         setEmailChallenge(challenge?.emailVerification || null)
-        setVerificationCode(challenge?.emailVerification?.mockCode || '')
+        setVerificationCode('')
+        const deliveryMessage = challenge?.emailVerification?.delivery?.message
         setNotice(
           isSignup
-            ? `账户已创建：${name}。请先完成邮箱验证。`
-            : `登录成功：${name}。这个邮箱还没有验证。`,
+            ? `账户已创建：${name}。${deliveryMessage || '请先完成邮箱验证。'}`
+            : `登录成功：${name}。${deliveryMessage || '这个邮箱还没有验证。'}`,
         )
         return
       }
@@ -121,12 +169,30 @@ export default function AuthDrawer({ open, onClose }) {
     try {
       const result = await requestEmailVerification()
       setEmailChallenge(result?.emailVerification || null)
-      setVerificationCode(result?.emailVerification?.mockCode || '')
+      setVerificationCode('')
       setNotice(result?.emailVerification?.delivery?.message || '验证码已重新发送。')
     } catch (err) {
       setError(err.message || '验证码发送失败，请稍后再试。')
     } finally {
       setIsSendingVerification(false)
+    }
+  }
+
+  const changeAvatar = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setIsProcessingAvatar(true)
+    setNotice('')
+    setError('')
+
+    try {
+      const avatarUrl = await createAvatarDataUrl(file)
+      updateForm('avatarUrl', avatarUrl)
+    } catch (err) {
+      setError(err.message || '头像处理失败，请换一张图片。')
+    } finally {
+      setIsProcessingAvatar(false)
+      event.target.value = ''
     }
   }
 
@@ -303,6 +369,43 @@ export default function AuthDrawer({ open, onClose }) {
                     <div className="pt-2">
                       <div className="mono-label mb-3">个人信息</div>
                       <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3 space-y-3">
+                        <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.025] p-3">
+                          <div className="h-14 w-14 overflow-hidden rounded-full border border-[#7FD3FF]/25 bg-[#7FD3FF]/10 grid place-items-center text-[#BEE6FF]">
+                            {form.avatarUrl ? (
+                              <img src={form.avatarUrl} alt="头像预览" className="h-full w-full object-cover" />
+                            ) : (
+                              <Icon name="user" size={24} />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="mono-label">真人头像</div>
+                            <p className="mt-1 text-[11px] leading-relaxed text-white/45">
+                              选填。真实头像会让买卖双方更容易建立第一层信任。
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <label className="inline-flex h-8 cursor-pointer items-center rounded-lg border border-[#7FD3FF]/25 bg-[#7FD3FF]/10 px-3 text-xs text-[#BEE6FF] hover:border-[#7FD3FF]/45">
+                                {isProcessingAvatar ? '处理中...' : '上传头像'}
+                                <input
+                                  type="file"
+                                  accept="image/png,image/jpeg,image/webp"
+                                  onChange={changeAvatar}
+                                  disabled={isProcessingAvatar}
+                                  className="hidden"
+                                />
+                              </label>
+                              {form.avatarUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateForm('avatarUrl', '')}
+                                  className="h-8 rounded-lg border border-white/10 px-3 text-xs text-white/50 hover:text-white hover:bg-white/5"
+                                >
+                                  移除
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
                         <label className="block">
                           <span className="mono-label">昵称 / 团队名</span>
                           <input
@@ -398,15 +501,17 @@ export default function AuthDrawer({ open, onClose }) {
                         <div className="mt-1 text-sm font-medium text-white">验证邮箱</div>
                       </div>
                       <span className="rounded-full border border-[#7FD3FF]/30 bg-[#7FD3FF]/10 px-2 py-1 text-[10px] text-[#BEE6FF]">
-                        {emailChallenge.delivery?.mock ? '演示模式' : '已发送'}
+                        {emailChallenge.delivery?.delivered ? '已发送' : emailChallenge.delivery?.mock ? '本地模式' : '待配置'}
                       </span>
                     </div>
                     <p className="text-xs leading-relaxed text-white/55">
-                      验证码已发送到 {emailChallenge.email}。完成验证后，账号可信度会提升，后续实名认证和交易流程也会更顺。
+                      {emailChallenge.delivery?.delivered
+                        ? `验证码已发送到 ${emailChallenge.email}。完成验证后，账号可信度会提升，后续实名认证和交易流程也会更顺。`
+                        : `邮箱验证已准备好：${emailChallenge.email}。等真实邮件服务配置完成后，这里会收到 6 位验证码。`}
                     </p>
-                    {emailChallenge.mockCode && (
+                    {emailChallenge.delivery?.message && (
                       <div className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
-                        当前还没配置真实邮件服务，演示验证码：<span className="font-semibold tracking-[0.24em]">{emailChallenge.mockCode}</span>
+                        {emailChallenge.delivery.message}
                       </div>
                     )}
                     <div className="flex gap-2">

@@ -3,7 +3,7 @@
 WhiteHive now has two storage modes:
 
 - Memory demo mode: no database URL; safe for UI demos, but data can reset.
-- Postgres mode: a database URL exists; users, sessions, email verification codes, orders, services, messages, mock payments and verification requests persist.
+- Postgres mode: a database URL exists; users, sessions, avatars, email verification codes, rate-limit events, orders, services, messages, mock payments and verification requests persist.
 
 ## Recommended Provider
 
@@ -70,6 +70,17 @@ Recommended path for this project:
 6. Redeploy the latest `main` deployment after the environment variable exists.
 
 The API auto-migrates on first request, so there is no separate SQL command to run manually.
+
+## Email Sender
+
+Email verification uses Resend-compatible API calls. Add these server-side variables in Vercel when you are ready for real delivery:
+
+```bash
+RESEND_API_KEY="re_..."
+EMAIL_FROM="WhiteHive <no-reply@whitehive.cn>"
+```
+
+Verify `whitehive.cn` as a sender domain before relying on production delivery. Local-only mock email can be enabled with `WHITEHIVE_EMAIL_MOCK=1`, but the frontend no longer displays mock verification codes.
 
 ## Verification
 

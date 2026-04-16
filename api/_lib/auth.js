@@ -92,10 +92,30 @@ export function sanitizeProfileInput(input = {}, fallbackEmail = '', fallbackRol
     schoolOrCompany: limitText(input.schoolOrCompany, 80),
     city: limitText(input.city, 40),
     bio: limitText(input.bio, 240),
+    avatarUrl: sanitizeAvatarUrl(input.avatarUrl),
   }
 }
 
 function limitText(value, maxLength) {
   const text = String(value || '').trim()
   return text.length > maxLength ? text.slice(0, maxLength) : text
+}
+
+function sanitizeAvatarUrl(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+
+  if (text.length > 350_000) {
+    throw new HttpError(400, 'avatar_too_large', '头像图片太大，请换一张更小的图片。')
+  }
+
+  if (/^https:\/\/[^\s"'<>]+$/i.test(text)) {
+    return text
+  }
+
+  if (/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i.test(text)) {
+    return text
+  }
+
+  throw new HttpError(400, 'invalid_avatar', '头像格式不支持，请上传 PNG、JPG 或 WebP 图片。')
 }

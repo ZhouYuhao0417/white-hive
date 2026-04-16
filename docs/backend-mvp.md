@@ -25,6 +25,7 @@ Public endpoints:
 - `POST /api/auth/session`
 - `GET /api/auth/profile`
 - `PATCH /api/auth/profile`
+- `DELETE /api/auth/account`
 - `POST /api/auth/email-verification`
 - `POST /api/auth/email-verification/confirm`
 - `GET /api/services`
@@ -64,7 +65,10 @@ Current storage:
 - `api/_lib/memory-store.js` keeps the safe demo fallback.
 - `api/_lib/postgres-store.js` uses Neon/Postgres when a supported database URL exists.
 - Registration now stores a hashed password, personal profile fields, and a server-side session token hash.
-- Email verification now stores short-lived hashed verification codes; without `RESEND_API_KEY`, the UI shows a mock code for demos.
+- Registration/login and email verification now have simple IP/session/email rate limits backed by the active store.
+- Profile data now supports an optional compressed avatar image for higher-trust accounts.
+- Email verification now stores short-lived hashed verification codes. Production email requires `RESEND_API_KEY` and `EMAIL_FROM`; the UI no longer displays mock codes.
+- Disposable test accounts can be deleted from `/account` when they have no linked services, orders, payments or messages.
 - Service publishing, order creation, order messages, mock payments and verification now prefer the bearer-token user over hard-coded demo IDs.
 - Logged-in users can only pay for their own buyer-side orders and can only send messages inside orders they participate in.
 - Without a database URL, data is still not persistent across cold starts or redeploys.
@@ -103,9 +107,9 @@ Verification statuses:
 
 ## Next Backend Steps
 
-1. Add rate limiting before opening registration publicly.
-2. Connect a real email sender such as Resend or Alibaba Cloud email, then remove mock-code display.
-3. Replace the MVP password auth with Clerk/Auth0 or email magic-link auth when the product leaves demo mode.
+1. Add a real email sender such as Resend in Vercel and verify `whitehive.cn` as a sender domain.
+2. Replace the MVP password auth with Clerk/Auth0 or email magic-link auth when the product leaves demo mode.
+3. Move avatar images from compressed data URLs into Vercel Blob or Alibaba Cloud OSS.
 4. Replace browser cache fallback with Postgres-backed user data everywhere.
 5. Split `/dashboard` into real buyer/seller dashboards after auth is connected across all flows.
 6. Add the final payment confirmation UI on top of `/api/payments`.

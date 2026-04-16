@@ -105,6 +105,7 @@ async function migrateAndSeed() {
       school_or_company text not null default '',
       city text not null default '',
       bio text not null default '',
+      avatar_url text not null default '',
       email_verified_at timestamptz,
       updated_at timestamptz not null default now(),
       created_at timestamptz not null default now()
@@ -116,6 +117,7 @@ async function migrateAndSeed() {
   await db`alter table users add column if not exists school_or_company text not null default ''`
   await db`alter table users add column if not exists city text not null default ''`
   await db`alter table users add column if not exists bio text not null default ''`
+  await db`alter table users add column if not exists avatar_url text not null default ''`
   await db`alter table users add column if not exists email_verified_at timestamptz`
   await db`alter table users add column if not exists updated_at timestamptz not null default now()`
 
@@ -228,6 +230,15 @@ async function migrateAndSeed() {
     )
   `
 
+  await db`
+    create table if not exists rate_limit_events (
+      id text primary key,
+      bucket text not null,
+      identifier_hash text not null,
+      created_at timestamptz not null default now()
+    )
+  `
+
   await db`create index if not exists services_category_status_idx on services(category, status)`
   await db`create index if not exists sessions_user_idx on sessions(user_id, expires_at)`
   await db`create index if not exists sessions_token_hash_idx on sessions(token_hash)`
@@ -237,6 +248,7 @@ async function migrateAndSeed() {
   await db`create index if not exists messages_order_idx on messages(order_id, created_at)`
   await db`create index if not exists verification_requests_user_idx on verification_requests(user_id, created_at)`
   await db`create index if not exists email_verification_tokens_user_idx on email_verification_tokens(user_id, expires_at)`
+  await db`create index if not exists rate_limit_events_lookup_idx on rate_limit_events(bucket, identifier_hash, created_at)`
 
   await seedDatabase(db)
 }
@@ -339,6 +351,49 @@ export async function getDemoUser() {
   return publicUser(user)
 }
 
+export async function checkRateLimit(input = {}) {
+  const bucket = String(input.bucket || 'default').slice(0, 80)
+  const identifierHash = hashToken(input.identifier || 'anonymous')
+  const limit = Math.max(1, Number(input.limit || 10))
+  const windowSeconds = Math.max(1, Number(input.windowSeconds || 60))
+  const nowMs = Date.now()
+  const staleBefore = new Date(nowMs - 24 * 60 * 60 * 1000).toISOString()
+  const windowStart = new Date(nowMs - windowSeconds * 1000).toISOString()
+
+  await query`delete from rate_limit_events where created_at < ${staleBefore}`
+
+  const rows = await query`
+    select count(*)::int as count, min(created_at) as oldest_at
+    from rate_limit_events
+    where bucket = ${bucket}
+      and identifier_hash = ${identifierHash}
+      and created_at >= ${windowStart}
+  `
+  const count = Number(rows[0]?.count || 0)
+
+  if (count >= limit) {
+    const oldestMs = rows[0]?.oldest_at ? new Date(rows[0].oldest_at).getTime() : nowMs
+    const retryAfterSeconds = Math.max(1, Math.ceil((oldestMs + windowSeconds * 1000 - nowMs) / 1000))
+    throw new HttpError(429, 'rate_limited', input.message || '请求太频繁，请稍后再试。', {
+      limit,
+      windowSeconds,
+      retryAfterSeconds,
+    })
+  }
+
+  await query`
+    insert into rate_limit_events (id, bucket, identifier_hash, created_at)
+    values (${createId('rl')}, ${bucket}, ${identifierHash}, ${nowIso()})
+  `
+
+  return {
+    allowed: true,
+    limit,
+    windowSeconds,
+    remaining: Math.max(0, limit - count - 1),
+  }
+}
+
 export async function upsertDemoSession(input = {}) {
   const normalizedEmail = validateEmail(input.email)
   const password = validatePassword(input.password)
@@ -367,12 +422,12 @@ export async function upsertDemoSession(input = {}) {
     const inserted = await query`
       insert into users (
         id, email, display_name, role, verification_status, password_hash,
-        phone, school_or_company, city, bio, created_at, updated_at
+        phone, school_or_company, city, bio, avatar_url, created_at, updated_at
       )
       values (
         ${id}, ${normalizedEmail}, ${profile.displayName}, ${profile.role}, 'unverified',
         ${passwordHash}, ${profile.phone}, ${profile.schoolOrCompany}, ${profile.city},
-        ${profile.bio}, ${createdAt}, ${createdAt}
+        ${profile.bio}, ${profile.avatarUrl}, ${createdAt}, ${createdAt}
       )
       returning *
     `
@@ -389,6 +444,7 @@ export async function upsertDemoSession(input = {}) {
         school_or_company = ${profile.schoolOrCompany},
         city = ${profile.city},
         bio = ${profile.bio},
+        avatar_url = ${profile.avatarUrl},
         updated_at = ${updatedAt}
       where id = ${user.id}
       returning *
@@ -466,7 +522,6 @@ export async function requestEmailVerification(token) {
       email: user.email,
       expiresAt,
       delivery,
-      mockCode: delivery.mock ? code : undefined,
     },
   }
 }
@@ -526,6 +581,28 @@ export async function confirmEmailVerification(token, input = {}) {
   }
 }
 
+export async function deleteUserAccount(token) {
+  const current = await getSessionByToken(token)
+  const userId = current.user.id
+  const linkedRows = await Promise.all([
+    query`select id from services where seller_id = ${userId} limit 1`,
+    query`select id from orders where buyer_id = ${userId} or seller_id = ${userId} limit 1`,
+    query`select id from payments where buyer_id = ${userId} or seller_id = ${userId} limit 1`,
+    query`select id from messages where sender_id = ${userId} limit 1`,
+  ])
+
+  if (linkedRows.some((rows) => rows.length > 0)) {
+    throw new HttpError(409, 'account_has_linked_work', '这个账号已经有关联服务、订单或消息，暂时不能直接注销。')
+  }
+
+  await query`delete from users where id = ${userId}`
+
+  return {
+    deleted: true,
+    userId,
+  }
+}
+
 export async function updateUserProfile(token, input = {}) {
   const current = await getSessionByToken(token)
   const profile = sanitizeProfileInput(
@@ -536,6 +613,7 @@ export async function updateUserProfile(token, input = {}) {
       schoolOrCompany: input.schoolOrCompany ?? current.user.schoolOrCompany,
       city: input.city ?? current.user.city,
       bio: input.bio ?? current.user.bio,
+      avatarUrl: input.avatarUrl ?? current.user.avatarUrl,
     },
     current.user.email,
     current.user.role,
@@ -550,6 +628,7 @@ export async function updateUserProfile(token, input = {}) {
       school_or_company = ${profile.schoolOrCompany},
       city = ${profile.city},
       bio = ${profile.bio},
+      avatar_url = ${profile.avatarUrl},
       updated_at = ${updatedAt}
     where id = ${current.user.id}
     returning *
@@ -1013,6 +1092,7 @@ async function withSeller(service) {
       ? {
           id: seller.id,
           displayName: seller.displayName,
+          avatarUrl: seller.avatarUrl || '',
           role: seller.role,
           verificationStatus: seller.verificationStatus,
         }
@@ -1056,6 +1136,7 @@ async function withMessageRelations(message) {
       ? {
           id: sender.id,
           displayName: sender.displayName,
+          avatarUrl: sender.avatarUrl || '',
           role: sender.role,
         }
       : null,
@@ -1073,6 +1154,7 @@ function publicUser(user) {
     schoolOrCompany: user.schoolOrCompany || '',
     city: user.city || '',
     bio: user.bio || '',
+    avatarUrl: user.avatarUrl || '',
     verificationStatus: verificationStatuses.includes(user.verificationStatus)
       ? user.verificationStatus
       : 'unverified',
@@ -1147,6 +1229,7 @@ function userFromRow(row) {
     schoolOrCompany: row.school_or_company || '',
     city: row.city || '',
     bio: row.bio || '',
+    avatarUrl: row.avatar_url || '',
     verificationStatus: row.verification_status,
     emailVerifiedAt: toIso(row.email_verified_at),
     createdAt: toIso(row.created_at),

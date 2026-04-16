@@ -1,5 +1,6 @@
 import * as memory from './memory-store.js'
 import * as postgres from './postgres-store.js'
+import { HttpError } from './http.js'
 
 const requireDatabase = process.env.WHITEHIVE_REQUIRE_DATABASE === '1'
 
@@ -15,6 +16,10 @@ async function callStore(name, args) {
   try {
     return await postgres[name](...args)
   } catch (error) {
+    if (error instanceof HttpError) {
+      throw error
+    }
+
     if (requireDatabase) {
       throw error
     }
@@ -63,6 +68,14 @@ export function requestEmailVerification(token) {
 
 export function confirmEmailVerification(token, input) {
   return callStore('confirmEmailVerification', [token, input])
+}
+
+export function deleteUserAccount(token) {
+  return callStore('deleteUserAccount', [token])
+}
+
+export function checkRateLimit(input) {
+  return callStore('checkRateLimit', [input])
 }
 
 export function updateUserProfile(token, input) {

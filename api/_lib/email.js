@@ -18,14 +18,25 @@ export async function sendEmailVerification({ to, code }) {
   const resendApiKey = process.env.RESEND_API_KEY
   const from = process.env.EMAIL_FROM || defaultFrom
   const verificationUrl = `${siteUrl()}/?emailVerificationCode=${encodeURIComponent(code)}`
+  const allowMockEmail = process.env.WHITEHIVE_EMAIL_MOCK === '1'
 
   if (!resendApiKey) {
+    if (!allowMockEmail) {
+      return {
+        provider: 'not_configured',
+        delivered: false,
+        mock: false,
+        verificationUrl: null,
+        message: '真实邮件服务尚未配置，请在 Vercel 添加 RESEND_API_KEY 和 EMAIL_FROM。',
+      }
+    }
+
     return {
       provider: 'mock',
       delivered: false,
       mock: true,
       verificationUrl,
-      message: '当前未配置邮件服务，验证码以演示模式返回。',
+      message: '本地开发邮件 mock 已开启；线上请配置真实邮件服务。',
     }
   }
 

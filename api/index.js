@@ -5,7 +5,9 @@ import {
   createOrder,
   createPayment,
   createService,
+  checkRateLimit,
   confirmEmailVerification,
+  deleteUserAccount,
   getDemoUser,
   getOrder,
   getPayment,
@@ -38,6 +40,78 @@ function bearerToken(request) {
   const header = request.headers.get('authorization') || ''
   const match = header.match(/^Bearer\s+(.+)$/i)
   return match ? match[1].trim() : ''
+}
+
+function clientIp(request) {
+  const forwardedFor = request.headers.get('x-forwarded-for') || ''
+  const firstForwardedIp = forwardedFor.split(',')[0]?.trim()
+  return (
+    request.headers.get('cf-connecting-ip') ||
+    request.headers.get('x-real-ip') ||
+    firstForwardedIp ||
+    'unknown'
+  )
+}
+
+function rateLimitEmail(email) {
+  return String(email || '').trim().toLowerCase() || 'unknown-email'
+}
+
+function rateLimitSessionIdentifier(request, token = bearerToken(request)) {
+  return token || `ip:${clientIp(request)}`
+}
+
+async function enforceAuthSessionRateLimit(request, body = {}) {
+  const action = body.action || (body.mode === 'signin' ? 'signin' : 'signup')
+  const isSignin = action === 'signin'
+  await checkRateLimit({
+    bucket: `auth_session_${isSignin ? 'signin' : 'signup'}_ip`,
+    identifier: clientIp(request),
+    limit: isSignin ? 30 : 15,
+    windowSeconds: 15 * 60,
+    message: '注册/登录请求太频繁，请稍后再试。',
+  })
+  await checkRateLimit({
+    bucket: `auth_session_${isSignin ? 'signin' : 'signup'}_email`,
+    identifier: rateLimitEmail(body.email),
+    limit: isSignin ? 8 : 5,
+    windowSeconds: 15 * 60,
+    message: isSignin ? '登录尝试过多，请稍后再试。' : '注册尝试过多，请稍后再试。',
+  })
+}
+
+async function enforceEmailVerificationSendRateLimit(request, token) {
+  await checkRateLimit({
+    bucket: 'email_verification_send_ip',
+    identifier: clientIp(request),
+    limit: 20,
+    windowSeconds: 10 * 60,
+    message: '验证码发送太频繁，请稍后再试。',
+  })
+  await checkRateLimit({
+    bucket: 'email_verification_send_session',
+    identifier: rateLimitSessionIdentifier(request, token),
+    limit: 4,
+    windowSeconds: 10 * 60,
+    message: '这个账号的验证码发送太频繁，请稍后再试。',
+  })
+}
+
+async function enforceEmailVerificationConfirmRateLimit(request, token) {
+  await checkRateLimit({
+    bucket: 'email_verification_confirm_ip',
+    identifier: clientIp(request),
+    limit: 40,
+    windowSeconds: 10 * 60,
+    message: '验证码校验太频繁，请稍后再试。',
+  })
+  await checkRateLimit({
+    bucket: 'email_verification_confirm_session',
+    identifier: rateLimitSessionIdentifier(request, token),
+    limit: 8,
+    windowSeconds: 10 * 60,
+    message: '验证码尝试次数过多，请稍后重新发送。',
+  })
 }
 
 async function optionalSessionUser(request) {
@@ -94,6 +168,7 @@ export default {
 
         if (request.method === 'POST') {
           const body = await readBody(request)
+          await enforceAuthSessionRateLimit(request, body)
           return ok(await upsertDemoSession(body))
         }
 
@@ -114,10 +189,20 @@ export default {
         return methodNotAllowed(request.method, ['GET', 'PATCH'])
       }
 
+      if (path === 'auth/account') {
+        if (request.method === 'DELETE') {
+          const token = bearerToken(request)
+          return ok(await deleteUserAccount(token))
+        }
+
+        return methodNotAllowed(request.method, ['DELETE'])
+      }
+
       if (path === 'auth/email-verification') {
         const token = bearerToken(request)
 
         if (request.method === 'GET' || request.method === 'POST') {
+          await enforceEmailVerificationSendRateLimit(request, token)
           return ok(await requestEmailVerification(token))
         }
 
@@ -128,6 +213,7 @@ export default {
         if (request.method === 'POST') {
           const token = bearerToken(request)
           const body = await readBody(request)
+          await enforceEmailVerificationConfirmRateLimit(request, token)
           return ok(await confirmEmailVerification(token, body))
         }
 

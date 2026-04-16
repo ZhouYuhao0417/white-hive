@@ -30,6 +30,7 @@ const serviceStatuses = ['draft', 'published', 'paused', 'archived']
 const paymentStatuses = ['mock_pending', 'mock_paid', 'mock_released', 'mock_refunded', 'mock_failed']
 const verificationStatuses = ['unverified', 'pending', 'verified', 'rejected']
 const verificationRequestStatuses = ['pending', 'approved', 'rejected']
+const rateLimitEventTtlMs = 24 * 60 * 60 * 1000
 
 const orderStatusLabels = {
   submitted: '待卖家接单',
@@ -61,6 +62,7 @@ function createMemoryState() {
     payments: clone(seedPayments),
     verificationRequests: clone(seedVerificationRequests),
     emailVerificationTokens: [],
+    rateLimitEvents: [],
     messages: clone(seedMessages),
     sessions: [],
   }
@@ -90,6 +92,54 @@ export function storeInfo() {
       'mock_payments',
       'verification_requests',
     ],
+  }
+}
+
+export function checkRateLimit(input = {}) {
+  const state = getState()
+  if (!Array.isArray(state.rateLimitEvents)) {
+    state.rateLimitEvents = []
+  }
+
+  const bucket = String(input.bucket || 'default').slice(0, 80)
+  const identifierHash = hashToken(input.identifier || 'anonymous')
+  const limit = Math.max(1, Number(input.limit || 10))
+  const windowSeconds = Math.max(1, Number(input.windowSeconds || 60))
+  const nowMs = Date.now()
+  const windowStartMs = nowMs - windowSeconds * 1000
+
+  state.rateLimitEvents = state.rateLimitEvents.filter((event) => {
+    const createdAtMs = new Date(event.createdAt).getTime()
+    return Number.isFinite(createdAtMs) && nowMs - createdAtMs < rateLimitEventTtlMs
+  })
+
+  const matchingEvents = state.rateLimitEvents
+    .filter((event) => event.bucket === bucket && event.identifierHash === identifierHash)
+    .filter((event) => new Date(event.createdAt).getTime() >= windowStartMs)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+
+  if (matchingEvents.length >= limit) {
+    const oldestMs = new Date(matchingEvents[0].createdAt).getTime()
+    const retryAfterSeconds = Math.max(1, Math.ceil((oldestMs + windowSeconds * 1000 - nowMs) / 1000))
+    throw new HttpError(429, 'rate_limited', input.message || '请求太频繁，请稍后再试。', {
+      limit,
+      windowSeconds,
+      retryAfterSeconds,
+    })
+  }
+
+  state.rateLimitEvents.push({
+    id: createId('rl'),
+    bucket,
+    identifierHash,
+    createdAt: nowIso(),
+  })
+
+  return {
+    allowed: true,
+    limit,
+    windowSeconds,
+    remaining: Math.max(0, limit - matchingEvents.length - 1),
   }
 }
 
@@ -129,6 +179,7 @@ export function upsertDemoSession(input = {}) {
       schoolOrCompany: profile.schoolOrCompany,
       city: profile.city,
       bio: profile.bio,
+      avatarUrl: profile.avatarUrl,
       emailVerifiedAt: null,
       passwordHash: hashPassword(password),
       createdAt: nowIso(),
@@ -142,6 +193,7 @@ export function upsertDemoSession(input = {}) {
     user.schoolOrCompany = profile.schoolOrCompany
     user.city = profile.city
     user.bio = profile.bio
+    user.avatarUrl = profile.avatarUrl
     user.passwordHash = hashPassword(password)
     user.updatedAt = nowIso()
   }
@@ -210,7 +262,6 @@ export async function requestEmailVerification(token) {
       email: user.email,
       expiresAt,
       delivery,
-      mockCode: delivery.mock ? code : undefined,
     },
   })
 }
@@ -261,6 +312,31 @@ export function confirmEmailVerification(token, input = {}) {
   })
 }
 
+export function deleteUserAccount(token) {
+  const session = getSessionByToken(token)
+  const userId = session.user.id
+  const state = getState()
+  const hasLinkedWork =
+    state.services.some((service) => service.sellerId === userId) ||
+    state.orders.some((order) => order.buyerId === userId || order.sellerId === userId) ||
+    state.payments.some((payment) => payment.buyerId === userId || payment.sellerId === userId) ||
+    state.messages.some((message) => message.senderId === userId)
+
+  if (hasLinkedWork) {
+    throw new HttpError(409, 'account_has_linked_work', '这个账号已经有关联服务、订单或消息，暂时不能直接注销。')
+  }
+
+  state.users = state.users.filter((user) => user.id !== userId)
+  state.sessions = state.sessions.filter((item) => item.userId !== userId)
+  state.emailVerificationTokens = state.emailVerificationTokens.filter((item) => item.userId !== userId)
+  state.verificationRequests = state.verificationRequests.filter((item) => item.userId !== userId)
+
+  return {
+    deleted: true,
+    userId,
+  }
+}
+
 export function updateUserProfile(token, input = {}) {
   const session = getSessionByToken(token)
   const user = ensureUser(session.user.id)
@@ -272,6 +348,7 @@ export function updateUserProfile(token, input = {}) {
       schoolOrCompany: input.schoolOrCompany ?? user.schoolOrCompany,
       city: input.city ?? user.city,
       bio: input.bio ?? user.bio,
+      avatarUrl: input.avatarUrl ?? user.avatarUrl,
     },
     user.email,
     user.role,
@@ -283,6 +360,7 @@ export function updateUserProfile(token, input = {}) {
   user.schoolOrCompany = profile.schoolOrCompany
   user.city = profile.city
   user.bio = profile.bio
+  user.avatarUrl = profile.avatarUrl
   user.updatedAt = nowIso()
 
   return clone({
@@ -686,6 +764,7 @@ function publicUser(user) {
     schoolOrCompany: user.schoolOrCompany || '',
     city: user.city || '',
     bio: user.bio || '',
+    avatarUrl: user.avatarUrl || '',
     verificationStatus: verificationStatuses.includes(user.verificationStatus)
       ? user.verificationStatus
       : 'unverified',
@@ -771,6 +850,7 @@ function withSeller(service) {
       ? {
           id: seller.id,
           displayName: seller.displayName,
+          avatarUrl: seller.avatarUrl || '',
           role: seller.role,
           verificationStatus: seller.verificationStatus,
         }
@@ -835,6 +915,7 @@ function withMessageRelations(message) {
       ? {
           id: sender.id,
           displayName: sender.displayName,
+          avatarUrl: sender.avatarUrl || '',
           role: sender.role,
         }
       : null,

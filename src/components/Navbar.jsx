@@ -18,6 +18,17 @@ const links = [
 /* ---- 用户头像（取昵称首字或邮箱首字母） ---- */
 function UserAvatar({ user, size = 32 }) {
   const letter = (user.displayName?.[0] || user.email?.[0] || 'U').toUpperCase()
+  if (user.avatarUrl) {
+    return (
+      <span
+        className="inline-block overflow-hidden rounded-full shrink-0 border border-white/10 bg-white/5"
+        style={{ width: size, height: size }}
+      >
+        <img src={user.avatarUrl} alt={user.displayName || user.email || '用户头像'} className="h-full w-full object-cover" />
+      </span>
+    )
+  }
+
   return (
     <span
       className="inline-grid place-items-center rounded-full shrink-0 font-semibold text-ink-900 select-none"

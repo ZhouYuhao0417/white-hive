@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Section, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
 import { confirmEmailVerification, getVerificationProfile, requestEmailVerification, submitVerification } from '../lib/api.js'
@@ -26,7 +26,8 @@ const initialVerificationForm = {
 }
 
 export default function Account() {
-  const { user, isAuthenticated, isLoading, refreshUser } = useAuth()
+  const { user, isAuthenticated, isLoading, refreshUser, deleteAccount } = useAuth()
+  const navigate = useNavigate()
   const [emailCode, setEmailCode] = useState('')
   const [emailChallenge, setEmailChallenge] = useState(null)
   const [emailBusy, setEmailBusy] = useState(false)
@@ -70,7 +71,7 @@ export default function Account() {
     try {
       const result = await requestEmailVerification()
       setEmailChallenge(result.emailVerification)
-      setEmailCode(result.emailVerification?.mockCode || '')
+      setEmailCode('')
       setNotice(result.emailVerification?.delivery?.message || '验证码已发送。')
     } catch (err) {
       setError(err.message || '发送验证码失败，请稍后再试。')
@@ -115,6 +116,21 @@ export default function Account() {
       setError(err.message || '实名认证提交失败，请检查信息后重试。')
     } finally {
       setSubmittingVerification(false)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('确定注销当前账号吗？没有订单/服务/消息的测试账号会被直接删除，这个操作不能撤销。')) {
+      return
+    }
+
+    setNotice('')
+    setError('')
+    try {
+      await deleteAccount()
+      navigate('/')
+    } catch (err) {
+      setError(err.message || '注销账户失败，请稍后再试。')
     }
   }
 
@@ -192,10 +208,19 @@ export default function Account() {
           <div className="space-y-6">
             <div className="card p-6 md:p-7">
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="mono-label">PROFILE</div>
-                  <h2 className="mt-1 text-xl font-semibold text-white">{user.displayName || user.email}</h2>
-                  <p className="mt-2 text-sm text-white/50">{user.email}</p>
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-[#7FD3FF]/25 bg-[#7FD3FF]/10 grid place-items-center text-lg font-semibold text-[#BEE6FF]">
+                    {user.avatarUrl ? (
+                      <img src={user.avatarUrl} alt={user.displayName || user.email || '用户头像'} className="h-full w-full object-cover" />
+                    ) : (
+                      (user.displayName?.[0] || user.email?.[0] || 'U').toUpperCase()
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="mono-label">PROFILE</div>
+                    <h2 className="mt-1 truncate text-xl font-semibold text-white">{user.displayName || user.email}</h2>
+                    <p className="mt-2 truncate text-sm text-white/50">{user.email}</p>
+                  </div>
                 </div>
                 <span className="rounded-full border border-[#7FD3FF]/25 bg-[#7FD3FF]/10 px-3 py-1 text-xs text-[#BEE6FF]">
                   {user.role === 'seller' ? '创作者' : '买家'}
@@ -209,6 +234,16 @@ export default function Account() {
                   active={user.verificationStatus === 'verified'}
                 />
               </div>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                className="mt-5 w-full rounded-xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-sm text-red-100/80 transition-colors hover:border-red-300/35 hover:bg-red-400/10"
+              >
+                注销测试账号
+              </button>
+              <p className="mt-2 text-xs leading-relaxed text-white/35">
+                为保护订单关系，已有服务、订单或消息的账号不会被硬删除。
+              </p>
             </div>
 
             <div className="card p-6 md:p-7">
@@ -224,10 +259,9 @@ export default function Account() {
                 </div>
               ) : (
                 <div className="mt-5 space-y-3">
-                  {emailChallenge?.mockCode && (
+                  {emailChallenge?.delivery?.message && (
                     <div className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
-                      当前未配置真实邮件服务，演示验证码：
-                      <span className="font-semibold tracking-[0.24em]">{emailChallenge.mockCode}</span>
+                      {emailChallenge.delivery.message}
                     </div>
                   )}
                   <div className="flex gap-2">
