@@ -20,7 +20,15 @@ import {
 } from './seed.js'
 import { HttpError } from './http.js'
 
-const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || ''
+const databaseUrl =
+  process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.STORAGES_URL || ''
+const databaseUrlSource = process.env.DATABASE_URL
+  ? 'DATABASE_URL'
+  : process.env.POSTGRES_URL
+    ? 'POSTGRES_URL'
+    : process.env.STORAGES_URL
+      ? 'STORAGES_URL'
+      : ''
 const orderStatuses = ['submitted', 'accepted', 'in_progress', 'delivered', 'completed', 'cancelled']
 const serviceStatuses = ['draft', 'published', 'paused', 'archived']
 const orderPaymentStatuses = ['mock_pending', 'mock_paid', 'mock_released', 'mock_refunded', 'mock_failed']
@@ -49,16 +57,16 @@ let client
 let readyPromise
 
 export function hasDatabase() {
-  return Boolean(connectionString)
+  return Boolean(databaseUrl)
 }
 
 function getClient() {
-  if (!connectionString) {
-    throw new HttpError(500, 'database_not_configured', 'DATABASE_URL 尚未配置。')
+  if (!databaseUrl) {
+    throw new HttpError(500, 'database_not_configured', '数据库连接变量尚未配置。')
   }
 
   if (!client) {
-    client = neon(connectionString)
+    client = neon(databaseUrl)
   }
 
   return client
@@ -70,7 +78,7 @@ async function query(strings, ...values) {
 }
 
 async function ensureDatabase() {
-  if (!connectionString) return
+  if (!databaseUrl) return
   if (!readyPromise) {
     readyPromise = migrateAndSeed()
   }
@@ -294,7 +302,7 @@ export async function storeInfo() {
   return {
     driver: 'neon-postgres',
     persistent: true,
-    note: 'DATABASE_URL 已配置，当前 API 使用 Postgres 持久化存储。',
+    note: `${databaseUrlSource} 已配置，当前 API 使用 Postgres 持久化存储。`,
     capabilities: ['password_auth', 'sessions', 'orders', 'messages', 'mock_payments', 'verification_requests'],
   }
 }

@@ -2,8 +2,8 @@
 
 WhiteHive now has two storage modes:
 
-- Memory demo mode: no `DATABASE_URL`; safe for UI demos, but data can reset.
-- Postgres mode: `DATABASE_URL` exists; users, sessions, orders, services, messages, mock payments and verification requests persist.
+- Memory demo mode: no database URL; safe for UI demos, but data can reset.
+- Postgres mode: a database URL exists; users, sessions, orders, services, messages, mock payments and verification requests persist.
 
 ## Recommended Provider
 
@@ -23,7 +23,13 @@ Accepted fallback name:
 POSTGRES_URL="postgres://..."
 ```
 
-The backend checks `DATABASE_URL` first, then `POSTGRES_URL`. Vercel/Neon integrations may expose either name depending on the setup path.
+Vercel Storage integrations can also generate a prefixed name:
+
+```bash
+STORAGES_URL="postgres://..."
+```
+
+The backend checks `DATABASE_URL` first, then `POSTGRES_URL`, then `STORAGES_URL`. Vercel/Neon integrations may expose different names depending on the setup path and custom prefix.
 
 Optional after the database is stable:
 
@@ -60,14 +66,14 @@ Recommended path for this project:
 2. Go to `Storage` or `Marketplace`.
 3. Choose `Neon Postgres`.
 4. Create a new Neon database and connect it to this Vercel project.
-5. Make sure the integration adds `DATABASE_URL` or `POSTGRES_URL` to Production, Preview and Development.
+5. Make sure the integration adds `DATABASE_URL`, `POSTGRES_URL`, or `STORAGES_URL` to Production, Preview and Development.
 6. Redeploy the latest `main` deployment after the environment variable exists.
 
 The API auto-migrates on first request, so there is no separate SQL command to run manually.
 
 ## Verification
 
-After setting `DATABASE_URL`, open:
+After setting the database URL, open:
 
 ```text
 https://www.whitehive.cn/api/health
