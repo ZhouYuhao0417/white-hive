@@ -8,6 +8,7 @@ import {
   PhoneLogo,
 } from './Icons.jsx'
 import Logo from './Logo.jsx'
+import { createSession } from '../lib/api.js'
 
 // 邮箱已经是上面的主表单登录方式, 这里不再重复出现
 const socialMethods = [
@@ -19,6 +20,43 @@ const socialMethods = [
 
 export default function AuthDrawer({ open, onClose }) {
   const [mode, setMode] = useState('signin') // 'signin' | 'signup'
+  const [form, setForm] = useState({ email: '', password: '', confirmPassword: '' })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [error, setError] = useState('')
+
+  const updateForm = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }))
+    setNotice('')
+    setError('')
+  }
+
+  const submit = async (event) => {
+    event.preventDefault()
+
+    if (mode === 'signup' && form.password !== form.confirmPassword) {
+      setError('两次输入的密码不一致。')
+      return
+    }
+
+    setIsSubmitting(true)
+    setNotice('')
+    setError('')
+
+    try {
+      const result = await createSession({
+        email: form.email,
+        password: form.password,
+        mode: mode === 'signup' ? 'buyer' : 'signin',
+      })
+      const name = result?.user?.displayName || result?.user?.email || '演示用户'
+      setNotice(`已连接后端演示会话：${name}`)
+    } catch (err) {
+      setError(err.message || '登录暂时失败，请稍后再试。')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   // lock body scroll
   useEffect(() => {
@@ -120,12 +158,15 @@ export default function AuthDrawer({ open, onClose }) {
               </p>
 
               {/* primary email form */}
-              <div className="mt-7 space-y-3">
+              <form className="mt-7 space-y-3" onSubmit={submit}>
                 <label className="block">
                   <span className="mono-label">邮箱</span>
                   <input
                     type="email"
+                    value={form.email}
+                    onChange={(event) => updateForm('email', event.target.value)}
                     placeholder="you@whitehive.cn"
+                    required
                     className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
                   />
                 </label>
@@ -133,7 +174,11 @@ export default function AuthDrawer({ open, onClose }) {
                   <span className="mono-label">密码</span>
                   <input
                     type="password"
+                    value={form.password}
+                    onChange={(event) => updateForm('password', event.target.value)}
                     placeholder="至少 8 位"
+                    minLength={8}
+                    required
                     className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
                   />
                 </label>
@@ -142,17 +187,34 @@ export default function AuthDrawer({ open, onClose }) {
                     <span className="mono-label">确认密码</span>
                     <input
                       type="password"
+                      value={form.confirmPassword}
+                      onChange={(event) => updateForm('confirmPassword', event.target.value)}
                       placeholder="再输入一次"
+                      minLength={8}
+                      required
                       className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
                     />
                   </label>
                 )}
 
+                {error && (
+                  <div className="rounded-xl border border-red-400/25 bg-red-400/10 px-3 py-2 text-xs text-red-100">
+                    {error}
+                  </div>
+                )}
+
+                {notice && (
+                  <div className="rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-3 py-2 text-xs text-[#CFFDF5]">
+                    {notice}
+                  </div>
+                )}
+
                 <button
-                  type="button"
+                  type="submit"
+                  disabled={isSubmitting}
                   className="btn-primary w-full justify-center !py-3 mt-2"
                 >
-                  {mode === 'signin' ? '登录' : '创建账户'}
+                  {isSubmitting ? '连接后端中...' : mode === 'signin' ? '登录' : '创建账户'}
                   <Icon name="arrow" size={16} />
                 </button>
 
@@ -166,7 +228,7 @@ export default function AuthDrawer({ open, onClose }) {
                     </button>
                   </div>
                 )}
-              </div>
+              </form>
 
               {/* divider */}
               <div className="flex items-center gap-3 my-7">

@@ -1,9 +1,12 @@
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Section, SectionHeader, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
 import { services } from '../data/services.js'
 import { categoryDetails } from '../data/listings.js'
+import { createBackendService } from '../lib/api.js'
+import { cacheService, readCachedServices } from '../lib/serviceCache.js'
 
 /* ============ 从每个分类抽 1 张高分卡作为"同行是怎么上架的"示例 ============ */
 function pickFeatured() {
@@ -40,7 +43,7 @@ function SellHero() {
             你用同一套结构化字段把服务说清楚, 它就会出现在对应的分类里, 被结构化的买家找到。
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
-            <a href="#choose-category" className="btn-primary">
+            <a href="#listing-form" className="btn-primary">
               开始开设服务 <Icon name="arrow" size={18} />
             </a>
             <a href="#featured" className="btn-ghost">
@@ -231,6 +234,261 @@ function CategoryPicker() {
   )
 }
 
+function parsePriceCents(value) {
+  const number = Number(String(value).replace(/[^\d.]/g, ''))
+  if (!Number.isFinite(number) || number <= 0) return 0
+  return Math.round(number * 100)
+}
+
+function splitTags(value) {
+  return String(value)
+    .split(/[,，\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 8)
+}
+
+function ListingForm() {
+  const [form, setForm] = useState({
+    category: 'web',
+    title: '',
+    summary: '',
+    price: '',
+    deliveryDays: '7',
+    tags: '',
+  })
+  const [created, setCreated] = useState(null)
+  const [cached, setCached] = useState(() => readCachedServices())
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const activeCategory = useMemo(
+    () => services.find((item) => item.slug === form.category) || services[0],
+    [form.category],
+  )
+
+  const update = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }))
+    setError('')
+  }
+
+  const submit = async (event) => {
+    event.preventDefault()
+    setError('')
+    setSubmitting(true)
+
+    try {
+      const service = await createBackendService({
+        sellerId: 'usr_demo_seller',
+        category: form.category,
+        title: form.title,
+        summary: form.summary,
+        priceCents: parsePriceCents(form.price),
+        deliveryDays: Number(form.deliveryDays || 7),
+        status: 'published',
+        tags: splitTags(form.tags),
+      })
+
+      cacheService(service)
+      setCreated(service)
+      setCached(readCachedServices())
+      setForm({
+        category: form.category,
+        title: '',
+        summary: '',
+        price: '',
+        deliveryDays: '7',
+        tags: '',
+      })
+    } catch (err) {
+      setError(err.message || '服务发布失败，请稍后再试。')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div id="listing-form" className="grid lg:grid-cols-[1fr_380px] gap-6 items-start">
+      <form onSubmit={submit} className="card p-7 md:p-9">
+        <div className="mono-label">LISTING FORM · MVP 服务发布</div>
+        <h3 className="mt-2 text-2xl md:text-3xl font-semibold text-white tracking-tight">
+          填一张真正会进入后端的服务卡。
+        </h3>
+        <p className="mt-3 text-sm text-white/55 leading-relaxed max-w-2xl">
+          这不是静态表单。提交后会调用 `/api/services`, 创建一条服务记录。现在先用于演示,
+          等接入数据库后会变成真实持久化上架。
+        </p>
+
+        <div className="mt-7 grid md:grid-cols-2 gap-5">
+          <label className="block md:col-span-2">
+            <span className="mono-label">分类</span>
+            <select
+              value={form.category}
+              onChange={(event) => update('category', event.target.value)}
+              className="mt-2 w-full h-12 px-4 rounded-xl bg-ink-800 border border-white/10 text-sm text-white focus:outline-none focus:border-[#7FD3FF]/55"
+            >
+              {services.map((service) => (
+                <option key={service.slug} value={service.slug}>
+                  {service.title}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block md:col-span-2">
+            <span className="mono-label">服务标题</span>
+            <input
+              value={form.title}
+              onChange={(event) => update('title', event.target.value)}
+              required
+              minLength={6}
+              placeholder="例: 创业项目官网与预约落地页"
+              className="mt-2 w-full h-12 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+            />
+          </label>
+
+          <label className="block md:col-span-2">
+            <span className="mono-label">服务简介</span>
+            <textarea
+              value={form.summary}
+              onChange={(event) => update('summary', event.target.value)}
+              required
+              minLength={12}
+              rows={5}
+              placeholder="说清楚你能交付什么、适合谁、边界在哪里。"
+              className="mt-2 w-full p-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors resize-none leading-relaxed"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mono-label">起步价 / 元</span>
+            <input
+              value={form.price}
+              onChange={(event) => update('price', event.target.value)}
+              required
+              inputMode="decimal"
+              placeholder="2800"
+              className="mt-2 w-full h-12 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+            />
+          </label>
+
+          <label className="block">
+            <span className="mono-label">交付周期 / 天</span>
+            <input
+              value={form.deliveryDays}
+              onChange={(event) => update('deliveryDays', event.target.value)}
+              required
+              inputMode="numeric"
+              placeholder="7"
+              className="mt-2 w-full h-12 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+            />
+          </label>
+
+          <label className="block md:col-span-2">
+            <span className="mono-label">标签</span>
+            <input
+              value={form.tags}
+              onChange={(event) => update('tags', event.target.value)}
+              placeholder="官网, Vercel, 响应式"
+              className="mt-2 w-full h-12 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+            />
+          </label>
+        </div>
+
+        {error && (
+          <div className="mt-5 rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-sm text-red-100">
+            {error}
+          </div>
+        )}
+
+        {created && (
+          <div className="mt-5 rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-4 py-3 text-sm text-[#CFFDF5]">
+            服务已发布到 MVP 后端：{created.id}
+          </div>
+        )}
+
+        <div className="mt-7 pt-6 border-t border-white/6 flex items-center justify-between gap-4 flex-wrap">
+          <div className="text-xs text-white/45">
+            当前会直接标记为 published，方便比赛演示；正式版会先进入审核。
+          </div>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="btn-primary !py-2.5 !px-5 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting ? '正在发布...' : '发布服务'} <Icon name="arrow" size={16} />
+          </button>
+        </div>
+      </form>
+
+      <div className="space-y-4">
+        <div
+          className="card p-6"
+          style={{
+            borderColor: `${activeCategory.color}33`,
+            background: `linear-gradient(180deg, ${activeCategory.color}0F, rgba(255,255,255,0.015))`,
+          }}
+        >
+          <div className="mono-label">LIVE PREVIEW</div>
+          <div className="mt-4 flex items-center gap-3">
+            <div
+              className="h-11 w-11 rounded-xl flex items-center justify-center"
+              style={{
+                background: `${activeCategory.color}18`,
+                border: `1px solid ${activeCategory.color}45`,
+                color: activeCategory.color,
+              }}
+            >
+              <Icon name={activeCategory.icon} />
+            </div>
+            <div>
+              <div className="text-white font-medium">
+                {form.title || '你的服务标题'}
+              </div>
+              <div className="text-xs text-white/45">{activeCategory.title}</div>
+            </div>
+          </div>
+          <p className="mt-4 text-sm text-white/60 leading-relaxed">
+            {form.summary || '服务简介会在这里预览。建议写清楚交付物、适合对象和不包含的范围。'}
+          </p>
+          <div className="mt-5 flex items-end justify-between">
+            <div>
+              <span className="text-[11px] text-white/45 mr-1">¥</span>
+              <span className="text-2xl font-semibold" style={{ color: activeCategory.color }}>
+                {form.price || '—'}
+              </span>
+              <span className="text-xs text-white/50 ml-1">/ 起</span>
+            </div>
+            <div className="text-xs text-white/50">
+              {form.deliveryDays || '—'} 天交付
+            </div>
+          </div>
+        </div>
+
+        <div className="card p-6">
+          <div className="mono-label">RECENT CREATED</div>
+          <div className="mt-4 space-y-3">
+            {cached.length === 0 ? (
+              <div className="text-sm text-white/45 leading-relaxed">
+                还没有本地发布记录。提交第一张服务卡后会显示在这里。
+              </div>
+            ) : (
+              cached.slice(0, 4).map((service) => (
+                <div key={service.id} className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
+                  <div className="text-sm text-white font-medium">{service.title}</div>
+                  <div className="mt-1 text-[11px] text-white/45">
+                    {service.category} · {service.id}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ============ AI 兜底 ============ */
 function AIMatchFallback() {
   return (
@@ -313,8 +571,19 @@ export default function Sell() {
 
       <Section>
         <SectionHeader
-          eyebrow="CHOOSE A CATEGORY · 选择分类"
-          title="你打算在哪个分类开店?"
+          eyebrow="CREATE LISTING · 真实发布"
+          title="现在，把你的服务写进后端。"
+          desc="先用 MVP 接口保存服务卡，后续接数据库后它会进入真实的服务市场。"
+        />
+        <div className="mt-10">
+          <ListingForm />
+        </div>
+      </Section>
+
+      <Section>
+        <SectionHeader
+          eyebrow="CHOOSE A CATEGORY · 分类参考"
+          title="还不确定怎么写? 先看分类结构。"
           desc="每个分类有独立的筛选器、独立的展示模板和独立的买家画像。"
         />
         <div className="mt-10">

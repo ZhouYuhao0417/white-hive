@@ -8,6 +8,7 @@ const links = [
   { to: '/', label: '首页' },
   { to: '/services', label: '服务' },
   { to: '/ai-match', label: 'AI 匹配', badge: 'NEW' },
+  { to: '/dashboard', label: '工作台' },
   { to: '/trust', label: '可信机制' },
   { to: '/how-it-works', label: '流程' },
   { to: '/about', label: '关于' },
@@ -104,11 +105,11 @@ export default function Navbar() {
               ))}
               <div className="h-px my-2 bg-white/5" />
               <Link
-                to="/services"
+                to="/dashboard"
                 onClick={() => setMobileOpen(false)}
                 className="btn-primary text-sm justify-center"
               >
-                浏览商品 →
+                进入工作台 →
               </Link>
             </div>
           </div>

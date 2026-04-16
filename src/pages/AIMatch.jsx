@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Section, SectionHeader, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
 import { services } from '../data/services.js'
 import { categoryDetails } from '../data/listings.js'
+import { createOrder } from '../lib/api.js'
+import { cacheOrder } from '../lib/orderCache.js'
 
 /* ============================================================
    静态字段
@@ -15,6 +17,21 @@ const categoryOptions = [
   { slug: 'any', title: '不确定 / 让 AI 帮我选', color: '#BEE6FF' },
   ...services.map((s) => ({ slug: s.slug, title: s.title, color: s.color })),
 ]
+
+function budgetToCents(budget) {
+  const map = {
+    '< ¥1,000': 80000,
+    '¥1,000 - ¥3,000': 200000,
+    '¥3,000 - ¥10,000': 600000,
+    '¥10,000+': 1000000,
+    '暂不确定': 200000,
+  }
+  return map[budget] || 200000
+}
+
+function categoryLabel(slug) {
+  return categoryOptions.find((item) => item.slug === slug)?.title || slug || '未选择'
+}
 
 /* AI 追问模板: 根据用户 want 动态生成 (前端假装的, 真产品会走 LLM) */
 const baseQuestions = [
@@ -314,7 +331,7 @@ function AIClarify({ form, answers, setAnswers, onAdvance, revealed }) {
 /* ============================================================
    Stage 3 · 自由备注
    ============================================================ */
-function FreeNotes({ notes, setNotes, onSubmit }) {
+function FreeNotes({ notes, setNotes, onSubmit, submitting, error }) {
   return (
     <div className="mt-8 card p-7 md:p-9">
       <p className="text-sm text-white/55 leading-relaxed">
@@ -330,16 +347,24 @@ function FreeNotes({ notes, setNotes, onSubmit }) {
         className="mt-4 w-full bg-white/[0.03] rounded-xl border border-white/10 p-5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors leading-relaxed resize-none"
       />
       <div className="mt-6 pt-5 border-t border-white/6 flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-2 text-xs text-white/45">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#5EEAD4]" />
-          所有字段已就绪 · 可随时提交
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-xs text-white/45">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#5EEAD4]" />
+            所有字段已就绪 · 提交后会创建一张真实 MVP 订单
+          </div>
+          {error && (
+            <div className="rounded-xl border border-red-400/25 bg-red-400/10 px-3 py-2 text-xs text-red-100">
+              {error}
+            </div>
+          )}
         </div>
         <button
           type="button"
           onClick={onSubmit}
-          className="btn-primary !py-2.5 !px-5"
+          disabled={submitting}
+          className="btn-primary !py-2.5 !px-5 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          提交需求, 开始匹配 <Icon name="arrow" size={16} />
+          {submitting ? '正在创建订单...' : '提交需求, 生成订单'} <Icon name="arrow" size={16} />
         </button>
       </div>
     </div>
@@ -433,7 +458,7 @@ function CoverageMap() {
 /* ============================================================
    提交成功 overlay
    ============================================================ */
-function SubmittedOverlay({ onClose, form, answers, notes }) {
+function SubmittedOverlay({ onClose, form, answers, notes, order }) {
   return (
     <div className="card p-8 md:p-10 relative overflow-hidden">
       <div
@@ -459,8 +484,8 @@ function SubmittedOverlay({ onClose, form, answers, notes }) {
           需求已提交, AI 正在匹配。
         </h3>
         <p className="mt-3 text-white/65 leading-relaxed max-w-2xl">
-          WhiteHive 会在 10 分钟内返回 Top 5 推荐创作者 (按匹配度 + 历史评分 + 档期排序)。
-          结果将发送到你的通知中心, 你也可以在"我的需求"里随时查看。
+          WhiteHive 已经为这份需求创建了一张 MVP 订单。你现在可以进入订单详情页,
+          继续补充留言、查看状态, 并模拟后续验收流程。
         </p>
 
         <div className="mt-6 grid md:grid-cols-2 gap-3">
@@ -469,8 +494,9 @@ function SubmittedOverlay({ onClose, form, answers, notes }) {
             <div className="text-xs text-white/70 space-y-1.5">
               <div>时限: <span className="text-white">{form.deadline || '—'}</span></div>
               <div>预算: <span className="text-white">{form.budget || '—'}</span></div>
-              <div>分类: <span className="text-white">{form.category || '—'}</span></div>
+              <div>分类: <span className="text-white">{categoryLabel(form.category)}</span></div>
               <div>核心: <span className="text-white">{form.want}</span></div>
+              <div>订单: <span className="text-white">{order?.id || '—'}</span></div>
             </div>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
@@ -490,8 +516,8 @@ function SubmittedOverlay({ onClose, form, answers, notes }) {
           <button type="button" onClick={onClose} className="btn-ghost">
             再提交一次
           </button>
-          <Link to="/services" className="btn-primary">
-            先浏览全部分类 <Icon name="arrow" size={16} />
+          <Link to={order ? `/orders/${order.id}` : '/services'} className="btn-primary">
+            进入订单详情 <Icon name="arrow" size={16} />
           </Link>
         </div>
       </div>
@@ -503,10 +529,12 @@ function SubmittedOverlay({ onClose, form, answers, notes }) {
    主页面
    ============================================================ */
 export default function AIMatch() {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [form, setForm] = useState({
     deadline: '',
     budget: '',
-    category: '',
+    category: searchParams.get('category') || '',
     want: '',
   })
   const [answers, setAnswers] = useState({})
@@ -514,6 +542,9 @@ export default function AIMatch() {
   const [stage, setStage] = useState(1) // 1 | 2 | 3
   const [revealed, setRevealed] = useState(0)
   const [submitted, setSubmitted] = useState(false)
+  const [createdOrder, setCreatedOrder] = useState(null)
+  const [submitError, setSubmitError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const canAdvanceToStage2 = useMemo(
     () =>
@@ -543,6 +574,47 @@ export default function AIMatch() {
     setNotes('')
     setStage(1)
     setSubmitted(false)
+    setCreatedOrder(null)
+    setSubmitError('')
+    setSubmitting(false)
+  }
+
+  const submitDemand = async () => {
+    setSubmitting(true)
+    setSubmitError('')
+
+    const clarification = baseQuestions
+      .map((q) => `${q.label} ${answers[q.key] || '(未填写)'}`)
+      .join('\n')
+
+    const brief = [
+      `核心目标: ${form.want}`,
+      `时限: ${form.deadline}`,
+      `预算: ${form.budget}`,
+      `分类: ${categoryLabel(form.category)}`,
+      clarification,
+      notes ? `补充备注: ${notes}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n')
+
+    try {
+      const order = await createOrder({
+        category: form.category === 'any' ? undefined : form.category,
+        title: form.want,
+        brief,
+        budgetCents: budgetToCents(form.budget),
+        verificationRequired: false,
+      })
+      cacheOrder(order)
+      setCreatedOrder(order)
+      setSubmitted(true)
+      window.setTimeout(() => navigate(`/orders/${order.id}`), 900)
+    } catch (err) {
+      setSubmitError(err.message || '需求提交失败，请稍后再试。')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -604,6 +676,7 @@ export default function AIMatch() {
                 form={form}
                 answers={answers}
                 notes={notes}
+                order={createdOrder}
               />
             </motion.div>
           ) : (
@@ -670,7 +743,9 @@ export default function AIMatch() {
                   <FreeNotes
                     notes={notes}
                     setNotes={setNotes}
-                    onSubmit={() => setSubmitted(true)}
+                    onSubmit={submitDemand}
+                    submitting={submitting}
+                    error={submitError}
                   />
                 </motion.div>
               )}

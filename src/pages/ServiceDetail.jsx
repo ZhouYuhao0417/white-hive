@@ -584,7 +584,7 @@ export default function ServiceDetail() {
                 </ul>
               </div>
               <div className="flex lg:justify-end gap-3 flex-wrap">
-                <Link to="/how-it-works" className="btn-primary">
+                <Link to={`/ai-match?category=${encodeURIComponent(cat.slug)}`} className="btn-primary">
                   发布一个需求 <Icon name="arrow" size={18} />
                 </Link>
                 <Link to="/services" className="btn-ghost">
