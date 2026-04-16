@@ -122,6 +122,46 @@ Allowed order statuses:
 
 When a paid order moves to `completed`, the mock escrow payment is released automatically. When a paid order moves to `cancelled`, the mock escrow payment is refunded automatically.
 
+## Matching
+
+### `GET /api/matches`
+
+Quick matching preview through query params.
+
+Query params:
+
+- `q` or `brief`: demand text
+- `category`: optional category slug or `any`
+- `budgetCents`: optional budget in cents
+- `deadline`: optional natural-language deadline such as `3 天内`
+- `limit`: optional result count, between 1 and 10
+
+### `POST /api/matches`
+
+Runs the MVP matching engine and returns scored, explainable service recommendations.
+
+```json
+{
+  "brief": "我需要一个比赛路演官网，移动端要好看，最好一周内完成。",
+  "category": "web",
+  "budgetCents": 300000,
+  "deadline": "1 周内",
+  "limit": 5,
+  "answers": {
+    "reference": "Linear 的极简风",
+    "success": "能用于互联网+答辩"
+  }
+}
+```
+
+Response fields:
+
+- `engine`: currently `whitehive-rule-match-v1`, a deterministic rule engine. It is intentionally not a paid LLM call yet.
+- `confidence`: `high`, `medium`, or `low`
+- `matches`: ranked services with `score`, `fit`, `reasons`, and `warnings`
+- `clarifyingQuestions`: follow-up questions the UI can ask before creating an order
+- `suggestedOrderDraft`: a safe draft that can be passed to `POST /api/orders`
+
 ## Payments
 
 Payments are still mock payments for MVP demos. They prove the escrow flow before a real payment provider is connected.

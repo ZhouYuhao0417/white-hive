@@ -1,4 +1,5 @@
 import { fail, getQuery, methodNotAllowed, ok, readBody, withApiErrors } from './_lib/http.js'
+import { createMatch } from './_lib/matcher.js'
 import {
   createMessage,
   createOrder,
@@ -115,6 +116,27 @@ export default {
         }
 
         return methodNotAllowed(request.method, ['GET', 'POST', 'PATCH'])
+      }
+
+      if (path === 'matches') {
+        if (request.method === 'GET') {
+          return ok(
+            await createMatch({
+              brief: query.get('q') || query.get('brief') || '',
+              category: query.get('category') || undefined,
+              budgetCents: query.get('budgetCents') || undefined,
+              deadline: query.get('deadline') || undefined,
+              limit: query.get('limit') || undefined,
+            }),
+          )
+        }
+
+        if (request.method === 'POST') {
+          const body = await readBody(request)
+          return ok(await createMatch(body))
+        }
+
+        return methodNotAllowed(request.method, ['GET', 'POST'])
       }
 
       if (path === 'payments') {

@@ -61,6 +61,13 @@ export function updateOrder(id, changes) {
   })
 }
 
+export function matchServices(input) {
+  return request('/matches', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
 export function listPayments(params = {}) {
   const search = new URLSearchParams(params)
   return request(`/payments${search.size ? `?${search.toString()}` : ''}`)

@@ -7,10 +7,11 @@ The first backend milestone is not real payments or real-name verification. It i
 1. A user can create a demo session.
 2. A seller can publish a structured service.
 3. A buyer can create an order from a service.
-4. The order can move through clear states.
-5. Buyer and seller can leave messages under the order.
-6. The buyer can create a mock escrow payment.
-7. A seller can submit a mock real-name verification request.
+4. The backend can recommend matching services before order creation.
+5. The order can move through clear states.
+6. Buyer and seller can leave messages under the order.
+7. The buyer can create a mock escrow payment.
+8. A seller can submit a mock real-name verification request.
 
 ## Current Implementation
 
@@ -26,6 +27,8 @@ Public endpoints:
 - `GET /api/orders`
 - `POST /api/orders`
 - `PATCH /api/orders?id=...`
+- `GET /api/matches`
+- `POST /api/matches`
 - `GET /api/payments`
 - `POST /api/payments`
 - `GET /api/verification?userId=...`
@@ -41,6 +44,13 @@ Added frontend MVP routes:
 - `/services/:slug`: sends buyers into `/ai-match?category=...`
 - `/sell`: creates a seller service through `POST /api/services`
 - `/dashboard`: combines buyer orders and seller services into one MVP workspace
+
+Matching:
+
+- `api/_lib/matcher.js` implements `whitehive-rule-match-v1`.
+- It scores published services by category, keyword overlap, budget fit, delivery deadline and seller verification status.
+- It returns explainable `reasons`, `warnings`, `clarifyingQuestions` and a `suggestedOrderDraft`.
+- This is intentionally deterministic for the MVP; later it can be replaced by LLM + embedding search without changing the public `/api/matches` contract.
 
 Current storage:
 
@@ -89,4 +99,5 @@ Verification statuses:
 4. Replace browser cache fallback with Postgres-backed user data.
 5. Split `/dashboard` into real buyer/seller dashboards after auth is connected.
 6. Add the final payment confirmation UI on top of `/api/payments`.
-7. Connect a real payment provider and real-name verification provider only after the demo loop is stable.
+7. Replace `whitehive-rule-match-v1` with LLM + embedding search after service data grows.
+8. Connect a real payment provider and real-name verification provider only after the demo loop is stable.
