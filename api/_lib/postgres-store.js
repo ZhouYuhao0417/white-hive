@@ -433,12 +433,13 @@ export async function updateUserProfile(token, input = {}) {
   }
 }
 
-export async function listServices({ category, status = 'published' } = {}) {
+export async function listServices({ category, status = 'published', sellerId } = {}) {
   const rows = await query`select * from services order by created_at desc limit 200`
   const filtered = rows
     .map(serviceFromRow)
     .filter((service) => (category ? service.category === category : true))
     .filter((service) => (status ? service.status === status : true))
+    .filter((service) => (sellerId ? service.sellerId === sellerId : true))
 
   return Promise.all(filtered.map(withSeller))
 }

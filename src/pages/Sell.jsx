@@ -280,7 +280,6 @@ function ListingForm() {
 
     try {
       const service = await createBackendService({
-        sellerId: 'usr_demo_seller',
         category: form.category,
         title: form.title,
         summary: form.summary,

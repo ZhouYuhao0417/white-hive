@@ -87,6 +87,7 @@ Query params:
 
 - `category`: optional category slug such as `web` or `ai`
 - `status`: optional service status, defaults to `published`
+- `sellerId`: optional seller id, used by the logged-in dashboard to show "my services"
 
 ### `GET /api/services?id=svc_web_landing`
 
@@ -110,6 +111,8 @@ Creates a service draft/published listing.
 ```
 
 In the current frontend, `/sell` sends this request and stores the latest created services in browser local storage as a demo fallback until Postgres is connected.
+
+When the browser has a bearer session token, the backend ignores any incoming `sellerId` and publishes the service under the current logged-in user.
 
 ## Orders
 
@@ -136,6 +139,8 @@ Creates an order from a selected service.
   "budgetCents": 300000
 }
 ```
+
+When the browser has a bearer session token, the backend ignores any incoming `buyerId` and creates the order under the current logged-in user.
 
 ### `PATCH /api/orders?id=ord_demo_001`
 
@@ -224,6 +229,8 @@ Creates an idempotent mock payment for an order. If the order already has a held
 }
 ```
 
+When logged in, only the order buyer or an admin can create the mock payment.
+
 The response includes:
 
 - `status`: currently `succeeded` for mock payments
@@ -246,6 +253,8 @@ Returns messages for an order.
 }
 ```
 
+When logged in, the backend sends the message as the current user and requires that user to be the order buyer, seller, or admin.
+
 ## Verification
 
 Verification is also a mock workflow for now. It gives the product a stable trust-layer API before connecting a real identity provider.
@@ -253,6 +262,8 @@ Verification is also a mock workflow for now. It gives the product a stable trus
 ### `GET /api/verification?userId=usr_demo_seller`
 
 Returns the user verification profile plus the latest request.
+
+When logged in, the current bearer-token user is used automatically.
 
 ### `POST /api/verification`
 
@@ -267,6 +278,8 @@ Creates a pending verification request.
   "role": "seller"
 }
 ```
+
+When logged in, the verification request is attached to the current bearer-token user.
 
 ### `PATCH /api/verification?id=ver_xxx`
 

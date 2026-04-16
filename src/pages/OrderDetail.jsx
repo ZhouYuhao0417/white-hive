@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Section, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
-import { createMessage, createPayment, listMessages, listOrders, updateOrder } from '../lib/api.js'
+import { createMessage, createPayment, getSession, listMessages, listOrders, updateOrder } from '../lib/api.js'
 import { cacheOrder, readCachedOrder } from '../lib/orderCache.js'
 
 const statusSteps = [
@@ -84,9 +84,9 @@ function StatusTimeline({ status }) {
   )
 }
 
-function MessageBubble({ message }) {
+function MessageBubble({ message, order }) {
   const isSystem = message.senderId === 'usr_system' || message.sender?.role === 'admin'
-  const fromBuyer = message.senderId?.includes('buyer')
+  const fromBuyer = message.senderId === order?.buyerId || message.sender?.role === 'buyer'
 
   if (isSystem) {
     return (
@@ -121,7 +121,7 @@ export default function OrderDetail() {
   const [order, setOrder] = useState(() => readCachedOrder(id))
   const [messages, setMessages] = useState([])
   const [body, setBody] = useState('')
-  const [sender, setSender] = useState('usr_demo_buyer')
+  const [currentSession, setCurrentSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
@@ -136,6 +136,9 @@ export default function OrderDetail() {
       setError('')
 
       try {
+        const session = await getSession().catch(() => null)
+        if (mounted) setCurrentSession(session)
+
         const data = await listOrders({ id })
         if (!mounted) return
         setOrder(data)
@@ -236,7 +239,6 @@ export default function OrderDetail() {
     try {
       const created = await createMessage({
         orderId: id,
-        senderId: sender,
         body: text,
       })
       setMessages((current) => [...current, created])
@@ -246,7 +248,8 @@ export default function OrderDetail() {
         {
           id: `local_${Date.now()}`,
           orderId: id,
-          senderId: sender,
+          senderId: currentSession?.user?.id || order?.buyerId || 'usr_demo_buyer',
+          sender: currentSession?.user || order?.buyer || null,
           body: text,
           createdAt: new Date().toISOString(),
         },
@@ -393,31 +396,16 @@ export default function OrderDetail() {
                   </div>
                 ) : (
                   messages.map((message) => (
-                    <MessageBubble key={message.id} message={message} />
+                    <MessageBubble key={message.id} message={message} order={order} />
                   ))
                 )}
               </div>
 
               <form onSubmit={sendMessage} className="mt-5 pt-5 border-t border-white/6">
-                <div className="flex gap-2 mb-3">
-                  {[
-                    ['usr_demo_buyer', '买家'],
-                    ['usr_demo_seller', '卖家'],
-                  ].map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setSender(value)}
-                      className="px-3 h-8 rounded-lg text-xs border transition-colors"
-                      style={{
-                        borderColor: sender === value ? 'rgba(127,211,255,0.50)' : 'rgba(255,255,255,0.10)',
-                        background: sender === value ? 'rgba(127,211,255,0.10)' : 'rgba(255,255,255,0.02)',
-                        color: sender === value ? '#BEE6FF' : 'rgba(255,255,255,0.55)',
-                      }}
-                    >
-                      {label}视角
-                    </button>
-                  ))}
+                <div className="mb-3 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 text-xs text-white/50">
+                  将以 {currentSession?.session?.mode === 'demo'
+                    ? '演示买家'
+                    : currentSession?.user?.displayName || currentSession?.user?.email || '当前登录用户'} 身份发送。
                 </div>
                 <textarea
                   value={body}

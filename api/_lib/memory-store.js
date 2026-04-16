@@ -187,10 +187,11 @@ export function updateUserProfile(token, input = {}) {
   })
 }
 
-export function listServices({ category, status = 'published' } = {}) {
+export function listServices({ category, status = 'published', sellerId } = {}) {
   const services = getState().services
     .filter((service) => (category ? service.category === category : true))
     .filter((service) => (status ? service.status === status : true))
+    .filter((service) => (sellerId ? service.sellerId === sellerId : true))
     .map((service) => withSeller(service))
 
   return clone(services)

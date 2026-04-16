@@ -60,6 +60,8 @@ Current storage:
 - `api/_lib/memory-store.js` keeps the safe demo fallback.
 - `api/_lib/postgres-store.js` uses Neon/Postgres when `DATABASE_URL` exists.
 - Registration now stores a hashed password, personal profile fields, and a server-side session token hash.
+- Service publishing, order creation, order messages, mock payments and verification now prefer the bearer-token user over hard-coded demo IDs.
+- Logged-in users can only pay for their own buyer-side orders and can only send messages inside orders they participate in.
 - Without `DATABASE_URL`, data is still not persistent across cold starts or redeploys.
 - With `DATABASE_URL`, the API auto-creates the MVP tables and seeds demo records.
 

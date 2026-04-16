@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Section, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
-import { listBackendServices, listOrders } from '../lib/api.js'
+import { getSession, listBackendServices, listOrders } from '../lib/api.js'
 import { readCachedOrders } from '../lib/orderCache.js'
 import { readCachedServices } from '../lib/serviceCache.js'
 
@@ -93,6 +93,7 @@ export default function Dashboard() {
   const [services, setServices] = useState(() => readCachedServices())
   const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState('')
+  const [currentUser, setCurrentUser] = useState(null)
 
   useEffect(() => {
     let mounted = true
@@ -102,13 +103,19 @@ export default function Dashboard() {
       setNotice('')
 
       try {
+        const session = await getSession().catch(() => null)
+        const user = session?.session?.mode === 'demo' ? null : session?.user || null
         const [apiOrders, apiServices] = await Promise.all([
-          listOrders(),
-          listBackendServices({ status: 'published' }),
+          listOrders(user ? { userId: user.id } : {}),
+          listBackendServices(user ? { status: 'published', sellerId: user.id } : { status: 'published' }),
         ])
         if (!mounted) return
+        setCurrentUser(user)
         setOrders(mergeById(readCachedOrders(), apiOrders))
         setServices(mergeById(readCachedServices(), apiServices))
+        if (user) {
+          setNotice(`当前工作台已切换到 ${user.displayName || user.email} 的真实账号数据。`)
+        }
       } catch {
         if (!mounted) return
         setOrders(readCachedOrders())
@@ -159,7 +166,7 @@ export default function Dashboard() {
                 </h1>
                 <p className="mt-5 text-white/60 max-w-2xl leading-relaxed">
                   这是 WhiteHive 后端 MVP 的管理入口。现在先聚合演示数据和本地缓存,
-                  之后接入数据库、登录和权限后会变成真实用户工作台。
+                  登录后会优先显示当前账号的订单和服务；未登录时仍保留演示数据。
                 </p>
               </div>
               <div className="flex gap-3 flex-wrap">
@@ -177,10 +184,10 @@ export default function Dashboard() {
 
       <Section className="!pt-4">
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="订单总数" value={stats.orders} color="#BEE6FF" />
+          <StatCard label={currentUser ? '我的订单' : '订单总数'} value={stats.orders} color="#BEE6FF" />
           <StatCard label="进行中订单" value={stats.activeOrders} color="#A5B4FC" />
           <StatCard label="已完成订单" value={stats.completedOrders} color="#5EEAD4" />
-          <StatCard label="已发布服务" value={stats.services} color="#C7D2FE" />
+          <StatCard label={currentUser ? '我的服务' : '已发布服务'} value={stats.services} color="#C7D2FE" />
         </div>
       </Section>
 

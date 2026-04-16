@@ -1,4 +1,4 @@
-import { fail, getQuery, methodNotAllowed, ok, readBody, withApiErrors } from './_lib/http.js'
+import { fail, getQuery, HttpError, methodNotAllowed, ok, readBody, withApiErrors } from './_lib/http.js'
 import { createMatch } from './_lib/matcher.js'
 import {
   createMessage,
@@ -36,6 +36,25 @@ function bearerToken(request) {
   const header = request.headers.get('authorization') || ''
   const match = header.match(/^Bearer\s+(.+)$/i)
   return match ? match[1].trim() : ''
+}
+
+async function optionalSessionUser(request) {
+  const token = bearerToken(request)
+  if (!token) return null
+  const session = await getSessionByToken(token)
+  return session.user || null
+}
+
+function ensureOrderParticipant(user, order) {
+  if (!user || !order) return
+  if (order.buyerId === user.id || order.sellerId === user.id || user.role === 'admin') return
+  throw new HttpError(403, 'not_order_participant', '你不是这个订单的参与方。')
+}
+
+function ensureOrderBuyer(user, order) {
+  if (!user || !order) return
+  if (order.buyerId === user.id || user.role === 'admin') return
+  throw new HttpError(403, 'not_order_buyer', '只有买家可以发起付款。')
 }
 
 export default {
@@ -102,13 +121,20 @@ export default {
             await listServices({
               category: query.get('category') || undefined,
               status: query.get('status') || 'published',
+              sellerId: query.get('sellerId') || undefined,
             }),
           )
         }
 
         if (request.method === 'POST') {
           const body = await readBody(request)
-          return ok(await createService(body))
+          const user = await optionalSessionUser(request)
+          return ok(
+            await createService({
+              ...body,
+              sellerId: user?.id || body.sellerId,
+            }),
+          )
         }
 
         return methodNotAllowed(request.method, ['GET', 'POST'])
@@ -129,7 +155,13 @@ export default {
 
         if (request.method === 'POST') {
           const body = await readBody(request)
-          return ok(await createOrder(body))
+          const user = await optionalSessionUser(request)
+          return ok(
+            await createOrder({
+              ...body,
+              buyerId: user?.id || body.buyerId,
+            }),
+          )
         }
 
         if (request.method === 'PATCH') {
@@ -176,7 +208,17 @@ export default {
 
         if (request.method === 'POST') {
           const body = await readBody(request)
-          return ok(await createPayment(body))
+          const user = await optionalSessionUser(request)
+          if (user) {
+            const order = await getOrder(body.orderId)
+            ensureOrderBuyer(user, order)
+          }
+          return ok(
+            await createPayment({
+              ...body,
+              buyerId: user?.id || body.buyerId,
+            }),
+          )
         }
 
         return methodNotAllowed(request.method, ['GET', 'POST'])
@@ -189,7 +231,17 @@ export default {
 
         if (request.method === 'POST') {
           const body = await readBody(request)
-          return ok(await createMessage(body))
+          const user = await optionalSessionUser(request)
+          if (user) {
+            const order = await getOrder(body.orderId)
+            ensureOrderParticipant(user, order)
+          }
+          return ok(
+            await createMessage({
+              ...body,
+              senderId: user?.id || body.senderId,
+            }),
+          )
         }
 
         return methodNotAllowed(request.method, ['GET', 'POST'])
@@ -197,12 +249,19 @@ export default {
 
       if (path === 'verification') {
         if (request.method === 'GET') {
-          return ok(await getVerificationProfile(query.get('userId') || 'usr_demo_seller'))
+          const user = await optionalSessionUser(request)
+          return ok(await getVerificationProfile(user?.id || query.get('userId') || 'usr_demo_seller'))
         }
 
         if (request.method === 'POST') {
           const body = await readBody(request)
-          return ok(await submitVerification(body))
+          const user = await optionalSessionUser(request)
+          return ok(
+            await submitVerification({
+              ...body,
+              userId: user?.id || body.userId,
+            }),
+          )
         }
 
         if (request.method === 'PATCH') {
