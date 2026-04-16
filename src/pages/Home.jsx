@@ -668,6 +668,51 @@ function CTA() {
 }
 
 /* ============================================================
+   Contact · 联系我们
+   ============================================================ */
+function Contact() {
+  return (
+    <Section className="!py-20 md:!py-24">
+      <Reveal>
+        <div className="card p-10 md:p-14 relative overflow-hidden">
+          <div
+            aria-hidden
+            className="absolute inset-0 opacity-60"
+            style={{
+              background:
+                'radial-gradient(50% 60% at 100% 0%, rgba(165,180,252,0.18), transparent 60%)',
+            }}
+          />
+          <div className="relative grid lg:grid-cols-2 gap-8 items-center">
+            <div>
+              <div className="mono-label mb-3">CONTACT</div>
+              <h3 className="text-2xl md:text-3xl font-semibold text-white leading-tight">
+                想和我们聊聊?
+              </h3>
+              <p className="mt-4 text-white/60 max-w-lg leading-relaxed">
+                无论你是潜在的创作者、买家、合作伙伴, 还是对平台机制本身感兴趣,
+                都欢迎直接联系我们。
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row lg:justify-end gap-3">
+              <a
+                href="mailto:zhouyuhao162@gmail.com"
+                className="btn-primary"
+              >
+                zhouyuhao162@gmail.com <Icon name="arrow" size={18} />
+              </a>
+              <Link to="/how-it-works" className="btn-ghost">
+                查看交易流程
+              </Link>
+            </div>
+          </div>
+        </div>
+      </Reveal>
+    </Section>
+  )
+}
+
+/* ============================================================
    页面装配
    ============================================================ */
 export default function Home() {
@@ -682,6 +727,7 @@ export default function Home() {
       <ValueProps />
       <UseCasesSection />
       <CTA />
+      <Contact />
     </>
   )
 }

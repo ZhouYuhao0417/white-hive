@@ -119,10 +119,10 @@ export default function About() {
               </div>
               <div className="flex flex-col sm:flex-row lg:justify-end gap-3">
                 <a
-                  href="mailto:hello@whitehive.cn"
+                  href="mailto:zhouyuhao162@gmail.com"
                   className="btn-primary"
                 >
-                  hello@whitehive.cn <Icon name="arrow" size={18} />
+                  zhouyuhao162@gmail.com <Icon name="arrow" size={18} />
                 </a>
                 <Link to="/how-it-works" className="btn-ghost">
                   查看交易流程
