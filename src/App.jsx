@@ -11,6 +11,7 @@ import Sell from './pages/Sell.jsx'
 import Trust from './pages/Trust.jsx'
 import HowItWorks from './pages/HowItWorks.jsx'
 import About from './pages/About.jsx'
+import Legal from './pages/Legal.jsx'
 
 const titles = {
   '/': 'WhiteHive · 可信数字服务交易平台',
@@ -27,9 +28,17 @@ export default function App() {
 
   useEffect(() => {
     const path = location.pathname
+    const legalTitles = {
+      terms: '服务协议',
+      privacy: '隐私政策',
+      copyright: '版权与投诉',
+    }
+    const legalMatch = path.match(/^\/legal\/(\w+)$/)
     document.title =
       titles[path] ||
-      (path.startsWith('/services/') ? '分类详情 · WhiteHive' : 'WhiteHive')
+      (path.startsWith('/services/') ? '分类详情 · WhiteHive' : '') ||
+      (legalMatch ? `${legalTitles[legalMatch[1]] || '法律'} · WhiteHive` : '') ||
+      'WhiteHive'
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [location.pathname])
 
@@ -48,6 +57,7 @@ export default function App() {
           <Route path="/trust" element={<Trust />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/about" element={<About />} />
+          <Route path="/legal/:type" element={<Legal />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </main>

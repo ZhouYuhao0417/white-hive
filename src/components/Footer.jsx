@@ -30,17 +30,17 @@ export default function Footer() {
           <div className="mono-label mb-4">COMPANY</div>
           <ul className="space-y-2 text-sm text-white/70">
             <li><Link to="/about" className="hover:text-white">关于我们</Link></li>
-            <li><a href="mailto:hello@whitehive.cn" className="hover:text-white">联系邮箱</a></li>
-            <li><Link to="/how-it-works" className="hover:text-white">提交需求</Link></li>
+            <li><a href="mailto:zhouyuhao162@gmail.com" className="hover:text-white">联系邮箱</a></li>
+            <li><Link to="/services" className="hover:text-white">浏览商品</Link></li>
           </ul>
         </div>
 
         <div>
           <div className="mono-label mb-4">LEGAL</div>
           <ul className="space-y-2 text-sm text-white/70">
-            <li><span className="hover:text-white cursor-default">服务协议</span></li>
-            <li><span className="hover:text-white cursor-default">隐私政策</span></li>
-            <li><span className="hover:text-white cursor-default">版权与投诉</span></li>
+            <li><Link to="/legal/terms" className="hover:text-white">服务协议</Link></li>
+            <li><Link to="/legal/privacy" className="hover:text-white">隐私政策</Link></li>
+            <li><Link to="/legal/copyright" className="hover:text-white">版权与投诉</Link></li>
           </ul>
         </div>
       </div>
