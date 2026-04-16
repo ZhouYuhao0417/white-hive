@@ -1,0 +1,946 @@
+import { neon } from '@neondatabase/serverless'
+import { createId, nowIso } from './ids.js'
+import {
+  seedMessages,
+  seedOrders,
+  seedPayments,
+  seedServices,
+  seedUsers,
+  seedVerificationRequests,
+} from './seed.js'
+import { HttpError } from './http.js'
+
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || ''
+const orderStatuses = ['submitted', 'accepted', 'in_progress', 'delivered', 'completed', 'cancelled']
+const serviceStatuses = ['draft', 'published', 'paused', 'archived']
+const orderPaymentStatuses = ['mock_pending', 'mock_paid', 'mock_released', 'mock_refunded', 'mock_failed']
+const verificationStatuses = ['unverified', 'pending', 'verified', 'rejected']
+const verificationRequestStatuses = ['pending', 'approved', 'rejected']
+
+const orderStatusLabels = {
+  submitted: '待卖家接单',
+  accepted: '卖家已接单',
+  in_progress: '制作中',
+  delivered: '等待买家验收',
+  completed: '订单已完成',
+  cancelled: '订单已取消',
+}
+
+const orderStatusTransitions = {
+  submitted: ['accepted', 'cancelled'],
+  accepted: ['in_progress', 'cancelled'],
+  in_progress: ['delivered', 'cancelled'],
+  delivered: ['completed', 'cancelled'],
+  completed: [],
+  cancelled: [],
+}
+
+let client
+let readyPromise
+
+export function hasDatabase() {
+  return Boolean(connectionString)
+}
+
+function getClient() {
+  if (!connectionString) {
+    throw new HttpError(500, 'database_not_configured', 'DATABASE_URL 尚未配置。')
+  }
+
+  if (!client) {
+    client = neon(connectionString)
+  }
+
+  return client
+}
+
+async function query(strings, ...values) {
+  await ensureDatabase()
+  return getClient()(strings, ...values)
+}
+
+async function ensureDatabase() {
+  if (!connectionString) return
+  if (!readyPromise) {
+    readyPromise = migrateAndSeed()
+  }
+  return readyPromise
+}
+
+async function migrateAndSeed() {
+  const db = getClient()
+
+  await db`
+    create table if not exists users (
+      id text primary key,
+      email text unique not null,
+      display_name text not null,
+      role text not null check (role in ('buyer', 'seller', 'admin')),
+      verification_status text not null default 'unverified'
+        check (verification_status in ('unverified', 'pending', 'verified', 'rejected')),
+      created_at timestamptz not null default now()
+    )
+  `
+
+  await db`
+    create table if not exists services (
+      id text primary key,
+      seller_id text not null references users(id),
+      category text not null,
+      title text not null,
+      summary text not null,
+      price_cents integer not null default 0,
+      currency text not null default 'CNY',
+      delivery_days integer not null default 7,
+      status text not null default 'draft'
+        check (status in ('draft', 'published', 'paused', 'archived')),
+      tags text[] not null default '{}',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `
+
+  await db`
+    create table if not exists orders (
+      id text primary key,
+      service_id text not null references services(id),
+      buyer_id text not null references users(id),
+      seller_id text not null references users(id),
+      title text not null,
+      brief text not null,
+      budget_cents integer not null default 0,
+      currency text not null default 'CNY',
+      status text not null default 'submitted'
+        check (status in ('submitted', 'accepted', 'in_progress', 'delivered', 'completed', 'cancelled')),
+      payment_status text not null default 'mock_pending'
+        check (payment_status in ('mock_pending', 'mock_paid', 'mock_released', 'mock_refunded', 'mock_failed')),
+      verification_required boolean not null default false,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `
+
+  await db`
+    create table if not exists payments (
+      id text primary key,
+      order_id text not null references orders(id) on delete cascade,
+      buyer_id text not null references users(id),
+      seller_id text not null references users(id),
+      amount_cents integer not null,
+      currency text not null default 'CNY',
+      provider text not null default 'mock',
+      method text not null default 'alipay_mock',
+      status text not null default 'succeeded'
+        check (status in ('succeeded', 'failed', 'refunded')),
+      escrow_status text not null default 'held'
+        check (escrow_status in ('held', 'released', 'refunded')),
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now(),
+      confirmed_at timestamptz,
+      released_at timestamptz,
+      refunded_at timestamptz
+    )
+  `
+
+  await db`
+    create table if not exists messages (
+      id text primary key,
+      order_id text not null references orders(id) on delete cascade,
+      sender_id text not null references users(id),
+      body text not null,
+      created_at timestamptz not null default now()
+    )
+  `
+
+  await db`
+    create table if not exists verification_requests (
+      id text primary key,
+      user_id text not null references users(id) on delete cascade,
+      real_name text not null,
+      role text not null,
+      id_number_last4 text not null default '',
+      contact_email text not null,
+      status text not null default 'pending'
+        check (status in ('pending', 'approved', 'rejected')),
+      reviewer_note text not null default '',
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    )
+  `
+
+  await db`create index if not exists services_category_status_idx on services(category, status)`
+  await db`create index if not exists orders_buyer_idx on orders(buyer_id)`
+  await db`create index if not exists orders_seller_idx on orders(seller_id)`
+  await db`create index if not exists payments_order_idx on payments(order_id, created_at)`
+  await db`create index if not exists messages_order_idx on messages(order_id, created_at)`
+  await db`create index if not exists verification_requests_user_idx on verification_requests(user_id, created_at)`
+
+  await seedDatabase(db)
+}
+
+async function seedDatabase(db) {
+  for (const user of seedUsers) {
+    await db`
+      insert into users (id, email, display_name, role, verification_status, created_at)
+      values (${user.id}, ${user.email}, ${user.displayName}, ${user.role}, ${user.verificationStatus}, ${user.createdAt})
+      on conflict (id) do nothing
+    `
+  }
+
+  for (const service of seedServices) {
+    await db`
+      insert into services (
+        id, seller_id, category, title, summary, price_cents, currency, delivery_days, status, tags, created_at, updated_at
+      )
+      values (
+        ${service.id}, ${service.sellerId}, ${service.category}, ${service.title}, ${service.summary},
+        ${service.priceCents}, ${service.currency}, ${service.deliveryDays}, ${service.status}, ${service.tags},
+        ${service.createdAt}, ${service.updatedAt}
+      )
+      on conflict (id) do nothing
+    `
+  }
+
+  for (const order of seedOrders) {
+    await db`
+      insert into orders (
+        id, service_id, buyer_id, seller_id, title, brief, budget_cents, currency,
+        status, payment_status, verification_required, created_at, updated_at
+      )
+      values (
+        ${order.id}, ${order.serviceId}, ${order.buyerId}, ${order.sellerId}, ${order.title}, ${order.brief},
+        ${order.budgetCents}, ${order.currency}, ${order.status}, ${order.paymentStatus},
+        ${order.verificationRequired}, ${order.createdAt}, ${order.updatedAt}
+      )
+      on conflict (id) do nothing
+    `
+  }
+
+  for (const payment of seedPayments) {
+    await db`
+      insert into payments (
+        id, order_id, buyer_id, seller_id, amount_cents, currency, provider, method,
+        status, escrow_status, created_at, updated_at, confirmed_at, released_at, refunded_at
+      )
+      values (
+        ${payment.id}, ${payment.orderId}, ${payment.buyerId}, ${payment.sellerId}, ${payment.amountCents},
+        ${payment.currency}, ${payment.provider}, ${payment.method}, ${payment.status}, ${payment.escrowStatus},
+        ${payment.createdAt}, ${payment.updatedAt}, ${payment.confirmedAt}, ${payment.releasedAt}, ${payment.refundedAt}
+      )
+      on conflict (id) do nothing
+    `
+  }
+
+  for (const request of seedVerificationRequests) {
+    await db`
+      insert into verification_requests (
+        id, user_id, real_name, role, id_number_last4, contact_email, status, reviewer_note, created_at, updated_at
+      )
+      values (
+        ${request.id}, ${request.userId}, ${request.realName}, ${request.role}, ${request.idNumberLast4},
+        ${request.contactEmail}, ${request.status}, ${request.reviewerNote}, ${request.createdAt}, ${request.updatedAt}
+      )
+      on conflict (id) do nothing
+    `
+  }
+
+  for (const message of seedMessages) {
+    await db`
+      insert into messages (id, order_id, sender_id, body, created_at)
+      values (${message.id}, ${message.orderId}, ${message.senderId}, ${message.body}, ${message.createdAt})
+      on conflict (id) do nothing
+    `
+  }
+}
+
+export async function storeInfo() {
+  await ensureDatabase()
+  return {
+    driver: 'neon-postgres',
+    persistent: true,
+    note: 'DATABASE_URL 已配置，当前 API 使用 Postgres 持久化存储。',
+    capabilities: ['orders', 'messages', 'mock_payments', 'verification_requests'],
+  }
+}
+
+export async function getDemoUser() {
+  const user = await ensureUser('usr_demo_buyer')
+  return publicUser(user)
+}
+
+export async function upsertDemoSession({ email, mode }) {
+  const normalizedEmail = String(email || '').trim().toLowerCase()
+
+  if (!normalizedEmail.includes('@')) {
+    throw new HttpError(400, 'invalid_email', '请输入有效邮箱。')
+  }
+
+  const existing = await query`select * from users where email = ${normalizedEmail} limit 1`
+  let user = existing[0]
+
+  if (!user) {
+    const id = createId('usr')
+    const createdAt = nowIso()
+    const inserted = await query`
+      insert into users (id, email, display_name, role, verification_status, created_at)
+      values (
+        ${id}, ${normalizedEmail}, ${normalizedEmail.split('@')[0]},
+        ${mode === 'seller' ? 'seller' : 'buyer'}, 'unverified', ${createdAt}
+      )
+      returning *
+    `
+    user = inserted[0]
+  }
+
+  const publicProfile = publicUser(user)
+  return {
+    user: publicProfile,
+    session: {
+      token: `demo_${publicProfile.id}`,
+      expiresAt: null,
+      mode: 'demo',
+    },
+  }
+}
+
+export async function listServices({ category, status = 'published' } = {}) {
+  const rows = await query`select * from services order by created_at desc limit 200`
+  const filtered = rows
+    .map(serviceFromRow)
+    .filter((service) => (category ? service.category === category : true))
+    .filter((service) => (status ? service.status === status : true))
+
+  return Promise.all(filtered.map(withSeller))
+}
+
+export async function getService(id) {
+  const rows = await query`select * from services where id = ${id} limit 1`
+  if (!rows[0]) {
+    throw new HttpError(404, 'service_not_found', '没有找到这个服务。')
+  }
+  return withSeller(serviceFromRow(rows[0]))
+}
+
+export async function createService(input) {
+  if (!input.title || !input.category || !input.summary) {
+    throw new HttpError(400, 'missing_fields', '服务标题、分类和简介不能为空。')
+  }
+
+  const priceCents = Number(input.priceCents || 0)
+  const deliveryDays = Number(input.deliveryDays || 7)
+
+  if (!Number.isFinite(priceCents) || priceCents <= 0) {
+    throw new HttpError(400, 'invalid_price', '服务价格必须大于 0。')
+  }
+
+  if (!Number.isFinite(deliveryDays) || deliveryDays <= 0) {
+    throw new HttpError(400, 'invalid_delivery_days', '交付周期必须大于 0。')
+  }
+
+  const sellerId = input.sellerId || 'usr_demo_seller'
+  await ensureUser(sellerId)
+
+  const createdAt = nowIso()
+  const status = serviceStatuses.includes(input.status) ? input.status : 'draft'
+  const tags = Array.isArray(input.tags) ? input.tags.map(String).slice(0, 8) : []
+  const rows = await query`
+    insert into services (
+      id, seller_id, category, title, summary, price_cents, currency, delivery_days, status, tags, created_at, updated_at
+    )
+    values (
+      ${createId('svc')}, ${sellerId}, ${String(input.category).trim()}, ${String(input.title).trim()},
+      ${String(input.summary).trim()}, ${priceCents}, ${input.currency || 'CNY'}, ${deliveryDays},
+      ${status}, ${tags}, ${createdAt}, ${createdAt}
+    )
+    returning *
+  `
+
+  return withSeller(serviceFromRow(rows[0]))
+}
+
+export async function listOrders({ userId, status } = {}) {
+  const rows = await query`select * from orders order by created_at desc limit 200`
+  const filtered = rows
+    .map(orderFromRow)
+    .filter((order) => (userId ? order.buyerId === userId || order.sellerId === userId : true))
+    .filter((order) => (status ? order.status === status : true))
+
+  return Promise.all(filtered.map(withOrderRelations))
+}
+
+export async function getOrder(id) {
+  const order = await findOrder(id)
+  if (!order) {
+    throw new HttpError(404, 'order_not_found', '没有找到这个订单。')
+  }
+  return withOrderRelations(order)
+}
+
+export async function createOrder(input) {
+  const service = await selectService(input)
+
+  if (!service) {
+    throw new HttpError(400, 'invalid_service', '暂时没有可下单服务。')
+  }
+
+  if (!input.brief) {
+    throw new HttpError(400, 'missing_brief', '请填写需求简介。')
+  }
+
+  const buyerId = input.buyerId || 'usr_demo_buyer'
+  await ensureUser(buyerId)
+  await ensureUser(service.sellerId)
+
+  const budgetCents = Number(input.budgetCents || service.priceCents)
+  if (!Number.isFinite(budgetCents) || budgetCents <= 0) {
+    throw new HttpError(400, 'invalid_budget', '订单预算必须大于 0。')
+  }
+
+  const createdAt = nowIso()
+  const rows = await query`
+    insert into orders (
+      id, service_id, buyer_id, seller_id, title, brief, budget_cents, currency,
+      status, payment_status, verification_required, created_at, updated_at
+    )
+    values (
+      ${createId('ord')}, ${service.id}, ${buyerId}, ${service.sellerId}, ${input.title || service.title},
+      ${String(input.brief).trim()}, ${budgetCents}, ${input.currency || service.currency || 'CNY'},
+      'submitted', 'mock_pending', ${Boolean(input.verificationRequired)}, ${createdAt}, ${createdAt}
+    )
+    returning *
+  `
+  const order = orderFromRow(rows[0])
+
+  await appendMessage({
+    orderId: order.id,
+    senderId: order.buyerId,
+    body: `买家提交了需求：${order.brief}`,
+    createdAt,
+  })
+
+  return withOrderRelations(order)
+}
+
+export async function updateOrder(id, input) {
+  const order = await findOrder(id)
+
+  if (!order) {
+    throw new HttpError(404, 'order_not_found', '没有找到这个订单。')
+  }
+
+  if (input.status !== undefined) {
+    if (!orderStatuses.includes(input.status)) {
+      throw new HttpError(400, 'invalid_status', '订单状态不合法。', { allowed: orderStatuses })
+    }
+
+    if (input.status !== order.status) {
+      const allowedNextStatuses = orderStatusTransitions[order.status] || []
+      if (!allowedNextStatuses.includes(input.status)) {
+        throw new HttpError(409, 'invalid_status_transition', '订单不能跳过当前流程节点。', {
+          current: order.status,
+          allowed: allowedNextStatuses,
+        })
+      }
+
+      order.status = input.status
+      await appendSystemMessage(order.id, `订单状态更新为：${orderStatusLabels[order.status] || order.status}`)
+
+      if (order.status === 'completed') {
+        await releaseEscrowForOrder(order)
+      }
+
+      if (order.status === 'cancelled') {
+        await refundEscrowForOrder(order)
+      }
+    }
+  }
+
+  if (input.paymentStatus !== undefined) {
+    if (!orderPaymentStatuses.includes(input.paymentStatus)) {
+      throw new HttpError(400, 'invalid_payment_status', '付款状态不合法。', { allowed: orderPaymentStatuses })
+    }
+    order.paymentStatus = input.paymentStatus
+  }
+
+  const updatedAt = nowIso()
+  const rows = await query`
+    update orders
+    set status = ${order.status}, payment_status = ${order.paymentStatus}, updated_at = ${updatedAt}
+    where id = ${order.id}
+    returning *
+  `
+
+  return withOrderRelations(orderFromRow(rows[0]))
+}
+
+export async function listPayments({ orderId, status } = {}) {
+  const rows = await query`select * from payments order by created_at desc limit 200`
+  return rows
+    .map(paymentFromRow)
+    .filter((payment) => (orderId ? payment.orderId === orderId : true))
+    .filter((payment) => (status ? payment.status === status : true))
+    .map(withPaymentRelations)
+}
+
+export async function getPayment(id) {
+  const rows = await query`select * from payments where id = ${id} limit 1`
+  if (!rows[0]) {
+    throw new HttpError(404, 'payment_not_found', '没有找到这笔付款。')
+  }
+  return withPaymentRelations(paymentFromRow(rows[0]))
+}
+
+export async function createPayment(input) {
+  const order = await findOrder(input.orderId)
+
+  if (!order) {
+    throw new HttpError(404, 'order_not_found', '没有找到要付款的订单。')
+  }
+
+  if (order.status === 'cancelled') {
+    throw new HttpError(409, 'order_cancelled', '订单已取消，不能继续付款。')
+  }
+
+  const existing = await latestPaymentForOrder(order.id)
+  if (existing && ['held', 'released'].includes(existing.escrowStatus)) {
+    return withPaymentRelations(existing)
+  }
+
+  const amountCents = Number(input.amountCents || order.budgetCents)
+  if (!Number.isFinite(amountCents) || amountCents <= 0) {
+    throw new HttpError(400, 'invalid_amount', '付款金额必须大于 0。')
+  }
+
+  const createdAt = nowIso()
+  const rows = await query`
+    insert into payments (
+      id, order_id, buyer_id, seller_id, amount_cents, currency, provider, method,
+      status, escrow_status, created_at, updated_at, confirmed_at
+    )
+    values (
+      ${createId('pay')}, ${order.id}, ${order.buyerId}, ${order.sellerId}, ${amountCents},
+      ${input.currency || order.currency || 'CNY'}, 'mock', ${input.method || 'alipay_mock'},
+      'succeeded', 'held', ${createdAt}, ${createdAt}, ${createdAt}
+    )
+    returning *
+  `
+
+  await query`
+    update orders set payment_status = 'mock_paid', updated_at = ${createdAt}
+    where id = ${order.id}
+  `
+  await appendSystemMessage(order.id, '买家已完成模拟付款，资金进入 WhiteHive 托管。')
+
+  return withPaymentRelations(paymentFromRow(rows[0]))
+}
+
+export async function listMessages(orderId) {
+  if (!orderId) {
+    throw new HttpError(400, 'missing_order_id', '缺少订单 ID。')
+  }
+
+  if (!(await findOrder(orderId))) {
+    throw new HttpError(404, 'order_not_found', '没有找到这个订单。')
+  }
+
+  const rows = await query`
+    select * from messages
+    where order_id = ${orderId}
+    order by created_at asc
+  `
+  return Promise.all(rows.map((row) => withMessageRelations(messageFromRow(row))))
+}
+
+export async function createMessage(input) {
+  const order = await findOrder(input.orderId)
+  const text = String(input.body || '').trim()
+
+  if (!input.orderId || !text) {
+    throw new HttpError(400, 'missing_fields', '订单 ID 和消息内容不能为空。')
+  }
+
+  if (!order) {
+    throw new HttpError(404, 'order_not_found', '没有找到这个订单。')
+  }
+
+  if (text.length > 1000) {
+    throw new HttpError(400, 'message_too_long', '单条留言最多 1000 个字符。')
+  }
+
+  const senderId = input.senderId || order.buyerId
+  await ensureUser(senderId)
+  return appendMessage({
+    orderId: order.id,
+    senderId,
+    body: text,
+    createdAt: nowIso(),
+  })
+}
+
+export async function getVerificationProfile(userId = 'usr_demo_seller') {
+  const user = await ensureUser(userId)
+  const rows = await query`
+    select * from verification_requests
+    where user_id = ${user.id}
+    order by created_at desc
+    limit 10
+  `
+  const requests = rows.map(verificationRequestFromRow)
+
+  return {
+    user: publicUser(user),
+    latestRequest: requests[0] ? sanitizeVerificationRequest(requests[0]) : null,
+    history: requests.map(sanitizeVerificationRequest),
+  }
+}
+
+export async function submitVerification(input) {
+  const user = await ensureUser(input.userId || 'usr_demo_seller')
+  const realName = String(input.realName || '').trim()
+  const contactEmail = String(input.contactEmail || user.email || '').trim().toLowerCase()
+  const idNumberLast4 = String(input.idNumberLast4 || '').replace(/[^\dXx]/g, '').slice(-4)
+
+  if (realName.length < 2) {
+    throw new HttpError(400, 'invalid_real_name', '请填写真实姓名或主体名称。')
+  }
+
+  if (idNumberLast4 && idNumberLast4.length !== 4) {
+    throw new HttpError(400, 'invalid_id_number', '证件号码只需要提交后 4 位用于演示校验。')
+  }
+
+  if (!contactEmail.includes('@')) {
+    throw new HttpError(400, 'invalid_contact_email', '请填写有效联系邮箱。')
+  }
+
+  const createdAt = nowIso()
+  const rows = await query`
+    insert into verification_requests (
+      id, user_id, real_name, role, id_number_last4, contact_email, status, reviewer_note, created_at, updated_at
+    )
+    values (
+      ${createId('ver')}, ${user.id}, ${realName}, ${input.role || user.role}, ${idNumberLast4},
+      ${contactEmail}, 'pending', '', ${createdAt}, ${createdAt}
+    )
+    returning *
+  `
+
+  await query`update users set verification_status = 'pending' where id = ${user.id}`
+  const refreshed = await ensureUser(user.id)
+
+  return {
+    user: publicUser(refreshed),
+    request: sanitizeVerificationRequest(verificationRequestFromRow(rows[0])),
+  }
+}
+
+export async function reviewVerification(id, input) {
+  if (!verificationRequestStatuses.includes(input.status)) {
+    throw new HttpError(400, 'invalid_verification_status', '实名认证审核状态不合法。', {
+      allowed: verificationRequestStatuses,
+    })
+  }
+
+  const rows = await query`
+    update verification_requests
+    set status = ${input.status}, reviewer_note = ${String(input.reviewerNote || '').trim()}, updated_at = ${nowIso()}
+    where id = ${id}
+    returning *
+  `
+
+  if (!rows[0]) {
+    throw new HttpError(404, 'verification_not_found', '没有找到这条实名认证申请。')
+  }
+
+  const request = verificationRequestFromRow(rows[0])
+  const verificationStatus =
+    request.status === 'approved' ? 'verified' : request.status === 'rejected' ? 'rejected' : 'pending'
+
+  await query`
+    update users set verification_status = ${verificationStatus}
+    where id = ${request.userId}
+  `
+  const user = await ensureUser(request.userId)
+
+  return {
+    user: publicUser(user),
+    request: sanitizeVerificationRequest(request),
+  }
+}
+
+async function selectService(input) {
+  const rows = await query`select * from services where status = 'published' order by created_at desc limit 200`
+  const services = rows.map(serviceFromRow)
+  return (
+    services.find((item) => item.id === input.serviceId) ||
+    services.find((item) => item.category === input.category) ||
+    services[0]
+  )
+}
+
+async function findOrder(id) {
+  const rows = await query`select * from orders where id = ${id} limit 1`
+  return rows[0] ? orderFromRow(rows[0]) : null
+}
+
+async function ensureUser(id) {
+  const rows = await query`select * from users where id = ${id} limit 1`
+  if (!rows[0]) {
+    throw new HttpError(404, 'user_not_found', '没有找到这个用户。')
+  }
+  return userFromRow(rows[0])
+}
+
+async function appendSystemMessage(orderId, body) {
+  return appendMessage({
+    orderId,
+    senderId: 'usr_system',
+    body,
+    createdAt: nowIso(),
+  })
+}
+
+async function appendMessage({ orderId, senderId, body, createdAt }) {
+  const rows = await query`
+    insert into messages (id, order_id, sender_id, body, created_at)
+    values (${createId('msg')}, ${orderId}, ${senderId}, ${body}, ${createdAt})
+    returning *
+  `
+  return withMessageRelations(messageFromRow(rows[0]))
+}
+
+async function latestPaymentForOrder(orderId) {
+  const rows = await query`
+    select * from payments
+    where order_id = ${orderId}
+    order by created_at desc
+    limit 1
+  `
+  return rows[0] ? paymentFromRow(rows[0]) : null
+}
+
+async function releaseEscrowForOrder(order) {
+  const payment = await latestPaymentForOrder(order.id)
+  if (!payment || payment.escrowStatus !== 'held') return
+
+  const releasedAt = nowIso()
+  await query`
+    update payments
+    set escrow_status = 'released', updated_at = ${releasedAt}, released_at = ${releasedAt}
+    where id = ${payment.id}
+  `
+  order.paymentStatus = 'mock_released'
+  await appendSystemMessage(order.id, '买家已确认验收，模拟托管款已释放给卖家。')
+}
+
+async function refundEscrowForOrder(order) {
+  const payment = await latestPaymentForOrder(order.id)
+  if (!payment || payment.escrowStatus !== 'held') return
+
+  const refundedAt = nowIso()
+  await query`
+    update payments
+    set escrow_status = 'refunded', updated_at = ${refundedAt}, refunded_at = ${refundedAt}
+    where id = ${payment.id}
+  `
+  order.paymentStatus = 'mock_refunded'
+  await appendSystemMessage(order.id, '订单已取消，模拟托管款已退回买家。')
+}
+
+async function withSeller(service) {
+  const seller = await ensureUser(service.sellerId).catch(() => null)
+  return {
+    ...service,
+    seller: seller
+      ? {
+          id: seller.id,
+          displayName: seller.displayName,
+          role: seller.role,
+          verificationStatus: seller.verificationStatus,
+        }
+      : null,
+  }
+}
+
+async function withOrderRelations(order) {
+  const [serviceRows, messageRows, payment] = await Promise.all([
+    query`select * from services where id = ${order.serviceId} limit 1`,
+    query`select id from messages where order_id = ${order.id}`,
+    latestPaymentForOrder(order.id),
+  ])
+
+  const [buyer, seller] = await Promise.all([
+    ensureUser(order.buyerId).catch(() => null),
+    ensureUser(order.sellerId).catch(() => null),
+  ])
+
+  const service = serviceRows[0] ? serviceFromRow(serviceRows[0]) : null
+
+  return {
+    ...order,
+    service: service ? { id: service.id, title: service.title, category: service.category } : null,
+    buyer: buyer ? publicUser(buyer) : null,
+    seller: seller ? publicUser(seller) : null,
+    payment: payment ? summarizePayment(payment) : null,
+    messageCount: messageRows.length,
+  }
+}
+
+function withPaymentRelations(payment) {
+  return payment
+}
+
+async function withMessageRelations(message) {
+  const sender = await ensureUser(message.senderId).catch(() => null)
+  return {
+    ...message,
+    sender: sender
+      ? {
+          id: sender.id,
+          displayName: sender.displayName,
+          role: sender.role,
+        }
+      : null,
+  }
+}
+
+function publicUser(user) {
+  if (!user) return null
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    role: user.role,
+    verificationStatus: verificationStatuses.includes(user.verificationStatus)
+      ? user.verificationStatus
+      : 'unverified',
+    createdAt: user.createdAt,
+  }
+}
+
+function summarizePayment(payment) {
+  return {
+    id: payment.id,
+    amountCents: payment.amountCents,
+    currency: payment.currency,
+    provider: payment.provider,
+    method: payment.method,
+    status: payment.status,
+    escrowStatus: payment.escrowStatus,
+    createdAt: payment.createdAt,
+    confirmedAt: payment.confirmedAt,
+    releasedAt: payment.releasedAt,
+    refundedAt: payment.refundedAt,
+  }
+}
+
+function sanitizeVerificationRequest(request) {
+  return {
+    id: request.id,
+    userId: request.userId,
+    realName: request.realName,
+    role: request.role,
+    idNumberLast4: request.idNumberLast4,
+    contactEmail: request.contactEmail,
+    status: request.status,
+    reviewerNote: request.reviewerNote,
+    createdAt: request.createdAt,
+    updatedAt: request.updatedAt,
+  }
+}
+
+function userFromRow(row) {
+  return {
+    id: row.id,
+    email: row.email,
+    displayName: row.display_name,
+    role: row.role,
+    verificationStatus: row.verification_status,
+    createdAt: toIso(row.created_at),
+  }
+}
+
+function serviceFromRow(row) {
+  return {
+    id: row.id,
+    sellerId: row.seller_id,
+    category: row.category,
+    title: row.title,
+    summary: row.summary,
+    priceCents: Number(row.price_cents),
+    currency: row.currency,
+    deliveryDays: Number(row.delivery_days),
+    status: row.status,
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  }
+}
+
+function orderFromRow(row) {
+  return {
+    id: row.id,
+    serviceId: row.service_id,
+    buyerId: row.buyer_id,
+    sellerId: row.seller_id,
+    title: row.title,
+    brief: row.brief,
+    budgetCents: Number(row.budget_cents),
+    currency: row.currency,
+    status: row.status,
+    paymentStatus: row.payment_status,
+    verificationRequired: Boolean(row.verification_required),
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  }
+}
+
+function paymentFromRow(row) {
+  return {
+    id: row.id,
+    orderId: row.order_id,
+    buyerId: row.buyer_id,
+    sellerId: row.seller_id,
+    amountCents: Number(row.amount_cents),
+    currency: row.currency,
+    provider: row.provider,
+    method: row.method,
+    status: row.status,
+    escrowStatus: row.escrow_status,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+    confirmedAt: toIso(row.confirmed_at),
+    releasedAt: toIso(row.released_at),
+    refundedAt: toIso(row.refunded_at),
+  }
+}
+
+function messageFromRow(row) {
+  return {
+    id: row.id,
+    orderId: row.order_id,
+    senderId: row.sender_id,
+    body: row.body,
+    createdAt: toIso(row.created_at),
+  }
+}
+
+function verificationRequestFromRow(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    realName: row.real_name,
+    role: row.role,
+    idNumberLast4: row.id_number_last4,
+    contactEmail: row.contact_email,
+    status: row.status,
+    reviewerNote: row.reviewer_note,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  }
+}
+
+function toIso(value) {
+  if (!value) return null
+  if (value instanceof Date) return value.toISOString()
+  return String(value)
+}

@@ -1,5 +1,5 @@
--- WhiteHive MVP database schema draft.
--- Run this later in Neon / Supabase / Postgres when DATABASE_URL is ready.
+-- WhiteHive MVP database schema.
+-- The Postgres adapter auto-creates these tables when DATABASE_URL is configured.
 
 create table if not exists users (
   id text primary key,

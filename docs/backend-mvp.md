@@ -14,7 +14,7 @@ The first backend milestone is not real payments or real-name verification. It i
 
 ## Current Implementation
 
-Added a unified Vercel Function gateway at `api/index.js`. Public routes stay the same, but `/api/:path*` is rewritten to one function so the memory MVP can share demo state across order, payment and message calls until Postgres is connected.
+Added a unified Vercel Function gateway at `api/index.js`. Public routes stay the same, but `/api/:path*` is rewritten to one function so the backend can share the same storage adapter across order, payment and message calls.
 
 Public endpoints:
 
@@ -44,15 +44,17 @@ Added frontend MVP routes:
 
 Current storage:
 
-- In-memory seeded data
-- Good for frontend integration and competition demo wiring
-- Not persistent across cold starts or redeploys
+- `api/_lib/store.js` selects the active storage adapter.
+- `api/_lib/memory-store.js` keeps the safe demo fallback.
+- `api/_lib/postgres-store.js` uses Neon/Postgres when `DATABASE_URL` exists.
+- Without `DATABASE_URL`, data is still not persistent across cold starts or redeploys.
+- With `DATABASE_URL`, the API auto-creates the MVP tables and seeds demo records.
 
-Next storage target:
+Database target:
 
-- Neon Postgres or Supabase Postgres
-- Use `db/schema.sql` as the first migration
-- Add `DATABASE_URL` in Vercel once the database exists
+- Preferred: Neon Postgres through Vercel Marketplace.
+- Add `DATABASE_URL` in Vercel once the database exists.
+- Optional: set `WHITEHIVE_REQUIRE_DATABASE=1` only after the database is stable, so database errors fail loudly instead of falling back to memory.
 
 ## MVP Status Model
 
@@ -81,10 +83,10 @@ Verification statuses:
 
 ## Next Backend Steps
 
-1. Create real Postgres database and run `db/schema.sql`.
-2. Replace memory store with a Postgres adapter.
+1. Create a real Postgres database and set `DATABASE_URL` in Vercel.
+2. Verify `/api/health` reports `driver: neon-postgres`.
 3. Add real auth provider or email magic-link auth.
-4. Replace browser cache fallback with Postgres persistence.
+4. Replace browser cache fallback with Postgres-backed user data.
 5. Split `/dashboard` into real buyer/seller dashboards after auth is connected.
 6. Add the final payment confirmation UI on top of `/api/payments`.
 7. Connect a real payment provider and real-name verification provider only after the demo loop is stable.

@@ -41,14 +41,14 @@ export default {
           service: 'whitehive-api',
           status: 'ok',
           time: new Date().toISOString(),
-          storage: storeInfo(),
+          storage: await storeInfo(),
         })
       }
 
       if (path === 'auth/session') {
         if (request.method === 'GET') {
           return ok({
-            user: getDemoUser(),
+            user: await getDemoUser(),
             session: {
               mode: 'demo',
               token: 'demo_usr_demo_buyer',
@@ -60,7 +60,7 @@ export default {
         if (request.method === 'POST') {
           const body = await readBody(request)
           return ok(
-            upsertDemoSession({
+            await upsertDemoSession({
               email: body.email,
               mode: body.role || body.mode,
             }),
@@ -73,10 +73,10 @@ export default {
       if (path === 'services') {
         if (request.method === 'GET') {
           const id = query.get('id')
-          if (id) return ok(getService(id))
+          if (id) return ok(await getService(id))
 
           return ok(
-            listServices({
+            await listServices({
               category: query.get('category') || undefined,
               status: query.get('status') || 'published',
             }),
@@ -85,7 +85,7 @@ export default {
 
         if (request.method === 'POST') {
           const body = await readBody(request)
-          return ok(createService(body))
+          return ok(await createService(body))
         }
 
         return methodNotAllowed(request.method, ['GET', 'POST'])
@@ -94,10 +94,10 @@ export default {
       if (path === 'orders') {
         if (request.method === 'GET') {
           const id = query.get('id')
-          if (id) return ok(getOrder(id))
+          if (id) return ok(await getOrder(id))
 
           return ok(
-            listOrders({
+            await listOrders({
               userId: query.get('userId') || undefined,
               status: query.get('status') || undefined,
             }),
@@ -106,12 +106,12 @@ export default {
 
         if (request.method === 'POST') {
           const body = await readBody(request)
-          return ok(createOrder(body))
+          return ok(await createOrder(body))
         }
 
         if (request.method === 'PATCH') {
           const body = await readBody(request)
-          return ok(updateOrder(query.get('id'), body))
+          return ok(await updateOrder(query.get('id'), body))
         }
 
         return methodNotAllowed(request.method, ['GET', 'POST', 'PATCH'])
@@ -120,10 +120,10 @@ export default {
       if (path === 'payments') {
         if (request.method === 'GET') {
           const id = query.get('id')
-          if (id) return ok(getPayment(id))
+          if (id) return ok(await getPayment(id))
 
           return ok(
-            listPayments({
+            await listPayments({
               orderId: query.get('orderId') || undefined,
               status: query.get('status') || undefined,
             }),
@@ -132,7 +132,7 @@ export default {
 
         if (request.method === 'POST') {
           const body = await readBody(request)
-          return ok(createPayment(body))
+          return ok(await createPayment(body))
         }
 
         return methodNotAllowed(request.method, ['GET', 'POST'])
@@ -140,12 +140,12 @@ export default {
 
       if (path === 'messages') {
         if (request.method === 'GET') {
-          return ok(listMessages(query.get('orderId')))
+          return ok(await listMessages(query.get('orderId')))
         }
 
         if (request.method === 'POST') {
           const body = await readBody(request)
-          return ok(createMessage(body))
+          return ok(await createMessage(body))
         }
 
         return methodNotAllowed(request.method, ['GET', 'POST'])
@@ -153,17 +153,17 @@ export default {
 
       if (path === 'verification') {
         if (request.method === 'GET') {
-          return ok(getVerificationProfile(query.get('userId') || 'usr_demo_seller'))
+          return ok(await getVerificationProfile(query.get('userId') || 'usr_demo_seller'))
         }
 
         if (request.method === 'POST') {
           const body = await readBody(request)
-          return ok(submitVerification(body))
+          return ok(await submitVerification(body))
         }
 
         if (request.method === 'PATCH') {
           const body = await readBody(request)
-          return ok(reviewVerification(query.get('id'), body))
+          return ok(await reviewVerification(query.get('id'), body))
         }
 
         return methodNotAllowed(request.method, ['GET', 'POST', 'PATCH'])
