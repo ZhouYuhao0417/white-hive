@@ -50,7 +50,7 @@ function PillarCard({ p, index, open, setOpen }) {
   return (
     <Reveal delay={index * 0.05}>
       <div
-        className={`card card-hover p-8 h-full relative overflow-hidden cursor-pointer transition-all ${
+        className={`card card-hover p-4 sm:p-8 h-full relative overflow-hidden cursor-pointer transition-all ${
           isOpen ? 'ring-1' : ''
         }`}
         style={
@@ -69,17 +69,17 @@ function PillarCard({ p, index, open, setOpen }) {
         />
         <div className="flex items-center justify-between">
           <div
-            className="h-12 w-12 rounded-2xl flex items-center justify-center"
+            className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl flex items-center justify-center"
             style={{
               background: `${p.color}14`,
               border: `1px solid ${p.color}40`,
               color: p.color,
             }}
           >
-            <Icon name={p.icon} size={22} />
+            <Icon name={p.icon} size={18} />
           </div>
-          <div className="flex items-center gap-2">
-            <span className="mono-label">TRUST · 0{index + 1}</span>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <span className="mono-label hidden sm:inline">TRUST · 0{index + 1}</span>
             <motion.span
               animate={{ rotate: isOpen ? 45 : 0 }}
               transition={{ duration: 0.25 }}
@@ -95,12 +95,12 @@ function PillarCard({ p, index, open, setOpen }) {
           </div>
         </div>
 
-        <div className="mt-6 text-white text-xl font-medium tracking-tight">{p.title}</div>
-        <p className="mt-3 text-sm text-white/60 leading-relaxed">{p.desc}</p>
+        <div className="mt-3 sm:mt-6 text-white text-sm sm:text-xl font-medium tracking-tight leading-snug">{p.title}</div>
+        <p className="mt-1.5 sm:mt-3 text-xs sm:text-sm text-white/60 leading-relaxed line-clamp-3 sm:line-clamp-none">{p.desc}</p>
 
-        <div className="mt-6 pt-6 border-t border-white/5 space-y-3">
+        <div className="mt-3 sm:mt-6 pt-3 sm:pt-6 border-t border-white/5 space-y-2 sm:space-y-3">
           {p.points.map((pt) => (
-            <div key={pt} className="flex items-start gap-2 text-sm text-white/75">
+            <div key={pt} className="flex items-start gap-1.5 sm:gap-2 text-xs sm:text-sm text-white/75">
               <span className="mt-[2px]" style={{ color: p.color }}>
                 <Icon name="check" size={14} />
               </span>
@@ -155,7 +155,7 @@ function PillarCard({ p, index, open, setOpen }) {
 
         {!isOpen && (
           <div
-            className="mt-4 text-[11px] transition-opacity"
+            className="mt-2 sm:mt-4 text-[10px] sm:text-[11px] transition-opacity"
             style={{ color: `${p.color}cc` }}
           >
             点击查看详细机制 →
@@ -196,7 +196,7 @@ export default function Trust() {
       </Section>
 
       <Section className="!pt-0">
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4 items-start">
           {trustPillars.map((p, i) => (
             <PillarCard key={p.key} p={p} index={i} open={open} setOpen={setOpen} />
           ))}
@@ -211,8 +211,8 @@ export default function Trust() {
           desc="款项不是直接打给卖家, 而是先进入持牌机构的监管账户, 按约定的节点逐步释放; 出现纠纷时可以冻结并复核。"
         />
         <Reveal>
-          <div className="mt-14 card p-8 md:p-12">
-            <div className="grid md:grid-cols-5 gap-4 items-stretch">
+          <div className="mt-10 sm:mt-14 card p-5 sm:p-8 md:p-12">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 sm:gap-4 items-stretch">
               {[
                 { t: '买家下单', d: '款项进入持牌监管账户', tone: 'buyer' },
                 { t: '开始制作', d: '冻结资金 · 开工留痕', tone: 'platform' },
@@ -229,7 +229,7 @@ export default function Trust() {
                   className="relative"
                 >
                   <div
-                    className={`rounded-2xl p-5 h-full border ${
+                    className={`rounded-xl sm:rounded-2xl p-3 sm:p-5 h-full border ${
                       s.tone === 'platform'
                         ? 'bg-[#7FD3FF]/[0.06] border-[#7FD3FF]/25'
                         : 'bg-white/[0.03] border-white/10'
@@ -261,11 +261,11 @@ export default function Trust() {
           title="合规边界, 写在明面上。"
           desc="WhiteHive 主动划出可交易服务的范围, 把灰色地带挡在门外。清晰的红线, 本身就是一种保护。"
         />
-        <div className="mt-12 grid md:grid-cols-2 gap-4">
+        <div className="mt-10 sm:mt-12 grid grid-cols-2 gap-2.5 sm:gap-4">
           <Reveal>
-            <div className="card p-8 h-full">
-              <div className="mono-label mb-4 text-[#BEE6FF]">允许 · ALLOW</div>
-              <ul className="space-y-3 text-sm text-white/75">
+            <div className="card p-4 sm:p-8 h-full">
+              <div className="mono-label mb-3 sm:mb-4 text-[#BEE6FF]">允许 · ALLOW</div>
+              <ul className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-white/75">
                 {[
                   '面向公开可交付的数字服务',
                   '原创作品与有授权素材',
@@ -283,9 +283,9 @@ export default function Trust() {
             </div>
           </Reveal>
           <Reveal delay={0.08}>
-            <div className="card p-8 h-full">
-              <div className="mono-label mb-4 text-white/55">禁止 · DENY</div>
-              <ul className="space-y-3 text-sm text-white/70">
+            <div className="card p-4 sm:p-8 h-full">
+              <div className="mono-label mb-3 sm:mb-4 text-white/55">禁止 · DENY</div>
+              <ul className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-white/70">
                 {[
                   '代考、代写学位论文等学术不端行为',
                   '侵犯第三方版权的内容分发',

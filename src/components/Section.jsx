@@ -9,12 +9,12 @@ export function SectionHeader({ eyebrow, title, desc, center = false }) {
       transition={{ duration: 0.6, ease: 'easeOut' }}
       className={`max-w-3xl ${center ? 'mx-auto text-center' : ''}`}
     >
-      {eyebrow && <div className="mono-label mb-4">{eyebrow}</div>}
-      <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-white leading-tight">
+      {eyebrow && <div className="mono-label mb-3 sm:mb-4 text-[10px] sm:text-[11px]">{eyebrow}</div>}
+      <h2 className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight text-white leading-tight">
         {title}
       </h2>
       {desc && (
-        <p className="mt-4 text-white/60 leading-relaxed text-base md:text-lg">
+        <p className="mt-3 sm:mt-4 text-white/60 leading-relaxed text-sm sm:text-base md:text-lg">
           {desc}
         </p>
       )}
@@ -24,8 +24,8 @@ export function SectionHeader({ eyebrow, title, desc, center = false }) {
 
 export function Section({ id, children, className = '' }) {
   return (
-    <section id={id} className={`relative py-24 md:py-32 ${className}`}>
-      <div className="mx-auto max-w-7xl px-6 lg:px-10">{children}</div>
+    <section id={id} className={`relative py-14 sm:py-24 md:py-32 ${className}`}>
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">{children}</div>
     </section>
   )
 }

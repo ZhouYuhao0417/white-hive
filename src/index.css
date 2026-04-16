@@ -69,8 +69,11 @@ body {
 .card {
   background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
   border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 18px;
+  border-radius: 14px;
   backdrop-filter: blur(6px);
+}
+@media (min-width: 640px) {
+  .card { border-radius: 18px; }
 }
 
 .card-hover {
@@ -86,31 +89,37 @@ body {
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
+  gap: 6px;
+  padding: 4px 10px;
   border-radius: 999px;
   background: rgba(127,211,255,0.08);
   border: 1px solid rgba(127,211,255,0.22);
   color: #BFE7FF;
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 0.04em;
+}
+@media (min-width: 640px) {
+  .chip { gap: 8px; padding: 6px 12px; font-size: 12px; }
 }
 
 /* Hero chip —— 放大版, 冰蓝描边 */
 .chip-hero {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 20px;
+  gap: 8px;
+  padding: 8px 14px;
   border-radius: 999px;
   background:
     linear-gradient(180deg, rgba(127,211,255,0.12), rgba(165,180,252,0.04));
   border: 1px solid rgba(127,211,255,0.38);
   color: #D6EEFF;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.03em;
   box-shadow: 0 8px 30px -12px rgba(127,211,255,0.35);
+}
+@media (min-width: 640px) {
+  .chip-hero { gap: 10px; padding: 10px 20px; font-size: 14px; }
 }
 
 /* Mono label */
@@ -126,9 +135,10 @@ body {
 .btn-primary {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 22px;
-  border-radius: 12px;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 14px;
   background: linear-gradient(180deg, #BEE6FF, #7FD3FF);
   color: #04131F;
   font-weight: 600;
@@ -143,13 +153,17 @@ body {
     0 14px 40px -14px rgba(127,211,255,0.70),
     0 0 0 1px rgba(127,211,255,0.60) inset;
 }
+@media (min-width: 640px) {
+  .btn-primary { gap: 8px; padding: 12px 22px; border-radius: 12px; font-size: 16px; }
+}
 
 .btn-brand {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 22px;
-  border-radius: 12px;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 14px;
   background: linear-gradient(180deg, #C7D2FE, #A5B4FC);
   color: #0C0E24;
   font-weight: 600;
@@ -158,13 +172,17 @@ body {
   transition: transform .2s ease, box-shadow .2s ease;
 }
 .btn-brand:hover { transform: translateY(-1px); }
+@media (min-width: 640px) {
+  .btn-brand { gap: 8px; padding: 12px 22px; border-radius: 12px; font-size: 16px; }
+}
 
 .btn-ghost {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 22px;
-  border-radius: 12px;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 14px;
   color: #E6E9F2;
   border: 1px solid rgba(255,255,255,0.14);
   background: rgba(255,255,255,0.02);
@@ -173,6 +191,9 @@ body {
 .btn-ghost:hover {
   border-color: rgba(127,211,255,0.35);
   background: rgba(127,211,255,0.05);
+}
+@media (min-width: 640px) {
+  .btn-ghost { gap: 8px; padding: 12px 22px; border-radius: 12px; font-size: 16px; }
 }
 
 /* —— 高亮文字:冷色渐变 (冰蓝 → 柔紫 → 薄荷) —— */

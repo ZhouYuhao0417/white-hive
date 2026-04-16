@@ -9,7 +9,7 @@ function ServiceCard({ s, index }) {
     <Reveal delay={index * 0.05}>
       <div
         id={s.slug}
-        className="card card-hover p-8 h-full flex flex-col relative overflow-hidden scroll-mt-28"
+        className="card card-hover p-4 sm:p-8 h-full flex flex-col relative overflow-hidden scroll-mt-28"
       >
         <div
           className="absolute inset-x-0 top-0 h-px"
@@ -19,24 +19,24 @@ function ServiceCard({ s, index }) {
         />
         <div className="flex items-center justify-between">
           <div
-            className="h-12 w-12 rounded-2xl flex items-center justify-center"
+            className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl flex items-center justify-center"
             style={{
               background: `${s.color}14`,
               border: `1px solid ${s.color}40`,
               color: s.color,
             }}
           >
-            <Icon name={s.icon} size={22} />
+            <Icon name={s.icon} size={20} />
           </div>
-          <span className="mono-label">CAT · 0{index + 1}</span>
+          <span className="mono-label hidden sm:inline">CAT · 0{index + 1}</span>
         </div>
 
-        <div className="mt-6 text-white text-xl font-medium tracking-tight">
+        <div className="mt-3 sm:mt-6 text-white text-sm sm:text-xl font-medium tracking-tight leading-snug">
           {s.title}
         </div>
-        <p className="mt-2 text-sm text-white/60 leading-relaxed">{s.tagline}</p>
+        <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-white/60 leading-relaxed line-clamp-2 sm:line-clamp-none">{s.tagline}</p>
 
-        <div className="mt-6">
+        <div className="mt-4 sm:mt-6 hidden sm:block">
           <div className="mono-label mb-3">ADAPT TO</div>
           <div className="flex flex-wrap gap-1.5">
             {s.audience.map((a) => (
@@ -50,7 +50,7 @@ function ServiceCard({ s, index }) {
           </div>
         </div>
 
-        <div className="mt-6">
+        <div className="mt-6 hidden sm:block">
           <div className="mono-label mb-3">DELIVERABLES</div>
           <ul className="space-y-2">
             {s.deliverables.map((d) => (
@@ -68,18 +68,19 @@ function ServiceCard({ s, index }) {
           </ul>
         </div>
 
-        <div className="mt-6 pt-6 border-t border-white/5">
+        <div className="mt-6 pt-6 border-t border-white/5 hidden sm:block">
           <div className="mono-label mb-2">EXAMPLE</div>
           <div className="text-xs text-white/55 leading-relaxed">{s.example}</div>
         </div>
 
-        <div className="mt-auto pt-6">
+        <div className="mt-auto pt-3 sm:pt-6">
           <Link
             to={`/services/${s.slug}`}
-            className="inline-flex items-center gap-2 text-sm transition-opacity hover:opacity-80"
+            className="inline-flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm transition-opacity hover:opacity-80"
             style={{ color: s.color }}
           >
-            进入该分类的商品陈列 <Icon name="arrow" size={14} />
+            <span className="hidden sm:inline">进入该分类的商品陈列</span>
+            <span className="sm:hidden">查看商品</span> <Icon name="arrow" size={14} />
           </Link>
         </div>
       </div>
@@ -119,7 +120,7 @@ export default function Services() {
       </Section>
 
       <Section className="!pt-0">
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
           {services.map((s, i) => (
             <ServiceCard key={s.slug} s={s} index={i} />
           ))}

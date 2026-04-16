@@ -46,15 +46,15 @@ function CategoryHero({ cat }) {
           </div>
         </div>
 
-        <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="mt-6 sm:mt-8 grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
           {cat.metrics.map((m) => (
             <div
               key={m.label}
-              className="rounded-xl border border-white/8 bg-white/[0.02] px-4 py-3"
+              className="rounded-lg sm:rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 sm:px-4 sm:py-3"
             >
-              <div className="mono-label">{m.label}</div>
+              <div className="mono-label text-[10px] sm:text-[11px]">{m.label}</div>
               <div
-                className="mt-1 text-xl font-semibold"
+                className="mt-0.5 sm:mt-1 text-base sm:text-xl font-semibold"
                 style={{ color: cat.color }}
               >
                 {m.value}
@@ -132,10 +132,10 @@ function AIMatchStrip({ color }) {
 /* ============ 公共小部件 ============ */
 function SellerLine({ seller, rating, color }) {
   return (
-    <div className="mt-4 flex items-center justify-between text-xs">
-      <div className="flex items-center gap-2 text-white/65">
+    <div className="mt-2 sm:mt-4 flex items-center justify-between text-[10px] sm:text-xs">
+      <div className="flex items-center gap-1.5 sm:gap-2 text-white/65 min-w-0">
         <div
-          className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-semibold"
+          className="h-5 w-5 sm:h-6 sm:w-6 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-semibold shrink-0"
           style={{
             background: `${color}22`,
             border: `1px solid ${color}55`,
@@ -144,13 +144,12 @@ function SellerLine({ seller, rating, color }) {
         >
           {seller.name.slice(0, 1)}
         </div>
-        <span>{seller.name}</span>
-        <span className="text-white/25">·</span>
-        <span className="text-white/50">{seller.level}</span>
+        <span className="truncate">{seller.name}</span>
+        <span className="text-white/25 hidden sm:inline">·</span>
+        <span className="text-white/50 hidden sm:inline">{seller.level}</span>
       </div>
-      <div className="flex items-center gap-1" style={{ color }}>
+      <div className="flex items-center gap-0.5 sm:gap-1 shrink-0" style={{ color }}>
         ★ <span className="text-white/80">{rating}</span>
-        <span className="text-white/35">({seller.reviews})</span>
       </div>
     </div>
   )
@@ -158,15 +157,15 @@ function SellerLine({ seller, rating, color }) {
 
 function PriceLine({ item, color }) {
   return (
-    <div className="mt-4 flex items-end justify-between">
+    <div className="mt-2.5 sm:mt-4 flex items-end justify-between">
       <div>
-        <span className="text-[11px] text-white/45 mr-1">¥</span>
-        <span className="text-2xl font-semibold" style={{ color }}>
+        <span className="text-[10px] sm:text-[11px] text-white/45 mr-0.5 sm:mr-1">¥</span>
+        <span className="text-base sm:text-2xl font-semibold" style={{ color }}>
           {item.price}
         </span>
-        <span className="text-xs text-white/50 ml-1">/ {item.priceUnit}</span>
+        <span className="text-[10px] sm:text-xs text-white/50 ml-0.5 sm:ml-1 hidden sm:inline">/ {item.priceUnit}</span>
       </div>
-      <div className="text-[11px] text-white/50">
+      <div className="text-[10px] sm:text-[11px] text-white/50 hidden sm:block">
         平均 <span className="text-white/80">{item.days} 天</span> 交付
       </div>
     </div>
@@ -191,7 +190,7 @@ function Tags({ tags }) {
 /* ============ Gallery · 大图视觉墙 ============ */
 function GalleryView({ cat, listings }) {
   return (
-    <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+    <div className="mt-8 grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-5">
       {listings.map((item, i) => (
         <motion.div
           key={item.id}
@@ -203,25 +202,25 @@ function GalleryView({ cat, listings }) {
         >
           {/* 渐变视觉缩略 */}
           <div
-            className="relative aspect-[16/10] overflow-hidden"
+            className="relative aspect-[4/3] sm:aspect-[16/10] overflow-hidden"
             style={{
               background: `linear-gradient(135deg, ${item.grad[0]} 0%, ${item.grad[1]} 50%, ${item.grad[2]} 100%)`,
             }}
           >
             <div className="absolute inset-0 bg-grid-fine opacity-20" />
             <div className="absolute inset-0 flex items-center justify-center text-white/80">
-              <Icon name={item.icon} size={52} />
+              <Icon name={item.icon} size={36} />
             </div>
-            <div className="absolute top-3 left-3 px-2 py-1 rounded-md bg-black/40 backdrop-blur text-[10px] text-white/90 border border-white/15">
+            <div className="absolute top-2 left-2 sm:top-3 sm:left-3 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md bg-black/40 backdrop-blur text-[9px] sm:text-[10px] text-white/90 border border-white/15">
               {item.kind}
             </div>
           </div>
-          <div className="p-5 flex-1 flex flex-col">
-            <div className="text-white font-medium leading-snug">{item.title}</div>
-            <p className="mt-2 text-xs text-white/55 leading-relaxed line-clamp-2">
+          <div className="p-3 sm:p-5 flex-1 flex flex-col">
+            <div className="text-white font-medium leading-snug text-xs sm:text-base line-clamp-2">{item.title}</div>
+            <p className="mt-1 sm:mt-2 text-[11px] sm:text-xs text-white/55 leading-relaxed line-clamp-2 hidden sm:block">
               {item.desc}
             </p>
-            <Tags tags={item.tags} />
+            <div className="hidden sm:block"><Tags tags={item.tags} /></div>
             <div className="mt-auto">
               <PriceLine item={item} color={cat.color} />
               <SellerLine seller={item.seller} rating={item.rating} color={cat.color} />

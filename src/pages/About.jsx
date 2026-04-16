@@ -37,15 +37,15 @@ export default function About() {
       </Section>
 
       <Section className="!pt-0">
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
           {beliefs.map((b, i) => (
             <Reveal key={b.title} delay={i * 0.06}>
-              <div className="card card-hover p-6 h-full">
-                <div className="h-10 w-10 rounded-xl bg-brand-300/10 border border-brand-300/25 flex items-center justify-center text-brand-300">
+              <div className="card card-hover p-3.5 sm:p-6 h-full">
+                <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl bg-brand-300/10 border border-brand-300/25 flex items-center justify-center text-brand-300">
                   <Icon name={b.icon} />
                 </div>
-                <div className="mt-5 text-white font-medium">{b.title}</div>
-                <p className="mt-2 text-sm text-white/60 leading-relaxed">
+                <div className="mt-3 sm:mt-5 text-white font-medium text-sm sm:text-base">{b.title}</div>
+                <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-white/60 leading-relaxed">
                   {b.desc}
                 </p>
               </div>

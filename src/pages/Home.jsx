@@ -14,7 +14,7 @@ import {
    ============================================================ */
 function Hero() {
   return (
-    <section className="relative hero-glow pt-20 md:pt-28 pb-20 md:pb-24 overflow-hidden">
+    <section className="relative hero-glow pt-14 sm:pt-20 md:pt-28 pb-14 sm:pb-20 md:pb-24 overflow-hidden">
       <div className="absolute inset-0 bg-grid opacity-40 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" />
 
       <div className="relative mx-auto max-w-7xl px-6 lg:px-10">
@@ -34,7 +34,7 @@ function Hero() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.05 }}
-          className="mt-7 text-center text-4xl sm:text-5xl md:text-6xl lg:text-[68px] font-semibold tracking-tight text-white leading-[1.08]"
+          className="mt-5 sm:mt-7 text-center text-[26px] sm:text-4xl md:text-5xl lg:text-[68px] font-semibold tracking-tight text-white leading-[1.12] sm:leading-[1.08]"
         >
           把每一次线上合作,
           <br className="hidden sm:block" />
@@ -45,7 +45,7 @@ function Hero() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.15 }}
-          className="mt-6 max-w-2xl mx-auto text-center text-white/65 text-base md:text-lg leading-relaxed"
+          className="mt-4 sm:mt-6 max-w-2xl mx-auto text-center text-white/65 text-sm sm:text-base md:text-lg leading-relaxed"
         >
           WhiteHive 面向青年创作者、自由职业者、学生卖家, 以及个人与小微团队买家。
           服务被结构化地描述, 需求被结构化地拆解, 交付被结构化地验收。
@@ -56,7 +56,7 @@ function Hero() {
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.22 }}
-          className="mt-10 flex flex-col sm:flex-row items-stretch justify-center gap-3"
+          className="mt-7 sm:mt-10 flex flex-col sm:flex-row items-stretch justify-center gap-2.5 sm:gap-3"
         >
           <Link to="/services" className="btn-primary group">
             <span className="flex flex-col items-start leading-tight">
@@ -116,12 +116,12 @@ function PopularCategories() {
         </Link>
       </div>
 
-      <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="mt-10 grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
         {list.map((s, i) => (
           <Reveal key={s.slug} delay={i * 0.05}>
             <Link
               to={`/services/${s.slug}`}
-              className="card card-hover block p-6 h-full group relative overflow-hidden"
+              className="card card-hover block p-3.5 sm:p-6 h-full group relative overflow-hidden"
             >
               <div
                 className="absolute inset-x-0 top-0 h-px"
@@ -131,7 +131,7 @@ function PopularCategories() {
               />
               <div className="flex items-center justify-between">
                 <div
-                  className="h-11 w-11 rounded-xl flex items-center justify-center"
+                  className="h-8 w-8 sm:h-11 sm:w-11 rounded-lg sm:rounded-xl flex items-center justify-center"
                   style={{
                     background: `${s.color}14`,
                     border: `1px solid ${s.color}40`,
@@ -142,9 +142,9 @@ function PopularCategories() {
                 </div>
                 <span className="mono-label">0{i + 1}</span>
               </div>
-              <div className="mt-5 font-medium text-white text-lg">{s.title}</div>
-              <p className="mt-2 text-sm text-white/60 leading-relaxed">{s.tagline}</p>
-              <div className="mt-5 flex flex-wrap gap-1.5">
+              <div className="mt-2.5 sm:mt-5 font-medium text-white text-sm sm:text-lg leading-snug">{s.title}</div>
+              <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-white/60 leading-relaxed line-clamp-2 sm:line-clamp-none">{s.tagline}</p>
+              <div className="mt-3 sm:mt-5 hidden sm:flex flex-wrap gap-1.5">
                 {s.audience.map((a) => (
                   <span
                     key={a}
@@ -155,10 +155,11 @@ function PopularCategories() {
                 ))}
               </div>
               <div
-                className="mt-5 flex items-center gap-2 text-sm opacity-70 group-hover:opacity-100 transition-opacity"
+                className="mt-2.5 sm:mt-5 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm opacity-70 group-hover:opacity-100 transition-opacity"
                 style={{ color: s.color }}
               >
-                进入商品陈列 <Icon name="arrow" size={14} />
+                <span className="hidden sm:inline">进入商品陈列</span>
+                <span className="sm:hidden">查看</span> <Icon name="arrow" size={14} />
               </div>
             </Link>
           </Reveal>
@@ -170,7 +171,7 @@ function PopularCategories() {
         <div className="mt-4">
           <Link
             to="/ai-match"
-            className="card card-hover block p-7 md:p-9 relative overflow-hidden group"
+            className="card card-hover block p-5 sm:p-7 md:p-9 relative overflow-hidden group"
             style={{
               background:
                 'linear-gradient(135deg, rgba(127,211,255,0.08) 0%, rgba(165,180,252,0.06) 50%, rgba(94,234,212,0.06) 100%)',
@@ -185,23 +186,23 @@ function PopularCategories() {
                   'radial-gradient(40% 60% at 100% 0%, rgba(127,211,255,0.20), transparent 60%), radial-gradient(40% 60% at 0% 100%, rgba(165,180,252,0.18), transparent 60%)',
               }}
             />
-            <div className="relative flex flex-col md:flex-row items-start md:items-center gap-6">
+            <div className="relative flex flex-col md:flex-row items-start md:items-center gap-4 sm:gap-6">
               <div
-                className="h-14 w-14 rounded-2xl flex items-center justify-center shrink-0"
+                className="h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0"
                 style={{
                   background: 'rgba(127,211,255,0.14)',
                   border: '1px solid rgba(127,211,255,0.45)',
                   color: '#7FD3FF',
                 }}
               >
-                <Icon name="spark" size={26} />
+                <Icon name="spark" size={22} />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="mono-label mb-1">AI MATCH · 07</div>
-                <div className="text-white font-medium text-xl leading-tight">
+                <div className="text-white font-medium text-base sm:text-xl leading-tight">
                   没找到相关的服务? 用 AI 精准匹配需求。
                 </div>
-                <p className="mt-2 text-sm text-white/65 leading-relaxed max-w-2xl">
+                <p className="mt-1.5 sm:mt-2 text-xs sm:text-sm text-white/65 leading-relaxed max-w-2xl">
                   把你的意图直接告诉 AI, 它会理解你想做的事、拆解关键字段, 并从全平台匹配最合适的创作者
                   —— 覆盖以上六个分类之外的长尾场景。
                 </p>
@@ -277,11 +278,11 @@ function ProcessTimeline() {
           <div className="h-full w-full bg-gradient-to-r from-[#7FD3FF] via-[#A5B4FC] to-[#5EEAD4]" />
         </motion.div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
           {steps.map((s) => (
             <motion.div key={s.k} variants={item} className="relative">
               <div
-                className="h-[58px] rounded-xl border flex items-center justify-center"
+                className="h-11 sm:h-[58px] rounded-lg sm:rounded-xl border flex items-center justify-center"
                 style={{
                   borderColor: 'rgba(127,211,255,0.45)',
                   background:
@@ -289,14 +290,14 @@ function ProcessTimeline() {
                 }}
               >
                 <span
-                  className="font-mono text-xs tracking-wider font-semibold"
+                  className="font-mono text-[10px] sm:text-xs tracking-wider font-semibold"
                   style={{ color: '#BEE6FF' }}
                 >
-                  STEP {s.k}
+                  {s.k}
                 </span>
               </div>
-              <div className="mt-3 text-sm text-white font-medium">{s.title}</div>
-              <div className="mt-1 text-xs text-white/50 leading-relaxed">{s.desc}</div>
+              <div className="mt-2 sm:mt-3 text-xs sm:text-sm text-white font-medium">{s.title}</div>
+              <div className="mt-0.5 sm:mt-1 text-[11px] sm:text-xs text-white/50 leading-relaxed">{s.desc}</div>
             </motion.div>
           ))}
         </div>
@@ -315,7 +316,7 @@ function ProcessTimeline() {
    Problem → Solution · 主要信任内容
    ============================================================ */
 function ProblemSolution() {
-  const rowClass = 'min-h-[96px] flex items-start gap-4'
+  const rowClass = 'min-h-0 sm:min-h-[96px] flex items-start gap-3 sm:gap-4'
   return (
     <Section className="!py-20 md:!py-24">
       <SectionHeader
@@ -327,9 +328,9 @@ function ProblemSolution() {
       <Reveal>
         <div className="mt-12 grid md:grid-cols-2 gap-4">
           {/* 痛点卡 */}
-          <div className="card p-7 md:p-8 relative overflow-hidden">
+          <div className="card p-4 sm:p-7 md:p-8 relative overflow-hidden">
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-            <div className="flex items-center gap-3 mb-7">
+            <div className="flex items-center gap-3 mb-5 sm:mb-7">
               <div className="h-9 w-9 rounded-xl bg-white/5 border border-white/15 flex items-center justify-center text-white/55">
                 <Icon name="close" size={16} />
               </div>
@@ -342,9 +343,9 @@ function ProblemSolution() {
               {pairs.map((row, i) => (
                 <li
                   key={i}
-                  className={`${rowClass} rounded-xl bg-white/[0.02] border border-white/8 p-4`}
+                  className={`${rowClass} rounded-lg sm:rounded-xl bg-white/[0.02] border border-white/8 p-3 sm:p-4`}
                 >
-                  <div className="mono-label text-white/35 w-7 shrink-0 mt-[2px]">
+                  <div className="mono-label text-white/35 w-5 sm:w-7 shrink-0 mt-[2px] text-[10px] sm:text-[11px]">
                     {String(i + 1).padStart(2, '0')}
                   </div>
                   <div className="min-w-0">
@@ -360,7 +361,7 @@ function ProblemSolution() {
 
           {/* 解法卡 —— 冰蓝主调 */}
           <div
-            className="card p-7 md:p-8 relative overflow-hidden"
+            className="card p-4 sm:p-7 md:p-8 relative overflow-hidden"
             style={{
               background:
                 'linear-gradient(180deg, rgba(127,211,255,0.07), rgba(165,180,252,0.02))',
@@ -368,7 +369,7 @@ function ProblemSolution() {
             }}
           >
             <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#7FD3FF]/55 to-transparent" />
-            <div className="flex items-center gap-3 mb-7">
+            <div className="flex items-center gap-3 mb-5 sm:mb-7">
               <div
                 className="h-9 w-9 rounded-xl flex items-center justify-center"
                 style={{
@@ -388,7 +389,7 @@ function ProblemSolution() {
               {pairs.map((row, i) => (
                 <li
                   key={i}
-                  className={`${rowClass} rounded-xl p-4`}
+                  className={`${rowClass} rounded-lg sm:rounded-xl p-3 sm:p-4`}
                   style={{
                     background: 'rgba(127,211,255,0.05)',
                     border: '1px solid rgba(127,211,255,0.22)',
@@ -468,7 +469,7 @@ function VibeCoding() {
         desc="WhiteHive 把 Vibe Coding 做成了一个人人都能用、而且用得放心的入口: 先让 AI 跑一版, 不行再交给真人。"
       />
       <Reveal>
-        <div className="mt-12 relative card p-8 md:p-10 overflow-hidden">
+        <div className="mt-10 sm:mt-12 relative card p-4 sm:p-8 md:p-10 overflow-hidden">
           <div
             aria-hidden
             className="absolute inset-0 opacity-60"
@@ -477,7 +478,7 @@ function VibeCoding() {
                 'radial-gradient(60% 70% at 100% 0%, rgba(127,211,255,0.16), transparent 60%), radial-gradient(50% 60% at 0% 100%, rgba(165,180,252,0.14), transparent 60%)',
             }}
           />
-          <div className="relative grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="relative grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
             {vibeSteps.map((s, i) => (
               <motion.div
                 key={s.k}
@@ -485,30 +486,30 @@ function VibeCoding() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-60px' }}
                 transition={{ duration: 0.5, delay: i * 0.08 }}
-                className="relative rounded-2xl border border-white/10 bg-white/[0.03] p-5"
+                className="relative rounded-xl sm:rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-5"
               >
                 <div className="flex items-center justify-between">
                   <div
-                    className="h-10 w-10 rounded-xl flex items-center justify-center"
+                    className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl flex items-center justify-center"
                     style={{
                       background: `${s.color}14`,
                       border: `1px solid ${s.color}40`,
                       color: s.color,
                     }}
                   >
-                    <Icon name={s.icon} size={18} />
+                    <Icon name={s.icon} size={16} />
                   </div>
                   <span
-                    className="font-mono text-xs tracking-wider"
+                    className="font-mono text-[10px] sm:text-xs tracking-wider"
                     style={{ color: s.color }}
                   >
-                    STEP {s.k}
+                    {s.k}
                   </span>
                 </div>
-                <div className="mt-5 text-white font-medium text-[15px] leading-snug">
+                <div className="mt-3 sm:mt-5 text-white font-medium text-xs sm:text-[15px] leading-snug">
                   {s.title}
                 </div>
-                <p className="mt-2 text-xs text-white/60 leading-relaxed">{s.desc}</p>
+                <p className="mt-1 sm:mt-2 text-[11px] sm:text-xs text-white/60 leading-relaxed">{s.desc}</p>
                 {i < vibeSteps.length - 1 && (
                   <div className="hidden lg:flex absolute -right-[13px] top-1/2 -translate-y-1/2 text-white/25 z-10">
                     <div className="h-[22px] w-[22px] rounded-full bg-ink-800 border border-white/10 flex items-center justify-center">
@@ -573,12 +574,12 @@ function ValueProps() {
         title="我们在解决一个真实存在的问题。"
         desc="线上数字服务的交易, 过去依赖聊天、转账和个人信誉。WhiteHive 把它重做成了一个结构化的产品。"
       />
-      <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="mt-12 grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {items.map((it, i) => (
           <Reveal key={it.title} delay={i * 0.06}>
-            <div className="card card-hover p-6 h-full">
+            <div className="card card-hover p-3.5 sm:p-6 h-full">
               <div
-                className="h-10 w-10 rounded-xl flex items-center justify-center"
+                className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl flex items-center justify-center"
                 style={{
                   background: `${it.color}14`,
                   border: `1px solid ${it.color}40`,
@@ -587,8 +588,8 @@ function ValueProps() {
               >
                 <Icon name={it.icon} />
               </div>
-              <div className="mt-5 font-medium text-white">{it.title}</div>
-              <p className="mt-2 text-sm text-white/60 leading-relaxed">{it.desc}</p>
+              <div className="mt-3 sm:mt-5 font-medium text-white text-sm sm:text-base">{it.title}</div>
+              <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-white/60 leading-relaxed">{it.desc}</p>
             </div>
           </Reveal>
         ))}
@@ -607,15 +608,15 @@ function UseCasesSection() {
         eyebrow="USE CASES · 场景"
         title="在真实的场景里, 它长这样。"
       />
-      <div className="mt-10 grid md:grid-cols-3 gap-4">
+      <div className="mt-10 grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-4">
         {useCases.map((u, i) => (
           <Reveal key={u.title} delay={i * 0.06}>
-            <div className="card card-hover p-6 h-full">
-              <span className="chip">{u.tag}</span>
-              <div className="mt-5 text-white font-medium text-lg leading-snug">
+            <div className="card card-hover p-3.5 sm:p-6 h-full">
+              <span className="chip text-[11px] sm:text-xs">{u.tag}</span>
+              <div className="mt-3 sm:mt-5 text-white font-medium text-sm sm:text-lg leading-snug">
                 {u.title}
               </div>
-              <p className="mt-3 text-sm text-white/60 leading-relaxed">{u.desc}</p>
+              <p className="mt-1.5 sm:mt-3 text-xs sm:text-sm text-white/60 leading-relaxed">{u.desc}</p>
             </div>
           </Reveal>
         ))}
@@ -631,7 +632,7 @@ function CTA() {
   return (
     <Section className="!py-20 md:!py-24">
       <Reveal>
-        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-ink-700 to-ink-800 px-8 py-14 md:px-14 md:py-16">
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-white/10 bg-gradient-to-br from-ink-700 to-ink-800 px-5 py-10 sm:px-8 sm:py-14 md:px-14 md:py-16">
           <div
             className="absolute inset-0 opacity-60"
             style={{
@@ -674,7 +675,7 @@ function Contact() {
   return (
     <Section className="!py-20 md:!py-24">
       <Reveal>
-        <div className="card p-10 md:p-14 relative overflow-hidden">
+        <div className="card p-6 sm:p-10 md:p-14 relative overflow-hidden">
           <div
             aria-hidden
             className="absolute inset-0 opacity-60"

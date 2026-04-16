@@ -51,7 +51,7 @@ function SellHero() {
             </a>
           </div>
         </div>
-        <div className="flex gap-4 shrink-0">
+        <div className="flex gap-2 sm:gap-4 shrink-0">
           {[
             { label: '活跃创作者', value: '390+', color: '#7FD3FF' },
             { label: '在售服务', value: '1,281', color: '#A5B4FC' },
@@ -59,12 +59,12 @@ function SellHero() {
           ].map((m) => (
             <div
               key={m.label}
-              className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-right"
-              style={{ minWidth: 100 }}
+              className="rounded-lg sm:rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-4 sm:py-3 text-right"
+              style={{ minWidth: 72 }}
             >
-              <div className="mono-label">{m.label}</div>
+              <div className="mono-label text-[9px] sm:text-[11px]">{m.label}</div>
               <div
-                className="mt-1 text-lg font-semibold"
+                className="mt-0.5 sm:mt-1 text-sm sm:text-lg font-semibold"
                 style={{ color: m.color }}
               >
                 {m.value}
@@ -81,7 +81,7 @@ function SellHero() {
 function FeaturedListings() {
   const featured = pickFeatured()
   return (
-    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-5">
       {featured.map(({ cat, item }, i) => (
         <motion.div
           key={item.id}
@@ -92,7 +92,7 @@ function FeaturedListings() {
           className="card card-hover overflow-hidden flex flex-col"
         >
           <div
-            className="relative aspect-[16/10]"
+            className="relative aspect-[4/3] sm:aspect-[16/10]"
             style={{
               background: item.grad
                 ? `linear-gradient(135deg, ${item.grad[0]}, ${item.grad[1]}, ${item.grad[2]})`
@@ -101,27 +101,27 @@ function FeaturedListings() {
           >
             <div className="absolute inset-0 bg-grid-fine opacity-20" />
             <div className="absolute inset-0 flex items-center justify-center text-white/80">
-              <Icon name={item.icon} size={48} />
+              <Icon name={item.icon} size={36} />
             </div>
-            <div className="absolute top-3 left-3 px-2 py-1 rounded-md bg-black/40 backdrop-blur text-[10px] text-white/90 border border-white/15">
+            <div className="absolute top-2 left-2 sm:top-3 sm:left-3 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md bg-black/40 backdrop-blur text-[9px] sm:text-[10px] text-white/90 border border-white/15">
               {cat.title}
             </div>
           </div>
-          <div className="p-5 flex-1 flex flex-col">
-            <div className="text-white font-medium leading-snug">{item.title}</div>
-            <p className="mt-2 text-xs text-white/55 leading-relaxed line-clamp-2">
+          <div className="p-3 sm:p-5 flex-1 flex flex-col">
+            <div className="text-white font-medium leading-snug text-xs sm:text-base line-clamp-2">{item.title}</div>
+            <p className="mt-1 sm:mt-2 text-[11px] sm:text-xs text-white/55 leading-relaxed line-clamp-2 hidden sm:block">
               {item.desc}
             </p>
-            <div className="mt-auto pt-4 flex items-end justify-between">
+            <div className="mt-auto pt-2.5 sm:pt-4 flex items-end justify-between">
               <div>
-                <span className="text-[11px] text-white/45 mr-1">¥</span>
-                <span className="text-xl font-semibold" style={{ color: cat.color }}>
+                <span className="text-[10px] sm:text-[11px] text-white/45 mr-0.5 sm:mr-1">¥</span>
+                <span className="text-base sm:text-xl font-semibold" style={{ color: cat.color }}>
                   {item.price}
                 </span>
-                <span className="text-xs text-white/50 ml-1">/ {item.priceUnit}</span>
+                <span className="text-[10px] sm:text-xs text-white/50 ml-0.5 sm:ml-1 hidden sm:inline">/ {item.priceUnit}</span>
               </div>
-              <div className="text-[11px]" style={{ color: cat.color }}>
-                ★ {item.rating} · {item.seller.reviews} 评价
+              <div className="text-[10px] sm:text-[11px]" style={{ color: cat.color }}>
+                ★ {item.rating}
               </div>
             </div>
           </div>
@@ -157,32 +157,32 @@ function ListingProcess() {
     },
   ]
   return (
-    <div className="grid md:grid-cols-3 gap-4">
+    <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
       {steps.map((s, i) => (
         <Reveal key={s.k} delay={i * 0.08}>
-          <div className="card card-hover p-7 h-full relative">
+          <div className="card card-hover p-3.5 sm:p-7 h-full relative">
             <div className="flex items-center justify-between">
               <div
-                className="h-12 w-12 rounded-2xl flex items-center justify-center"
+                className="h-9 w-9 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl flex items-center justify-center"
                 style={{
                   background: `${s.color}14`,
                   border: `1px solid ${s.color}40`,
                   color: s.color,
                 }}
               >
-                <Icon name={s.icon} size={20} />
+                <Icon name={s.icon} size={18} />
               </div>
               <span
-                className="font-mono text-xs tracking-wider"
+                className="font-mono text-[10px] sm:text-xs tracking-wider"
                 style={{ color: s.color }}
               >
-                STEP {s.k}
+                {s.k}
               </span>
             </div>
-            <div className="mt-5 text-white font-medium text-lg tracking-tight">
+            <div className="mt-3 sm:mt-5 text-white font-medium text-xs sm:text-lg tracking-tight leading-snug">
               {s.title}
             </div>
-            <p className="mt-2 text-sm text-white/60 leading-relaxed">{s.desc}</p>
+            <p className="mt-1 sm:mt-2 text-[11px] sm:text-sm text-white/60 leading-relaxed">{s.desc}</p>
           </div>
         </Reveal>
       ))}
@@ -193,12 +193,12 @@ function ListingProcess() {
 /* ============ 分类选择 ============ */
 function CategoryPicker() {
   return (
-    <div id="choose-category" className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div id="choose-category" className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
       {services.map((s, i) => (
         <Reveal key={s.slug} delay={i * 0.04}>
           <Link
             to={`/services/${s.slug}`}
-            className="card card-hover block p-6 h-full relative overflow-hidden group"
+            className="card card-hover block p-3.5 sm:p-6 h-full relative overflow-hidden group"
           >
             <div
               className="absolute inset-x-0 top-0 h-px"
@@ -208,7 +208,7 @@ function CategoryPicker() {
             />
             <div className="flex items-center justify-between">
               <div
-                className="h-11 w-11 rounded-xl flex items-center justify-center"
+                className="h-8 w-8 sm:h-11 sm:w-11 rounded-lg sm:rounded-xl flex items-center justify-center"
                 style={{
                   background: `${s.color}14`,
                   border: `1px solid ${s.color}40`,
@@ -217,15 +217,16 @@ function CategoryPicker() {
               >
                 <Icon name={s.icon} />
               </div>
-              <span className="text-[11px] text-white/45">同行 →</span>
+              <span className="text-[11px] text-white/45 hidden sm:inline">同行 →</span>
             </div>
-            <div className="mt-5 font-medium text-white text-lg">{s.title}</div>
-            <p className="mt-2 text-sm text-white/60 leading-relaxed">{s.tagline}</p>
+            <div className="mt-2.5 sm:mt-5 font-medium text-white text-sm sm:text-lg leading-snug">{s.title}</div>
+            <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-white/60 leading-relaxed line-clamp-2 sm:line-clamp-none">{s.tagline}</p>
             <div
-              className="mt-5 flex items-center gap-2 text-sm opacity-70 group-hover:opacity-100 transition-opacity"
+              className="mt-2.5 sm:mt-5 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm opacity-70 group-hover:opacity-100 transition-opacity"
               style={{ color: s.color }}
             >
-              在此分类开店 <Icon name="arrow" size={14} />
+              <span className="hidden sm:inline">在此分类开店</span>
+              <span className="sm:hidden">查看</span> <Icon name="arrow" size={14} />
             </div>
           </Link>
         </Reveal>
