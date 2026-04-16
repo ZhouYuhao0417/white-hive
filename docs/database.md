@@ -17,6 +17,14 @@ Required for persistence:
 DATABASE_URL="postgres://..."
 ```
 
+Accepted fallback name:
+
+```bash
+POSTGRES_URL="postgres://..."
+```
+
+The backend checks `DATABASE_URL` first, then `POSTGRES_URL`. Vercel/Neon integrations may expose either name depending on the setup path.
+
 Optional after the database is stable:
 
 ```bash
@@ -43,6 +51,19 @@ Internally:
 - `api/_lib/memory-store.js` is the no-database fallback.
 - `api/_lib/postgres-store.js` creates tables, seeds demo records and persists data.
 - `db/schema.sql` mirrors the tables used by the Postgres adapter.
+
+## Vercel + Neon Setup
+
+Recommended path for this project:
+
+1. Open the Vercel project `whitehive-project`.
+2. Go to `Storage` or `Marketplace`.
+3. Choose `Neon Postgres`.
+4. Create a new Neon database and connect it to this Vercel project.
+5. Make sure the integration adds `DATABASE_URL` or `POSTGRES_URL` to Production, Preview and Development.
+6. Redeploy the latest `main` deployment after the environment variable exists.
+
+The API auto-migrates on first request, so there is no separate SQL command to run manually.
 
 ## Verification
 
