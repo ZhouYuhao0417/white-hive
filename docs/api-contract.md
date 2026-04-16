@@ -103,12 +103,11 @@ Creates an order from a selected service.
 
 ### `PATCH /api/orders?id=ord_demo_001`
 
-Updates status or payment status.
+Updates order status. The backend now validates that the order does not skip workflow nodes.
 
 ```json
 {
-  "status": "in_progress",
-  "paymentStatus": "mock_paid"
+  "status": "in_progress"
 }
 ```
 
@@ -120,6 +119,40 @@ Allowed order statuses:
 - `delivered`
 - `completed`
 - `cancelled`
+
+When a paid order moves to `completed`, the mock escrow payment is released automatically. When a paid order moves to `cancelled`, the mock escrow payment is refunded automatically.
+
+## Payments
+
+Payments are still mock payments for MVP demos. They prove the escrow flow before a real payment provider is connected.
+
+### `GET /api/payments`
+
+Query params:
+
+- `orderId`: optional order id
+- `status`: optional payment status
+
+### `GET /api/payments?id=pay_xxx`
+
+Returns one payment.
+
+### `POST /api/payments`
+
+Creates an idempotent mock payment for an order. If the order already has a held or released escrow payment, the existing payment is returned.
+
+```json
+{
+  "orderId": "ord_demo_001",
+  "method": "alipay_mock"
+}
+```
+
+The response includes:
+
+- `status`: currently `succeeded` for mock payments
+- `escrowStatus`: `held`, then `released` or `refunded`
+- `order.paymentStatus`: `mock_paid`, `mock_released`, or `mock_refunded`
 
 ## Messages
 
@@ -134,5 +167,38 @@ Returns messages for an order.
   "orderId": "ord_demo_001",
   "senderId": "usr_demo_buyer",
   "body": "这个版本可以先按比赛路演来做。"
+}
+```
+
+## Verification
+
+Verification is also a mock workflow for now. It gives the product a stable trust-layer API before connecting a real identity provider.
+
+### `GET /api/verification?userId=usr_demo_seller`
+
+Returns the user verification profile plus the latest request.
+
+### `POST /api/verification`
+
+Creates a pending verification request.
+
+```json
+{
+  "userId": "usr_demo_seller",
+  "realName": "蜂巢创作者",
+  "idNumberLast4": "2026",
+  "contactEmail": "seller@whitehive.cn",
+  "role": "seller"
+}
+```
+
+### `PATCH /api/verification?id=ver_xxx`
+
+Reviews a request in demo/admin mode.
+
+```json
+{
+  "status": "approved",
+  "reviewerNote": "演示审核通过"
 }
 ```

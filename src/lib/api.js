@@ -61,6 +61,18 @@ export function updateOrder(id, changes) {
   })
 }
 
+export function listPayments(params = {}) {
+  const search = new URLSearchParams(params)
+  return request(`/payments${search.size ? `?${search.toString()}` : ''}`)
+}
+
+export function createPayment(payment) {
+  return request('/payments', {
+    method: 'POST',
+    body: JSON.stringify(payment),
+  })
+}
+
 export function listMessages(orderId) {
   return request(`/messages?orderId=${encodeURIComponent(orderId)}`)
 }
@@ -69,5 +81,23 @@ export function createMessage(message) {
   return request('/messages', {
     method: 'POST',
     body: JSON.stringify(message),
+  })
+}
+
+export function getVerificationProfile(userId = 'usr_demo_seller') {
+  return request(`/verification?userId=${encodeURIComponent(userId)}`)
+}
+
+export function submitVerification(payload) {
+  return request('/verification', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function reviewVerification(id, changes) {
+  return request(`/verification?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(changes),
   })
 }

@@ -4,6 +4,14 @@ const createdAt = '2026-04-16T00:00:00.000Z'
 
 export const seedUsers = [
   {
+    id: 'usr_system',
+    email: 'system@whitehive.cn',
+    displayName: 'WhiteHive 系统',
+    role: 'admin',
+    verificationStatus: 'verified',
+    createdAt,
+  },
+  {
     id: 'usr_demo_buyer',
     email: 'buyer@whitehive.cn',
     displayName: '演示买家',
@@ -65,6 +73,23 @@ export const seedOrders = [
     status: 'submitted',
     paymentStatus: 'mock_pending',
     verificationRequired: false,
+    createdAt,
+    updatedAt: createdAt,
+  },
+]
+
+export const seedPayments = []
+
+export const seedVerificationRequests = [
+  {
+    id: 'ver_demo_seller',
+    userId: 'usr_demo_seller',
+    realName: '蜂巢创作者',
+    role: 'seller',
+    idNumberLast4: '2026',
+    contactEmail: 'seller@whitehive.cn',
+    status: 'pending',
+    reviewerNote: '',
     createdAt,
     updatedAt: createdAt,
   },

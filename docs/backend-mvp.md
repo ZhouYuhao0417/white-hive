@@ -9,6 +9,8 @@ The first backend milestone is not real payments or real-name verification. It i
 3. A buyer can create an order from a service.
 4. The order can move through clear states.
 5. Buyer and seller can leave messages under the order.
+6. The buyer can create a mock escrow payment.
+7. A seller can submit a mock real-name verification request.
 
 ## Current Implementation
 
@@ -22,13 +24,18 @@ Added Vercel Function endpoints:
 - `GET /api/orders`
 - `POST /api/orders`
 - `PATCH /api/orders?id=...`
+- `GET /api/payments`
+- `POST /api/payments`
+- `GET /api/verification?userId=...`
+- `POST /api/verification`
+- `PATCH /api/verification?id=...`
 - `GET /api/messages?orderId=...`
 - `POST /api/messages`
 
 Added frontend MVP routes:
 
 - `/ai-match`: creates an MVP order through `POST /api/orders`
-- `/orders/:id`: reads order state, sends messages, and simulates payment / workflow changes
+- `/orders/:id`: reads order state, sends messages, creates mock escrow payments, and moves workflow state
 - `/services/:slug`: sends buyers into `/ai-match?category=...`
 - `/sell`: creates a seller service through `POST /api/services`
 - `/dashboard`: combines buyer orders and seller services into one MVP workspace
@@ -59,7 +66,8 @@ Order statuses:
 Payment statuses for MVP:
 
 - `mock_pending`: payment UI placeholder, no real transaction
-- `mock_paid`: buyer confirmed simulated payment
+- `mock_paid`: buyer confirmed simulated payment and funds are held in mock escrow
+- `mock_released`: completed order released mock escrow to seller
 - `mock_refunded`: simulated refund state
 
 Verification statuses:
@@ -76,5 +84,5 @@ Verification statuses:
 3. Add real auth provider or email magic-link auth.
 4. Replace browser cache fallback with Postgres persistence.
 5. Split `/dashboard` into real buyer/seller dashboards after auth is connected.
-6. Add payment confirmation UI as a mock state first.
-7. Add real payment and verification only after the demo loop is stable.
+6. Add the final payment confirmation UI on top of `/api/payments`.
+7. Connect a real payment provider and real-name verification provider only after the demo loop is stable.

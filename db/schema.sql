@@ -38,10 +38,31 @@ create table if not exists orders (
   currency text not null default 'CNY',
   status text not null default 'submitted'
     check (status in ('submitted', 'accepted', 'in_progress', 'delivered', 'completed', 'cancelled')),
-  payment_status text not null default 'mock_pending',
+  payment_status text not null default 'mock_pending'
+    check (payment_status in ('mock_pending', 'mock_paid', 'mock_released', 'mock_refunded', 'mock_failed')),
   verification_required boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table if not exists payments (
+  id text primary key,
+  order_id text not null references orders(id) on delete cascade,
+  buyer_id text not null references users(id),
+  seller_id text not null references users(id),
+  amount_cents integer not null,
+  currency text not null default 'CNY',
+  provider text not null default 'mock',
+  method text not null default 'alipay_mock',
+  status text not null default 'succeeded'
+    check (status in ('succeeded', 'failed', 'refunded')),
+  escrow_status text not null default 'held'
+    check (escrow_status in ('held', 'released', 'refunded')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  confirmed_at timestamptz,
+  released_at timestamptz,
+  refunded_at timestamptz
 );
 
 create table if not exists messages (
@@ -52,7 +73,23 @@ create table if not exists messages (
   created_at timestamptz not null default now()
 );
 
+create table if not exists verification_requests (
+  id text primary key,
+  user_id text not null references users(id) on delete cascade,
+  real_name text not null,
+  role text not null,
+  id_number_last4 text not null default '',
+  contact_email text not null,
+  status text not null default 'pending'
+    check (status in ('pending', 'approved', 'rejected')),
+  reviewer_note text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists services_category_status_idx on services(category, status);
 create index if not exists orders_buyer_idx on orders(buyer_id);
 create index if not exists orders_seller_idx on orders(seller_id);
+create index if not exists payments_order_idx on payments(order_id, created_at);
 create index if not exists messages_order_idx on messages(order_id, created_at);
+create index if not exists verification_requests_user_idx on verification_requests(user_id, created_at);

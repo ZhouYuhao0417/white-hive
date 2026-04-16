@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Section, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
-import { createMessage, listMessages, listOrders, updateOrder } from '../lib/api.js'
+import { createMessage, createPayment, listMessages, listOrders, updateOrder } from '../lib/api.js'
 import { cacheOrder, readCachedOrder } from '../lib/orderCache.js'
 
 const statusSteps = [
@@ -21,6 +21,14 @@ const statusText = {
   delivered: '等待买家验收',
   completed: '订单已完成',
   cancelled: '订单已取消',
+}
+
+const paymentStatusText = {
+  mock_pending: '待模拟付款',
+  mock_paid: '资金托管中',
+  mock_released: '托管已释放',
+  mock_refunded: '已模拟退款',
+  mock_failed: '付款失败',
 }
 
 const nextStatus = {
@@ -77,7 +85,19 @@ function StatusTimeline({ status }) {
 }
 
 function MessageBubble({ message }) {
+  const isSystem = message.senderId === 'usr_system' || message.sender?.role === 'admin'
   const fromBuyer = message.senderId?.includes('buyer')
+
+  if (isSystem) {
+    return (
+      <div className="flex justify-center">
+        <div className="max-w-[90%] rounded-xl border border-[#5EEAD4]/20 bg-[#5EEAD4]/10 px-3 py-2 text-xs text-[#CFFDF5]">
+          {message.body}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={`flex ${fromBuyer ? 'justify-end' : 'justify-start'}`}>
       <div
@@ -88,7 +108,7 @@ function MessageBubble({ message }) {
         }`}
       >
         <div className="text-[10px] text-white/35 mb-1">
-          {fromBuyer ? '买家' : '卖家'} · {new Date(message.createdAt).toLocaleString('zh-CN')}
+          {message.sender?.displayName || (fromBuyer ? '买家' : '卖家')} · {new Date(message.createdAt).toLocaleString('zh-CN')}
         </div>
         {message.body}
       </div>
@@ -147,6 +167,15 @@ export default function OrderDetail() {
     }
   }, [id])
 
+  const refreshMessages = async () => {
+    try {
+      const data = await listMessages(id)
+      setMessages(data)
+    } catch {
+      // 留言刷新失败不阻断主流程；用户仍可继续演示订单状态。
+    }
+  }
+
   const patchOrder = async (changes, fallbackNotice) => {
     if (!order) return
     setNotice('')
@@ -156,6 +185,7 @@ export default function OrderDetail() {
       const updated = await updateOrder(order.id, changes)
       setOrder(updated)
       cacheOrder(updated)
+      await refreshMessages()
     } catch {
       const updated = {
         ...order,
@@ -165,6 +195,33 @@ export default function OrderDetail() {
       setOrder(updated)
       cacheOrder(updated)
       setNotice(fallbackNotice || '已在本地演示状态中更新；接入数据库后会持久保存。')
+    }
+  }
+
+  const payOrder = async () => {
+    if (!order) return
+    setNotice('')
+    setError('')
+
+    try {
+      const payment = await createPayment({
+        orderId: order.id,
+        method: 'alipay_mock',
+      })
+      const updated = await listOrders({ id: order.id })
+      setOrder(updated)
+      cacheOrder(updated)
+      await refreshMessages()
+      setNotice(`已创建模拟托管付款：${payment.id}`)
+    } catch {
+      const updated = {
+        ...order,
+        paymentStatus: 'mock_paid',
+        updatedAt: new Date().toISOString(),
+      }
+      setOrder(updated)
+      cacheOrder(updated)
+      setNotice('已在本地演示状态中模拟付款；接入数据库后会持久保存。')
     }
   }
 
@@ -248,11 +305,15 @@ export default function OrderDetail() {
                 <div className="flex gap-3 flex-wrap">
                   <button
                     type="button"
-                    onClick={() => patchOrder({ paymentStatus: 'mock_paid' }, '已模拟付款确认。')}
-                    disabled={order.paymentStatus === 'mock_paid'}
+                    onClick={payOrder}
+                    disabled={['mock_paid', 'mock_released', 'mock_refunded'].includes(order.paymentStatus)}
                     className="btn-ghost disabled:opacity-45 disabled:cursor-not-allowed"
                   >
-                    {order.paymentStatus === 'mock_paid' ? '已模拟付款' : '模拟付款'}
+                    {order.paymentStatus === 'mock_paid'
+                      ? '资金托管中'
+                      : order.paymentStatus === 'mock_released'
+                        ? '托管已释放'
+                        : '模拟付款'}
                   </button>
                   {action && (
                     <button
@@ -276,8 +337,11 @@ export default function OrderDetail() {
                 <div className="rounded-xl border border-white/8 bg-white/[0.025] p-4">
                   <div className="mono-label">付款状态</div>
                   <div className="mt-1 text-lg font-semibold text-white">
-                    {order.paymentStatus === 'mock_paid' ? '已模拟付款' : '待模拟付款'}
+                    {paymentStatusText[order.paymentStatus] || order.paymentStatus}
                   </div>
+                  {order.payment?.escrowStatus && (
+                    <div className="mt-1 text-xs text-white/40">Escrow · {order.payment.escrowStatus}</div>
+                  )}
                 </div>
                 <div className="rounded-xl border border-white/8 bg-white/[0.025] p-4">
                   <div className="mono-label">参与方</div>
