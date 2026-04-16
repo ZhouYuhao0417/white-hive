@@ -14,7 +14,9 @@ The first backend milestone is not real payments or real-name verification. It i
 
 ## Current Implementation
 
-Added Vercel Function endpoints:
+Added a unified Vercel Function gateway at `api/index.js`. Public routes stay the same, but `/api/:path*` is rewritten to one function so the memory MVP can share demo state across order, payment and message calls until Postgres is connected.
+
+Public endpoints:
 
 - `GET /api/health`
 - `GET /api/auth/session`

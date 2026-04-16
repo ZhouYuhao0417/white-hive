@@ -1,6 +1,6 @@
 # WhiteHive MVP API Contract
 
-This is the first backend contract for the buying/selling order MVP. The current implementation runs on Vercel Functions and uses an in-memory store until a real Postgres `DATABASE_URL` is provisioned.
+This is the first backend contract for the buying/selling order MVP. The current implementation runs through one Vercel Function gateway (`api/index.js`) and uses an in-memory store until a real Postgres `DATABASE_URL` is provisioned.
 
 ## Response Shape
 
