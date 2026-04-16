@@ -5,16 +5,15 @@ import {
   GithubLogo,
   WechatLogo,
   QQLogo,
-  MailLogo,
   PhoneLogo,
 } from './Icons.jsx'
 import Logo from './Logo.jsx'
 
+// 邮箱已经是上面的主表单登录方式, 这里不再重复出现
 const socialMethods = [
-  { key: 'email',  label: '邮箱',   Logo: MailLogo,   color: '#7FD3FF' },
-  { key: 'phone',  label: '手机号', Logo: PhoneLogo,  color: '#A3E635' },
+  { key: 'phone',  label: '手机号', Logo: PhoneLogo,  color: '#A5B4FC' },
   { key: 'wechat', label: '微信',   Logo: WechatLogo, color: '#22C55E' },
-  { key: 'qq',     label: 'QQ',     Logo: QQLogo,     color: '#38BDF8' },
+  { key: 'qq',     label: 'QQ',     Logo: QQLogo,     color: '#7FD3FF' },
   { key: 'github', label: 'GitHub', Logo: GithubLogo, color: '#E6E9F2' },
 ]
 
@@ -78,7 +77,37 @@ export default function AuthDrawer({ open, onClose }) {
 
             {/* content */}
             <div className="flex-1 overflow-y-auto px-6 py-8">
-              <div className="mono-label mb-3">
+              {/* 登录 / 注册 Tab 切换 (放最上方, 显著) */}
+              <div className="relative grid grid-cols-2 p-1 rounded-xl bg-white/[0.03] border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setMode('signin')}
+                  className="relative z-10 h-10 text-sm font-medium transition-colors"
+                  style={{ color: mode === 'signin' ? '#04131F' : 'rgba(255,255,255,0.65)' }}
+                >
+                  登录
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode('signup')}
+                  className="relative z-10 h-10 text-sm font-medium transition-colors"
+                  style={{ color: mode === 'signup' ? '#04131F' : 'rgba(255,255,255,0.65)' }}
+                >
+                  注册
+                </button>
+                <motion.div
+                  layout
+                  transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                  className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg"
+                  style={{
+                    background: 'linear-gradient(180deg, #BEE6FF, #7FD3FF)',
+                    boxShadow: '0 6px 20px -8px rgba(127,211,255,0.55)',
+                    left: mode === 'signin' ? 4 : 'calc(50% + 0px)',
+                  }}
+                />
+              </div>
+
+              <div className="mono-label mt-6 mb-2">
                 {mode === 'signin' ? 'SIGN IN' : 'SIGN UP'}
               </div>
               <h3 className="text-2xl font-semibold text-white tracking-tight">
@@ -86,8 +115,8 @@ export default function AuthDrawer({ open, onClose }) {
               </h3>
               <p className="mt-2 text-sm text-white/55 leading-relaxed">
                 {mode === 'signin'
-                  ? '登录后可以提交需求、管理订单，以及查看可信凭据。'
-                  : '注册后，你可以作为买家提交需求，也可以作为创作者开设服务。'}
+                  ? '登录后可以提交需求、管理订单, 以及查看可信凭据。'
+                  : '注册后可以作为买家提交需求, 也可以作为创作者开设服务。'}
               </p>
 
               {/* primary email form */}
@@ -97,7 +126,7 @@ export default function AuthDrawer({ open, onClose }) {
                   <input
                     type="email"
                     placeholder="you@whitehive.cn"
-                    className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-brand-300/60 focus:bg-white/[0.05] transition-colors"
+                    className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
                   />
                 </label>
                 <label className="block">
@@ -105,9 +134,19 @@ export default function AuthDrawer({ open, onClose }) {
                   <input
                     type="password"
                     placeholder="至少 8 位"
-                    className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-brand-300/60 focus:bg-white/[0.05] transition-colors"
+                    className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
                   />
                 </label>
+                {mode === 'signup' && (
+                  <label className="block">
+                    <span className="mono-label">确认密码</span>
+                    <input
+                      type="password"
+                      placeholder="再输入一次"
+                      className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+                    />
+                  </label>
+                )}
 
                 <button
                   type="button"
@@ -116,6 +155,17 @@ export default function AuthDrawer({ open, onClose }) {
                   {mode === 'signin' ? '登录' : '创建账户'}
                   <Icon name="arrow" size={16} />
                 </button>
+
+                {mode === 'signin' && (
+                  <div className="pt-1 text-right">
+                    <button
+                      type="button"
+                      className="text-xs text-white/50 hover:text-[#BEE6FF] transition-colors"
+                    >
+                      忘记密码?
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* divider */}
@@ -149,29 +199,11 @@ export default function AuthDrawer({ open, onClose }) {
                 ))}
               </div>
 
-              {/* switch mode */}
-              <div className="mt-8 text-sm text-white/55 text-center">
-                {mode === 'signin' ? (
-                  <>
-                    还没有账号？{' '}
-                    <button
-                      className="text-brand-300 hover:text-brand-200"
-                      onClick={() => setMode('signup')}
-                    >
-                      创建一个
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    已经有账号？{' '}
-                    <button
-                      className="text-brand-300 hover:text-brand-200"
-                      onClick={() => setMode('signin')}
-                    >
-                      直接登录
-                    </button>
-                  </>
-                )}
+              {/* 底部辅助提示 (顶部已有 tab, 这里只做辅助) */}
+              <div className="mt-8 text-sm text-white/45 text-center">
+                {mode === 'signin'
+                  ? '没有账号? 点击上方「注册」标签。'
+                  : '已有账号? 点击上方「登录」标签。'}
               </div>
             </div>
 

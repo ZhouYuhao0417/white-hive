@@ -104,11 +104,11 @@ export default function Navbar() {
               ))}
               <div className="h-px my-2 bg-white/5" />
               <Link
-                to="/how-it-works"
+                to="/services"
                 onClick={() => setMobileOpen(false)}
                 className="btn-primary text-sm justify-center"
               >
-                提交需求 →
+                浏览商品 →
               </Link>
             </div>
           </div>

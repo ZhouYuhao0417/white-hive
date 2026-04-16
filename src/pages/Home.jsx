@@ -58,14 +58,14 @@ function Hero() {
           transition={{ duration: 0.7, delay: 0.22 }}
           className="mt-10 flex flex-col sm:flex-row items-stretch justify-center gap-3"
         >
-          <Link to="/how-it-works" className="btn-primary group">
+          <Link to="/services" className="btn-primary group">
             <span className="flex flex-col items-start leading-tight">
               <span className="text-[11px] font-normal opacity-75 tracking-wider">FOR BUYERS</span>
-              <span>我是买家 · 发布需求</span>
+              <span>我是买家 · 浏览商品</span>
             </span>
             <Icon name="arrow" size={18} />
           </Link>
-          <Link to="/services" className="btn-brand group">
+          <Link to="/sell" className="btn-brand group">
             <span className="flex flex-col items-start leading-tight">
               <span className="text-[11px] font-normal opacity-75 tracking-wider">FOR CREATORS</span>
               <span>我是卖家 · 开设服务</span>
@@ -653,10 +653,10 @@ function CTA() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row lg:justify-end gap-3">
-              <Link to="/how-it-works" className="btn-primary">
-                我是买家 · 发布需求 <Icon name="arrow" size={18} />
+              <Link to="/services" className="btn-primary">
+                我是买家 · 浏览商品 <Icon name="arrow" size={18} />
               </Link>
-              <Link to="/services" className="btn-brand">
+              <Link to="/sell" className="btn-brand">
                 我是卖家 · 开设服务 <Icon name="arrow" size={18} />
               </Link>
             </div>

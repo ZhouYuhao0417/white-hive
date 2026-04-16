@@ -128,33 +128,61 @@ export default function Services() {
 
       <Section>
         <Reveal>
-          <div className="card p-10 md:p-14 relative overflow-hidden">
+          <Link
+            to="/ai-match"
+            className="card card-hover block p-10 md:p-14 relative overflow-hidden group"
+            style={{
+              background:
+                'linear-gradient(135deg, rgba(127,211,255,0.10) 0%, rgba(165,180,252,0.08) 50%, rgba(94,234,212,0.08) 100%)',
+              borderColor: 'rgba(127,211,255,0.32)',
+            }}
+          >
             <div
               aria-hidden
-              className="absolute inset-0 opacity-50"
+              className="absolute inset-0 opacity-70"
               style={{
                 background:
-                  'radial-gradient(50% 60% at 100% 0%, rgba(245,196,81,0.14), transparent 60%)',
+                  'radial-gradient(55% 65% at 100% 0%, rgba(127,211,255,0.25), transparent 60%), radial-gradient(45% 55% at 0% 100%, rgba(165,180,252,0.20), transparent 60%), radial-gradient(45% 55% at 50% 100%, rgba(94,234,212,0.16), transparent 60%)',
               }}
             />
-            <div className="relative grid lg:grid-cols-2 gap-8 items-center">
+            <div className="relative grid lg:grid-cols-[1fr_auto] gap-8 items-center">
               <div>
-                <div className="mono-label mb-3">NOT FOUND?</div>
-                <h3 className="text-2xl md:text-3xl font-semibold text-white leading-tight">
-                  没找到合适的分类?
+                <div className="flex items-center gap-3 mb-4">
+                  <div
+                    className="h-12 w-12 rounded-2xl flex items-center justify-center"
+                    style={{
+                      background: 'rgba(127,211,255,0.16)',
+                      border: '1px solid rgba(127,211,255,0.50)',
+                      color: '#7FD3FF',
+                    }}
+                  >
+                    <Icon name="spark" size={22} />
+                  </div>
+                  <div>
+                    <div className="mono-label">NOT FOUND? · AI MATCH</div>
+                    <div className="text-white font-medium">长尾需求兜底</div>
+                  </div>
+                </div>
+                <h3 className="text-2xl md:text-3xl font-semibold text-white leading-tight tracking-tight">
+                  没找到想要的? 用 AI 精准匹配需求。
                 </h3>
-                <p className="mt-4 text-white/60 leading-relaxed max-w-lg">
-                  WhiteHive 的分类会随着真实需求持续演化。
-                  把你的需求告诉我们, 我们会把它纳入新的分类体系中。
+                <p className="mt-4 text-white/65 leading-relaxed max-w-xl">
+                  先填几个结构化字段, 让 AI 追问你没说清的细节,
+                  最后补一段自由备注。系统会跨全部分类帮你匹配最合适的创作者。
                 </p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <span className="chip">结构化表单</span>
+                  <span className="chip">AI 智能追问</span>
+                  <span className="chip">跨分类匹配</span>
+                </div>
               </div>
-              <div className="flex lg:justify-end gap-3">
-                <Link to="/how-it-works" className="btn-primary">
-                  提交自定义需求 <Icon name="arrow" size={18} />
-                </Link>
+              <div className="flex lg:justify-end">
+                <span className="btn-primary shrink-0">
+                  进入 AI 匹配 <Icon name="arrow" size={18} />
+                </span>
               </div>
             </div>
-          </div>
+          </Link>
         </Reveal>
       </Section>
     </>
