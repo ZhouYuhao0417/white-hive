@@ -249,17 +249,31 @@ export default function Navbar() {
 
           {/* 移动端：右侧折叠导航按钮 */}
           <button
-            className="md:hidden h-9 w-9 grid place-items-center rounded-lg text-white/75 hover:text-white hover:bg-white/5"
+            className="md:hidden h-9 w-9 grid place-items-center rounded-lg text-white/75 hover:text-white hover:bg-white/5 transition-colors"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="toggle nav"
           >
-            <Icon name={mobileOpen ? 'close' : 'menu'} size={18} />
+            <span
+              className={`inline-flex transition-transform duration-300 ease-out ${
+                mobileOpen ? 'rotate-90' : 'rotate-0'
+              }`}
+            >
+              <Icon name={mobileOpen ? 'close' : 'menu'} size={18} />
+            </span>
           </button>
         </div>
 
-        {mobileOpen && (
-          <div className="md:hidden border-t border-white/5 bg-ink-900/95 backdrop-blur-xl">
-            <div className="px-5 py-4 flex flex-col gap-1">
+        <div
+          className={`md:hidden grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-out ${
+            mobileOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+          }`}
+        >
+          <div className="min-h-0 overflow-hidden border-t border-white/5 bg-ink-900/95 backdrop-blur-xl">
+            <div
+              className={`px-5 py-4 flex flex-col gap-1 transition-transform duration-300 ease-out ${
+                mobileOpen ? 'translate-y-0' : '-translate-y-2'
+              }`}
+            >
               {links.map((l) => (
                 <NavLink
                   key={l.to}
@@ -303,7 +317,7 @@ export default function Navbar() {
               )}
             </div>
           </div>
-        )}
+        </div>
       </header>
 
       <AuthDrawer open={authOpen} onClose={() => setAuthOpen(false)} />
