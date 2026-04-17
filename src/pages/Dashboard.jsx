@@ -176,6 +176,14 @@ export default function Dashboard() {
                 <Link to="/sell" className="btn-ghost">
                   发布服务
                 </Link>
+                <Link
+                  to="/orders/demo"
+                  className="inline-flex items-center gap-1.5 px-4 h-10 sm:h-11 rounded-xl border border-[#7FD3FF]/40 bg-[#7FD3FF]/[0.08] hover:bg-[#7FD3FF]/[0.14] text-sm text-[#BEE6FF] transition-colors"
+                  title="预置示例订单，查看买卖家聊天与平台介入流程"
+                >
+                  <Icon name="mail" size={14} />
+                  聊天演示
+                </Link>
               </div>
             </div>
           </div>
@@ -217,8 +225,22 @@ export default function Dashboard() {
               {loading && orders.length === 0 ? (
                 <div className="text-sm text-white/45">正在加载订单...</div>
               ) : orders.length === 0 ? (
-                <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4 text-sm text-white/45">
-                  还没有订单。先从 AI 匹配页提交一个需求。
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4 text-sm text-white/45">
+                    还没有订单。先从 AI 匹配页提交一个需求。
+                  </div>
+                  <Link
+                    to="/orders/demo"
+                    className="flex items-center justify-between gap-3 rounded-xl border border-[#7FD3FF]/30 bg-[#7FD3FF]/[0.07] hover:bg-[#7FD3FF]/[0.11] transition-colors px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm text-white font-medium">体验订单聊天 + 平台介入演示</div>
+                      <div className="mt-0.5 text-[11px] text-white/55">
+                        预置示例订单，可直接与"卖家"沟通、申请客服介入
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-[#BEE6FF]">→</span>
+                  </Link>
                 </div>
               ) : (
                 orders.map((order) => <OrderRow key={order.id} order={order} />)

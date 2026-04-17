@@ -40,6 +40,77 @@ const nextStatus = {
   delivered: { value: 'completed', label: '确认验收' },
 }
 
+/* ---- demo 订单 / demo 消息：用于让访客直接看到聊天 + 争议流程 ---- */
+const DEMO_ID = 'demo'
+
+function demoOrderData() {
+  const nowIso = new Date().toISOString()
+  return {
+    id: DEMO_ID,
+    title: '示例订单 · 品牌主视觉 + 3 张子图',
+    status: 'in_progress',
+    paymentStatus: 'mock_paid',
+    budgetCents: 120000,
+    currency: 'CNY',
+    brief:
+      '需要一套品牌主视觉：\n- 1 张主海报（1920×1080）\n- 3 张子图（方图）\n- 风格：冷蓝 × 蜂巢几何\n- 交付：源文件 + 导出 PNG/JPG',
+    buyer: { id: 'usr_demo_buyer', displayName: '周同学', role: 'buyer' },
+    seller: { id: 'usr_demo_seller', displayName: '蜂巢设计工作室', role: 'seller' },
+    buyerId: 'usr_demo_buyer',
+    sellerId: 'usr_demo_seller',
+    service: { title: '品牌主视觉 · 蜂巢设计工作室' },
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  }
+}
+
+function demoMessages() {
+  const now = Date.now()
+  const t = (minAgo) => new Date(now - minAgo * 60 * 1000).toISOString()
+  return [
+    {
+      id: 'demo_m1',
+      orderId: DEMO_ID,
+      senderId: 'usr_demo_buyer',
+      sender: { id: 'usr_demo_buyer', displayName: '周同学', role: 'buyer' },
+      body: '你好！看过你的作品集，想请你做一套品牌主视觉。预算 1200，周内出稿可以吗？',
+      createdAt: t(120),
+    },
+    {
+      id: 'demo_m2',
+      orderId: DEMO_ID,
+      senderId: 'usr_demo_seller',
+      sender: { id: 'usr_demo_seller', displayName: '蜂巢设计工作室', role: 'seller' },
+      body: '可以，先确认一下风格方向：冷蓝 × 蜂巢几何对吗？我这边两天内出 2 版初稿。',
+      createdAt: t(115),
+    },
+    {
+      id: 'demo_m3',
+      orderId: DEMO_ID,
+      senderId: 'usr_demo_buyer',
+      sender: { id: 'usr_demo_buyer', displayName: '周同学', role: 'buyer' },
+      body: '对的。主图 1920×1080，子图 3 张方图。交付要源文件 + 导出图。',
+      createdAt: t(110),
+    },
+    {
+      id: 'demo_m4',
+      orderId: DEMO_ID,
+      senderId: 'usr_system',
+      sender: { role: 'admin', displayName: '平台客服' },
+      body: '买家已通过平台托管付款 ¥1,200.00。资金将在买家确认验收后释放给卖家。',
+      createdAt: t(108),
+    },
+    {
+      id: 'demo_m5',
+      orderId: DEMO_ID,
+      senderId: 'usr_demo_seller',
+      sender: { id: 'usr_demo_seller', displayName: '蜂巢设计工作室', role: 'seller' },
+      body: '初稿已上传（见交付区），两个方向都做了，你看看更喜欢哪一版～',
+      createdAt: t(40),
+    },
+  ]
+}
+
 function formatMoney(cents, currency = 'CNY') {
   const amount = Number(cents || 0) / 100
   return new Intl.NumberFormat('zh-CN', {
@@ -105,6 +176,23 @@ export default function OrderDetail() {
     async function load() {
       setLoading(true)
       setError('')
+
+      // /orders/demo —— 前端演示模式：固定数据，不打后端
+      if (id === DEMO_ID) {
+        const demo = demoOrderData()
+        cacheOrder(demo)
+        if (mounted) {
+          setOrder(demo)
+          setMessages(demoMessages())
+          setCurrentSession({
+            user: { id: 'usr_demo_buyer', displayName: '周同学', role: 'buyer' },
+            session: { mode: 'demo' },
+          })
+          setNotice('这是演示订单，用于预览聊天与平台介入流程。')
+          setLoading(false)
+        }
+        return
+      }
 
       try {
         const session = await getSession().catch(() => null)
@@ -203,6 +291,22 @@ export default function OrderDetail() {
     const value = (text || '').trim()
     if (!value) return
     setNotice('')
+
+    // demo 模式：直接写到本地 state，不打后端
+    if (id === DEMO_ID) {
+      setMessages((current) => [
+        ...current,
+        {
+          id: `local_${Date.now()}`,
+          orderId: id,
+          senderId: currentSession?.user?.id || 'usr_demo_buyer',
+          sender: currentSession?.user || { id: 'usr_demo_buyer', displayName: '周同学', role: 'buyer' },
+          body: value,
+          createdAt: new Date().toISOString(),
+        },
+      ])
+      return
+    }
 
     try {
       const created = await createMessage({ orderId: id, body: value })
