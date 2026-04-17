@@ -6,14 +6,17 @@ import {
   emailVerificationExpiresAt,
   hashPassword,
   hashToken,
+  passwordResetExpiresAt,
+  providerEmail,
   sanitizeProfileInput,
+  sanitizeProviderAuthInput,
   sessionExpiresAt,
   validateEmailVerificationCode,
   validateEmail,
   validatePassword,
   verifyPassword,
 } from './auth.js'
-import { sendEmailVerification } from './email.js'
+import { sendEmailVerification, sendPasswordReset } from './email.js'
 import {
   seedMessages,
   seedOrders,
@@ -106,6 +109,8 @@ async function migrateAndSeed() {
       city text not null default '',
       bio text not null default '',
       avatar_url text not null default '',
+      auth_provider text not null default 'password',
+      provider_user_id text not null default '',
       email_verified_at timestamptz,
       updated_at timestamptz not null default now(),
       created_at timestamptz not null default now()
@@ -118,6 +123,8 @@ async function migrateAndSeed() {
   await db`alter table users add column if not exists city text not null default ''`
   await db`alter table users add column if not exists bio text not null default ''`
   await db`alter table users add column if not exists avatar_url text not null default ''`
+  await db`alter table users add column if not exists auth_provider text not null default 'password'`
+  await db`alter table users add column if not exists provider_user_id text not null default ''`
   await db`alter table users add column if not exists email_verified_at timestamptz`
   await db`alter table users add column if not exists updated_at timestamptz not null default now()`
 
@@ -231,6 +238,18 @@ async function migrateAndSeed() {
   `
 
   await db`
+    create table if not exists password_reset_tokens (
+      id text primary key,
+      user_id text not null references users(id) on delete cascade,
+      email text not null,
+      code_hash text not null,
+      created_at timestamptz not null default now(),
+      expires_at timestamptz not null,
+      used_at timestamptz
+    )
+  `
+
+  await db`
     create table if not exists rate_limit_events (
       id text primary key,
       bucket text not null,
@@ -248,6 +267,12 @@ async function migrateAndSeed() {
   await db`create index if not exists messages_order_idx on messages(order_id, created_at)`
   await db`create index if not exists verification_requests_user_idx on verification_requests(user_id, created_at)`
   await db`create index if not exists email_verification_tokens_user_idx on email_verification_tokens(user_id, expires_at)`
+  await db`create index if not exists password_reset_tokens_email_idx on password_reset_tokens(email, expires_at)`
+  await db`
+    create unique index if not exists users_provider_identity_idx
+    on users(auth_provider, provider_user_id)
+    where provider_user_id <> ''
+  `
   await db`create index if not exists rate_limit_events_lookup_idx on rate_limit_events(bucket, identifier_hash, created_at)`
 
   await seedDatabase(db)
@@ -336,8 +361,10 @@ export async function storeInfo() {
     note: `${databaseUrlSource} 已配置，当前 API 使用 Postgres 持久化存储。`,
     capabilities: [
       'password_auth',
+      'provider_auth_demo',
       'sessions',
       'email_verification',
+      'password_reset',
       'orders',
       'messages',
       'mock_payments',
@@ -422,12 +449,12 @@ export async function upsertDemoSession(input = {}) {
     const inserted = await query`
       insert into users (
         id, email, display_name, role, verification_status, password_hash,
-        phone, school_or_company, city, bio, avatar_url, created_at, updated_at
+        phone, school_or_company, city, bio, avatar_url, auth_provider, provider_user_id, created_at, updated_at
       )
       values (
         ${id}, ${normalizedEmail}, ${profile.displayName}, ${profile.role}, 'unverified',
         ${passwordHash}, ${profile.phone}, ${profile.schoolOrCompany}, ${profile.city},
-        ${profile.bio}, ${profile.avatarUrl}, ${createdAt}, ${createdAt}
+        ${profile.bio}, ${profile.avatarUrl}, 'password', '', ${createdAt}, ${createdAt}
       )
       returning *
     `
@@ -445,6 +472,8 @@ export async function upsertDemoSession(input = {}) {
         city = ${profile.city},
         bio = ${profile.bio},
         avatar_url = ${profile.avatarUrl},
+        auth_provider = 'password',
+        provider_user_id = '',
         updated_at = ${updatedAt}
       where id = ${user.id}
       returning *
@@ -453,6 +482,143 @@ export async function upsertDemoSession(input = {}) {
   }
 
   return createSessionForUser(userFromRow(user))
+}
+
+export async function upsertProviderSession(input = {}) {
+  const profile = sanitizeProviderAuthInput(input)
+  const email = providerEmail(profile.provider, profile.providerUserId)
+  const existing = await query`
+    select * from users
+    where (auth_provider = ${profile.provider} and provider_user_id = ${profile.providerUserId})
+      or email = ${email}
+    limit 1
+  `
+  let user = existing[0]
+
+  if (!user) {
+    const createdAt = nowIso()
+    const inserted = await query`
+      insert into users (
+        id, email, display_name, role, verification_status, password_hash,
+        phone, school_or_company, city, bio, avatar_url, auth_provider, provider_user_id,
+        email_verified_at, created_at, updated_at
+      )
+      values (
+        ${createId('usr')}, ${email}, ${profile.displayName}, ${profile.role}, 'unverified', null,
+        ${profile.phone}, ${profile.schoolOrCompany}, ${profile.city}, ${profile.bio}, ${profile.avatarUrl},
+        ${profile.provider}, ${profile.providerUserId}, ${createdAt}, ${createdAt}, ${createdAt}
+      )
+      returning *
+    `
+    user = inserted[0]
+  } else {
+    const updatedAt = nowIso()
+    const updated = await query`
+      update users
+      set
+        display_name = coalesce(nullif(display_name, ''), ${profile.displayName}),
+        phone = coalesce(nullif(phone, ''), ${profile.phone}),
+        school_or_company = coalesce(nullif(school_or_company, ''), ${profile.schoolOrCompany}),
+        city = coalesce(nullif(city, ''), ${profile.city}),
+        bio = coalesce(nullif(bio, ''), ${profile.bio}),
+        avatar_url = coalesce(nullif(avatar_url, ''), ${profile.avatarUrl}),
+        auth_provider = ${profile.provider},
+        provider_user_id = ${profile.providerUserId},
+        email_verified_at = coalesce(email_verified_at, ${updatedAt}),
+        updated_at = ${updatedAt}
+      where id = ${user.id}
+      returning *
+    `
+    user = updated[0]
+  }
+
+  return createSessionForUser(userFromRow(user))
+}
+
+export async function requestPasswordReset(input = {}) {
+  const email = validateEmail(input.email)
+  const rows = await query`
+    select * from users
+    where email = ${email}
+      and password_hash is not null
+    limit 1
+  `
+  const user = rows[0]
+  const publicDelivery = {
+    provider: 'email',
+    delivered: false,
+    mock: false,
+    message: '如果这个邮箱已注册，我们会发送一封密码重置邮件。',
+  }
+  const expiresAt = passwordResetExpiresAt()
+
+  if (user) {
+    const code = createEmailVerificationCode()
+    const createdAt = nowIso()
+    await sendPasswordReset({ to: email, code })
+    await query`
+      insert into password_reset_tokens (id, user_id, email, code_hash, created_at, expires_at)
+      values (${createId('prt')}, ${user.id}, ${email}, ${hashToken(code)}, ${createdAt}, ${expiresAt})
+    `
+  }
+
+  return {
+    passwordReset: {
+      status: 'pending',
+      email,
+      expiresAt,
+      delivery: publicDelivery,
+    },
+  }
+}
+
+export async function confirmPasswordReset(input = {}) {
+  const email = validateEmail(input.email)
+  const password = validatePassword(input.password || input.newPassword)
+  const code = validateEmailVerificationCode(input.code)
+  const rows = await query`
+    select * from password_reset_tokens
+    where email = ${email}
+      and code_hash = ${hashToken(code)}
+      and used_at is null
+      and expires_at > now()
+    order by created_at desc
+    limit 1
+  `
+
+  if (!rows[0]) {
+    throw new HttpError(400, 'invalid_password_reset_code', '验证码不正确或已过期，请重新发送。')
+  }
+
+  const resetAt = nowIso()
+  const passwordHash = hashPassword(password)
+  await query`
+    update password_reset_tokens
+    set used_at = ${resetAt}
+    where id = ${rows[0].id}
+  `
+  const updated = await query`
+    update users
+    set
+      password_hash = ${passwordHash},
+      auth_provider = 'password',
+      provider_user_id = '',
+      email_verified_at = coalesce(email_verified_at, ${resetAt}),
+      updated_at = ${resetAt}
+    where id = ${rows[0].user_id}
+    returning *
+  `
+  await query`delete from sessions where user_id = ${rows[0].user_id}`
+
+  const user = userFromRow(updated[0])
+  return {
+    user: publicUser(user),
+    passwordReset: {
+      status: 'reset',
+      email: user.email,
+      resetAt,
+    },
+  }
 }
 
 export async function getSessionByToken(token) {
@@ -484,7 +650,8 @@ export async function getSessionByToken(token) {
       token: null,
       tokenType: 'Bearer',
       expiresAt: toIso(rows[0].session_expires_at),
-      mode: 'password',
+      mode: rows[0].auth_provider || 'password',
+      provider: rows[0].auth_provider || 'password',
     },
   }
 }
@@ -1155,6 +1322,7 @@ function publicUser(user) {
     city: user.city || '',
     bio: user.bio || '',
     avatarUrl: user.avatarUrl || '',
+    authProvider: user.authProvider || 'password',
     verificationStatus: verificationStatuses.includes(user.verificationStatus)
       ? user.verificationStatus
       : 'unverified',
@@ -1183,7 +1351,8 @@ async function createSessionForUser(user) {
       token,
       tokenType: 'Bearer',
       expiresAt: toIso(session.expires_at),
-      mode: 'password',
+      mode: user.authProvider || 'password',
+      provider: user.authProvider || 'password',
     },
   }
 }
@@ -1230,6 +1399,8 @@ function userFromRow(row) {
     city: row.city || '',
     bio: row.bio || '',
     avatarUrl: row.avatar_url || '',
+    authProvider: row.auth_provider || 'password',
+    providerUserId: row.provider_user_id || '',
     verificationStatus: row.verification_status,
     emailVerifiedAt: toIso(row.email_verified_at),
     createdAt: toIso(row.created_at),

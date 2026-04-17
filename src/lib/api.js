@@ -54,6 +54,19 @@ export async function createSession(payload) {
   return data
 }
 
+export async function createProviderSession(provider, payload = {}) {
+  const data = await request('/auth/provider', {
+    method: 'POST',
+    body: JSON.stringify({ provider, ...payload }),
+  })
+
+  if (data?.session?.token) {
+    saveSessionToken(data.session.token)
+  }
+
+  return data
+}
+
 export function getSession() {
   return request('/auth/session')
 }
@@ -71,10 +84,35 @@ export function confirmEmailVerification(code) {
   })
 }
 
+export function requestPasswordReset(email) {
+  return request('/auth/password-reset', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  })
+}
+
+export function confirmPasswordReset(payload) {
+  return request('/auth/password-reset/confirm', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function updateProfile(profile) {
   return request('/auth/profile', {
     method: 'PATCH',
     body: JSON.stringify(profile),
+  })
+}
+
+export function getCurrentVerificationProfile() {
+  return request('/auth/verification')
+}
+
+export function submitCurrentVerification(payload) {
+  return request('/auth/verification', {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
 }
 

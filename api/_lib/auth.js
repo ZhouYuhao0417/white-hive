@@ -3,6 +3,14 @@ import { HttpError } from './http.js'
 
 const sessionDays = 30
 const emailVerificationMinutes = 20
+const supportedAuthProviders = ['phone', 'wechat', 'qq', 'github']
+
+const authProviderLabels = {
+  phone: '手机号',
+  wechat: '微信',
+  qq: 'QQ',
+  github: 'GitHub',
+}
 
 export function normalizeEmail(email) {
   return String(email || '').trim().toLowerCase()
@@ -10,6 +18,20 @@ export function normalizeEmail(email) {
 
 export function normalizeRole(role) {
   return role === 'seller' ? 'seller' : 'buyer'
+}
+
+export function normalizeAuthProvider(provider) {
+  const value = String(provider || '').trim().toLowerCase()
+  if (!supportedAuthProviders.includes(value)) {
+    throw new HttpError(400, 'invalid_auth_provider', '暂不支持这个登录方式。', {
+      supported: supportedAuthProviders,
+    })
+  }
+  return value
+}
+
+export function authProviderLabel(provider) {
+  return authProviderLabels[normalizeAuthProvider(provider)]
 }
 
 export function validateEmail(email) {
@@ -82,6 +104,36 @@ export function emailVerificationExpiresAt() {
   return expiresAt.toISOString()
 }
 
+export function passwordResetExpiresAt() {
+  return emailVerificationExpiresAt()
+}
+
+export function providerEmail(provider, providerUserId) {
+  const normalizedProvider = normalizeAuthProvider(provider)
+  const stableId = limitSlug(providerUserId || `whitehive-demo-${normalizedProvider}`, 80)
+  const digest = createHash('sha256').update(`${normalizedProvider}:${stableId}`).digest('hex').slice(0, 16)
+  return `${normalizedProvider}-${digest}@auth.whitehive.local`
+}
+
+export function sanitizeProviderAuthInput(input = {}) {
+  const provider = normalizeAuthProvider(input.provider)
+  const label = authProviderLabels[provider]
+  const providerUserId = limitSlug(input.providerUserId || `whitehive-demo-${provider}`, 80)
+  const defaultName = input.displayName || `${label}用户`
+  return {
+    provider,
+    providerLabel: label,
+    providerUserId,
+    displayName: limitText(defaultName, 40),
+    role: normalizeRole(input.role),
+    phone: limitText(input.phone || (provider === 'phone' ? '演示手机号' : ''), 40),
+    schoolOrCompany: limitText(input.schoolOrCompany, 80),
+    city: limitText(input.city, 40),
+    bio: limitText(input.bio || `通过${label}接入 WhiteHive。`, 240),
+    avatarUrl: sanitizeAvatarUrl(input.avatarUrl),
+  }
+}
+
 export function sanitizeProfileInput(input = {}, fallbackEmail = '', fallbackRole = 'buyer') {
   const emailPrefix = normalizeEmail(fallbackEmail).split('@')[0] || 'WhiteHive 用户'
   const roleInput = input.role || input.mode
@@ -99,6 +151,16 @@ export function sanitizeProfileInput(input = {}, fallbackEmail = '', fallbackRol
 function limitText(value, maxLength) {
   const text = String(value || '').trim()
   return text.length > maxLength ? text.slice(0, maxLength) : text
+}
+
+function limitSlug(value, maxLength) {
+  const text = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._:-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  const slug = text || 'whitehive-demo'
+  return slug.length > maxLength ? slug.slice(0, maxLength) : slug
 }
 
 function sanitizeAvatarUrl(value) {

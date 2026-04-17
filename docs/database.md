@@ -3,7 +3,7 @@
 WhiteHive now has two storage modes:
 
 - Memory demo mode: no database URL; safe for UI demos, but data can reset.
-- Postgres mode: a database URL exists; users, sessions, avatars, email verification codes, rate-limit events, orders, services, messages, mock payments and verification requests persist.
+- Postgres mode: a database URL exists; users, provider identities, sessions, avatars, email verification codes, password reset codes, rate-limit events, orders, services, messages, mock payments and verification requests persist.
 
 ## Recommended Provider
 
@@ -46,6 +46,9 @@ The public API does not change. The frontend still calls:
 - `/api/services`
 - `/api/auth/session`
 - `/api/auth/profile`
+- `/api/auth/provider`
+- `/api/auth/password-reset`
+- `/api/auth/verification`
 - `/api/orders`
 - `/api/payments`
 - `/api/messages`

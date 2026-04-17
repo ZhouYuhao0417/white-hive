@@ -23,11 +23,16 @@ Public endpoints:
 - `GET /api/health`
 - `GET /api/auth/session`
 - `POST /api/auth/session`
+- `POST /api/auth/provider`
 - `GET /api/auth/profile`
 - `PATCH /api/auth/profile`
 - `DELETE /api/auth/account`
 - `POST /api/auth/email-verification`
 - `POST /api/auth/email-verification/confirm`
+- `POST /api/auth/password-reset`
+- `POST /api/auth/password-reset/confirm`
+- `GET /api/auth/verification`
+- `POST /api/auth/verification`
 - `GET /api/services`
 - `POST /api/services`
 - `GET /api/orders`
@@ -65,9 +70,12 @@ Current storage:
 - `api/_lib/memory-store.js` keeps the safe demo fallback.
 - `api/_lib/postgres-store.js` uses Neon/Postgres when a supported database URL exists.
 - Registration now stores a hashed password, personal profile fields, and a server-side session token hash.
+- Phone, WeChat, QQ and GitHub buttons now create provider-backed MVP sessions through `POST /api/auth/provider`, so every advertised login/register entry point is usable in demos. These are provider bridges, not final OAuth/SMS integrations yet.
 - Registration/login and email verification now have simple IP/session/email rate limits backed by the active store.
 - Profile data now supports an optional compressed avatar image for higher-trust accounts.
 - Email verification now stores short-lived hashed verification codes. Production email requires `RESEND_API_KEY` and `EMAIL_FROM`; the UI no longer displays mock codes.
+- Password reset now stores short-lived hashed reset codes, invalidates old sessions after a reset, and uses the same email delivery configuration.
+- Real-name verification now has session-bound endpoints under `/api/auth/verification`, so the frontend can submit verification for the logged-in user without trusting a browser-provided `userId`.
 - Disposable test accounts can be deleted from `/account` when they have no linked services, orders, payments or messages.
 - Service publishing, order creation, order messages, mock payments and verification now prefer the bearer-token user over hard-coded demo IDs.
 - Logged-in users can only pay for their own buyer-side orders and can only send messages inside orders they participate in.
@@ -108,10 +116,11 @@ Verification statuses:
 ## Next Backend Steps
 
 1. Add a real email sender such as Resend in Vercel and verify `whitehive.cn` as a sender domain.
-2. Replace the MVP password auth with Clerk/Auth0 or email magic-link auth when the product leaves demo mode.
-3. Move avatar images from compressed data URLs into Vercel Blob or Alibaba Cloud OSS.
-4. Replace browser cache fallback with Postgres-backed user data everywhere.
-5. Split `/dashboard` into real buyer/seller dashboards after auth is connected across all flows.
-6. Add the final payment confirmation UI on top of `/api/payments`.
-7. Replace `whitehive-rule-match-v1` with LLM + embedding search after service data grows.
-8. Connect a real payment provider and real-name verification provider only after the demo loop is stable.
+2. Replace the provider bridges with real SMS, WeChat, QQ and GitHub OAuth credentials.
+3. Replace the MVP password auth with Clerk/Auth0 or email magic-link auth when the product leaves demo mode.
+4. Move avatar images from compressed data URLs into Vercel Blob or Alibaba Cloud OSS.
+5. Replace browser cache fallback with Postgres-backed user data everywhere.
+6. Split `/dashboard` into real buyer/seller dashboards after auth is connected across all flows.
+7. Add the final payment confirmation UI on top of `/api/payments`.
+8. Replace `whitehive-rule-match-v1` with LLM + embedding search after service data grows.
+9. Connect a real payment provider and real-name verification provider only after the demo loop is stable.

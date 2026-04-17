@@ -5,14 +5,17 @@ import {
   emailVerificationExpiresAt,
   hashPassword,
   hashToken,
+  passwordResetExpiresAt,
+  providerEmail,
   sanitizeProfileInput,
+  sanitizeProviderAuthInput,
   sessionExpiresAt,
   validateEmailVerificationCode,
   validateEmail,
   validatePassword,
   verifyPassword,
 } from './auth.js'
-import { sendEmailVerification } from './email.js'
+import { sendEmailVerification, sendPasswordReset } from './email.js'
 import {
   seedMessages,
   seedOrders,
@@ -62,6 +65,7 @@ function createMemoryState() {
     payments: clone(seedPayments),
     verificationRequests: clone(seedVerificationRequests),
     emailVerificationTokens: [],
+    passwordResetTokens: [],
     rateLimitEvents: [],
     messages: clone(seedMessages),
     sessions: [],
@@ -85,8 +89,10 @@ export function storeInfo() {
       : '未配置数据库连接变量，当前使用内存种子数据，适合演示和接口联调。',
     capabilities: [
       'password_auth',
+      'provider_auth_demo',
       'sessions',
       'email_verification',
+      'password_reset',
       'orders',
       'messages',
       'mock_payments',
@@ -182,6 +188,8 @@ export function upsertDemoSession(input = {}) {
       avatarUrl: profile.avatarUrl,
       emailVerifiedAt: null,
       passwordHash: hashPassword(password),
+      authProvider: 'password',
+      providerUserId: '',
       createdAt: nowIso(),
       updatedAt: nowIso(),
     }
@@ -195,10 +203,141 @@ export function upsertDemoSession(input = {}) {
     user.bio = profile.bio
     user.avatarUrl = profile.avatarUrl
     user.passwordHash = hashPassword(password)
+    user.authProvider = user.authProvider || 'password'
+    user.providerUserId = user.providerUserId || ''
     user.updatedAt = nowIso()
   }
 
   return clone(createSessionForUser(user))
+}
+
+export function upsertProviderSession(input = {}) {
+  const state = getState()
+  const profile = sanitizeProviderAuthInput(input)
+  const email = providerEmail(profile.provider, profile.providerUserId)
+  let user =
+    state.users.find(
+      (item) => item.authProvider === profile.provider && item.providerUserId === profile.providerUserId,
+    ) || state.users.find((item) => item.email === email)
+
+  if (!user) {
+    const createdAt = nowIso()
+    user = {
+      id: createId('usr'),
+      email,
+      displayName: profile.displayName,
+      role: profile.role,
+      verificationStatus: 'unverified',
+      phone: profile.phone,
+      schoolOrCompany: profile.schoolOrCompany,
+      city: profile.city,
+      bio: profile.bio,
+      avatarUrl: profile.avatarUrl,
+      emailVerifiedAt: createdAt,
+      passwordHash: null,
+      authProvider: profile.provider,
+      providerUserId: profile.providerUserId,
+      createdAt,
+      updatedAt: createdAt,
+    }
+    state.users.push(user)
+  } else {
+    user.displayName = user.displayName || profile.displayName
+    user.role = user.role || profile.role
+    user.phone = profile.phone || user.phone || ''
+    user.schoolOrCompany = profile.schoolOrCompany || user.schoolOrCompany || ''
+    user.city = profile.city || user.city || ''
+    user.bio = profile.bio || user.bio || ''
+    user.avatarUrl = profile.avatarUrl || user.avatarUrl || ''
+    user.emailVerifiedAt = user.emailVerifiedAt || nowIso()
+    user.authProvider = profile.provider
+    user.providerUserId = profile.providerUserId
+    user.updatedAt = nowIso()
+  }
+
+  return clone(createSessionForUser(user))
+}
+
+export async function requestPasswordReset(input = {}) {
+  const email = validateEmail(input.email)
+  const state = getState()
+  if (!Array.isArray(state.passwordResetTokens)) {
+    state.passwordResetTokens = []
+  }
+  const user = state.users.find((item) => item.email === email && item.passwordHash)
+  const publicDelivery = {
+    provider: 'email',
+    delivered: false,
+    mock: false,
+    message: '如果这个邮箱已注册，我们会发送一封密码重置邮件。',
+  }
+  const expiresAt = passwordResetExpiresAt()
+
+  if (user) {
+    const code = createEmailVerificationCode()
+    const createdAt = nowIso()
+    await sendPasswordReset({ to: email, code })
+    state.passwordResetTokens.unshift({
+      id: createId('prt'),
+      userId: user.id,
+      email,
+      codeHash: hashToken(code),
+      createdAt,
+      expiresAt,
+      usedAt: null,
+    })
+  }
+
+  return clone({
+    passwordReset: {
+      status: 'pending',
+      email,
+      expiresAt,
+      delivery: publicDelivery,
+    },
+  })
+}
+
+export function confirmPasswordReset(input = {}) {
+  const email = validateEmail(input.email)
+  const password = validatePassword(input.password || input.newPassword)
+  const code = validateEmailVerificationCode(input.code)
+  const codeHash = hashToken(code)
+  const now = new Date()
+  const state = getState()
+  if (!Array.isArray(state.passwordResetTokens)) {
+    state.passwordResetTokens = []
+  }
+  const challenge = state.passwordResetTokens.find(
+    (item) =>
+      item.email === email &&
+      item.codeHash === codeHash &&
+      !item.usedAt &&
+      new Date(item.expiresAt) > now,
+  )
+
+  if (!challenge) {
+    throw new HttpError(400, 'invalid_password_reset_code', '验证码不正确或已过期，请重新发送。')
+  }
+
+  const user = ensureUser(challenge.userId)
+  const resetAt = nowIso()
+  challenge.usedAt = resetAt
+  user.passwordHash = hashPassword(password)
+  user.emailVerifiedAt = user.emailVerifiedAt || resetAt
+  user.authProvider = user.authProvider || 'password'
+  user.providerUserId = user.providerUserId || ''
+  user.updatedAt = resetAt
+  state.sessions = state.sessions.filter((session) => session.userId !== user.id)
+
+  return clone({
+    user: publicUser(user),
+    passwordReset: {
+      status: 'reset',
+      email: user.email,
+      resetAt,
+    },
+  })
 }
 
 export function getSessionByToken(token) {
@@ -219,7 +358,8 @@ export function getSessionByToken(token) {
       token: null,
       tokenType: 'Bearer',
       expiresAt: session.expiresAt,
-      mode: 'password',
+      mode: user.authProvider || 'password',
+      provider: user.authProvider || 'password',
     },
   })
 }
@@ -329,6 +469,7 @@ export function deleteUserAccount(token) {
   state.users = state.users.filter((user) => user.id !== userId)
   state.sessions = state.sessions.filter((item) => item.userId !== userId)
   state.emailVerificationTokens = state.emailVerificationTokens.filter((item) => item.userId !== userId)
+  state.passwordResetTokens = state.passwordResetTokens.filter((item) => item.userId !== userId)
   state.verificationRequests = state.verificationRequests.filter((item) => item.userId !== userId)
 
   return {
@@ -765,6 +906,7 @@ function publicUser(user) {
     city: user.city || '',
     bio: user.bio || '',
     avatarUrl: user.avatarUrl || '',
+    authProvider: user.authProvider || 'password',
     verificationStatus: verificationStatuses.includes(user.verificationStatus)
       ? user.verificationStatus
       : 'unverified',
@@ -797,7 +939,8 @@ function createSessionForUser(user) {
       token,
       tokenType: 'Bearer',
       expiresAt: session.expiresAt,
-      mode: 'password',
+      mode: user.authProvider || 'password',
+      provider: user.authProvider || 'password',
     },
   }
 }

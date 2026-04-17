@@ -7,6 +7,7 @@ import {
   createService,
   checkRateLimit,
   confirmEmailVerification,
+  confirmPasswordReset,
   deleteUserAccount,
   getDemoUser,
   getOrder,
@@ -19,12 +20,14 @@ import {
   listPayments,
   listServices,
   requestEmailVerification,
+  requestPasswordReset,
   reviewVerification,
   storeInfo,
   submitVerification,
   updateOrder,
   updateUserProfile,
   upsertDemoSession,
+  upsertProviderSession,
 } from './_lib/store.js'
 
 function routePath(request) {
@@ -114,11 +117,75 @@ async function enforceEmailVerificationConfirmRateLimit(request, token) {
   })
 }
 
+async function enforceProviderAuthRateLimit(request, body = {}) {
+  const provider = String(body.provider || 'unknown').trim().toLowerCase()
+  await checkRateLimit({
+    bucket: `auth_provider_${provider}_ip`,
+    identifier: clientIp(request),
+    limit: 30,
+    windowSeconds: 15 * 60,
+    message: '第三方登录请求太频繁，请稍后再试。',
+  })
+}
+
+async function enforcePasswordResetSendRateLimit(request, body = {}) {
+  await checkRateLimit({
+    bucket: 'password_reset_send_ip',
+    identifier: clientIp(request),
+    limit: 12,
+    windowSeconds: 15 * 60,
+    message: '密码重置请求太频繁，请稍后再试。',
+  })
+  await checkRateLimit({
+    bucket: 'password_reset_send_email',
+    identifier: rateLimitEmail(body.email),
+    limit: 4,
+    windowSeconds: 15 * 60,
+    message: '这个邮箱的密码重置请求太频繁，请稍后再试。',
+  })
+}
+
+async function enforcePasswordResetConfirmRateLimit(request, body = {}) {
+  await checkRateLimit({
+    bucket: 'password_reset_confirm_ip',
+    identifier: clientIp(request),
+    limit: 30,
+    windowSeconds: 15 * 60,
+    message: '密码重置校验太频繁，请稍后再试。',
+  })
+  await checkRateLimit({
+    bucket: 'password_reset_confirm_email',
+    identifier: rateLimitEmail(body.email),
+    limit: 8,
+    windowSeconds: 15 * 60,
+    message: '验证码尝试次数过多，请重新发送。',
+  })
+}
+
+async function enforceVerificationSubmitRateLimit(request, userId) {
+  await checkRateLimit({
+    bucket: 'verification_submit_user',
+    identifier: userId || clientIp(request),
+    limit: 6,
+    windowSeconds: 60 * 60,
+    message: '实名认证提交太频繁，请稍后再试。',
+  })
+}
+
 async function optionalSessionUser(request) {
   const token = bearerToken(request)
   if (!token) return null
   const session = await getSessionByToken(token)
   return session.user || null
+}
+
+async function requireSessionUser(request) {
+  const token = bearerToken(request)
+  if (!token) {
+    throw new HttpError(401, 'missing_session', '请先登录。')
+  }
+  const session = await getSessionByToken(token)
+  return session.user
 }
 
 function ensureOrderParticipant(user, order) {
@@ -175,6 +242,36 @@ export default {
         return methodNotAllowed(request.method, ['GET', 'POST'])
       }
 
+      if (path === 'auth/provider') {
+        if (request.method === 'POST') {
+          const body = await readBody(request)
+          await enforceProviderAuthRateLimit(request, body)
+          return ok(await upsertProviderSession(body))
+        }
+
+        return methodNotAllowed(request.method, ['POST'])
+      }
+
+      if (path === 'auth/password-reset') {
+        if (request.method === 'POST') {
+          const body = await readBody(request)
+          await enforcePasswordResetSendRateLimit(request, body)
+          return ok(await requestPasswordReset(body))
+        }
+
+        return methodNotAllowed(request.method, ['POST'])
+      }
+
+      if (path === 'auth/password-reset/confirm') {
+        if (request.method === 'POST') {
+          const body = await readBody(request)
+          await enforcePasswordResetConfirmRateLimit(request, body)
+          return ok(await confirmPasswordReset(body))
+        }
+
+        return methodNotAllowed(request.method, ['POST'])
+      }
+
       if (path === 'auth/profile') {
         const token = bearerToken(request)
         if (request.method === 'GET') {
@@ -187,6 +284,27 @@ export default {
         }
 
         return methodNotAllowed(request.method, ['GET', 'PATCH'])
+      }
+
+      if (path === 'auth/verification') {
+        const user = await requireSessionUser(request)
+
+        if (request.method === 'GET') {
+          return ok(await getVerificationProfile(user.id))
+        }
+
+        if (request.method === 'POST') {
+          const body = await readBody(request)
+          await enforceVerificationSubmitRateLimit(request, user.id)
+          return ok(
+            await submitVerification({
+              ...body,
+              userId: user.id,
+            }),
+          )
+        }
+
+        return methodNotAllowed(request.method, ['GET', 'POST'])
       }
 
       if (path === 'auth/account') {
@@ -237,6 +355,7 @@ export default {
         if (request.method === 'POST') {
           const body = await readBody(request)
           const user = await optionalSessionUser(request)
+          await enforceVerificationSubmitRateLimit(request, user?.id || body.userId)
           return ok(
             await createService({
               ...body,

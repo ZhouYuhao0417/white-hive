@@ -76,15 +76,30 @@ async function createAvatarDataUrl(file) {
 }
 
 export default function AuthDrawer({ open, onClose }) {
-  const { login, signup, requestEmailVerification, confirmEmailVerification } = useAuth()
+  const {
+    login,
+    signup,
+    loginWithProvider,
+    requestEmailVerification,
+    confirmEmailVerification,
+    requestPasswordReset,
+    confirmPasswordReset,
+  } = useAuth()
   const [mode, setMode] = useState('signin') // 'signin' | 'signup'
   const [form, setForm] = useState(initialForm)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [socialBusy, setSocialBusy] = useState('')
   const [isProcessingAvatar, setIsProcessingAvatar] = useState(false)
   const [isSendingVerification, setIsSendingVerification] = useState(false)
   const [isConfirmingVerification, setIsConfirmingVerification] = useState(false)
+  const [isSendingPasswordReset, setIsSendingPasswordReset] = useState(false)
+  const [isConfirmingPasswordReset, setIsConfirmingPasswordReset] = useState(false)
   const [emailChallenge, setEmailChallenge] = useState(null)
+  const [passwordResetChallenge, setPasswordResetChallenge] = useState(null)
   const [verificationCode, setVerificationCode] = useState('')
+  const [passwordResetCode, setPasswordResetCode] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
 
@@ -94,6 +109,15 @@ export default function AuthDrawer({ open, onClose }) {
     setForm((current) => ({ ...current, [field]: value }))
     setNotice('')
     setError('')
+  }
+
+  const resetTransientAuthState = () => {
+    setEmailChallenge(null)
+    setPasswordResetChallenge(null)
+    setVerificationCode('')
+    setPasswordResetCode('')
+    setNewPassword('')
+    setConfirmNewPassword('')
   }
 
   const submit = async (event) => {
@@ -159,6 +183,87 @@ export default function AuthDrawer({ open, onClose }) {
       setError(err.message || '登录暂时失败，请稍后再试。')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleSocialLogin = async (method) => {
+    setSocialBusy(method.key)
+    setNotice('')
+    setError('')
+    resetTransientAuthState()
+
+    try {
+      const result = await loginWithProvider(method.key, {
+        role: form.role,
+        displayName: `${method.label}用户`,
+      })
+      const name = result?.user?.displayName || method.label
+      setNotice(`已通过 ${method.label} 登录：${name}。当前是演示接入，后续可替换成正式授权。`)
+      setTimeout(() => {
+        onClose()
+        setNotice('')
+        setError('')
+        setMode('signin')
+      }, 800)
+    } catch (err) {
+      setError(err.message || `${method.label} 登录暂时失败，请稍后再试。`)
+    } finally {
+      setSocialBusy('')
+    }
+  }
+
+  const startPasswordReset = async () => {
+    const email = form.email.trim()
+    if (!email) {
+      setError('请先在邮箱输入框里填写要找回密码的邮箱。')
+      return
+    }
+
+    setIsSendingPasswordReset(true)
+    setNotice('')
+    setError('')
+    setPasswordResetChallenge(null)
+    setPasswordResetCode('')
+    setNewPassword('')
+    setConfirmNewPassword('')
+
+    try {
+      const result = await requestPasswordReset(email)
+      setPasswordResetChallenge(result?.passwordReset || { email })
+      setNotice(result?.passwordReset?.delivery?.message || '如果这个邮箱已注册，验证码邮件会发送到邮箱。')
+    } catch (err) {
+      setError(err.message || '密码重置邮件发送失败，请稍后再试。')
+    } finally {
+      setIsSendingPasswordReset(false)
+    }
+  }
+
+  const finishPasswordReset = async () => {
+    if (newPassword !== confirmNewPassword) {
+      setError('两次输入的新密码不一致。')
+      return
+    }
+
+    setIsConfirmingPasswordReset(true)
+    setNotice('')
+    setError('')
+
+    try {
+      await confirmPasswordReset({
+        email: form.email,
+        code: passwordResetCode,
+        password: newPassword,
+      })
+      setPasswordResetChallenge(null)
+      setPasswordResetCode('')
+      setNewPassword('')
+      setConfirmNewPassword('')
+      setNotice('密码已重置。请使用新密码登录。')
+      setMode('signin')
+    } catch (err) {
+      setError(err.message || '密码重置失败，请检查验证码后再试。')
+    } finally {
+      setIsConfirmingPasswordReset(false)
     }
   }
 
@@ -282,8 +387,7 @@ export default function AuthDrawer({ open, onClose }) {
                   type="button"
                   onClick={() => {
                     setMode('signin')
-                    setEmailChallenge(null)
-                    setVerificationCode('')
+                    resetTransientAuthState()
                   }}
                   className="relative z-10 h-10 text-sm font-medium transition-colors"
                   style={{ color: mode === 'signin' ? '#04131F' : 'rgba(255,255,255,0.65)' }}
@@ -294,8 +398,7 @@ export default function AuthDrawer({ open, onClose }) {
                   type="button"
                   onClick={() => {
                     setMode('signup')
-                    setEmailChallenge(null)
-                    setVerificationCode('')
+                    resetTransientAuthState()
                   }}
                   className="relative z-10 h-10 text-sm font-medium transition-colors"
                   style={{ color: mode === 'signup' ? '#04131F' : 'rgba(255,255,255,0.65)' }}
@@ -568,10 +671,78 @@ export default function AuthDrawer({ open, onClose }) {
                   <div className="pt-1 text-right">
                     <button
                       type="button"
+                      onClick={startPasswordReset}
+                      disabled={isSendingPasswordReset}
                       className="text-xs text-white/50 hover:text-[#BEE6FF] transition-colors"
                     >
-                      忘记密码?
+                      {isSendingPasswordReset ? '发送中...' : '忘记密码?'}
                     </button>
+                  </div>
+                )}
+
+                {passwordResetChallenge && (
+                  <div className="rounded-2xl border border-[#7FD3FF]/25 bg-[#7FD3FF]/[0.07] p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="mono-label text-[#BEE6FF]">PASSWORD RESET</div>
+                        <div className="mt-1 text-sm font-medium text-white">重置密码</div>
+                      </div>
+                      <span className="rounded-full border border-[#7FD3FF]/30 bg-[#7FD3FF]/10 px-2 py-1 text-[10px] text-[#BEE6FF]">
+                        已受理
+                      </span>
+                    </div>
+                    <p className="text-xs leading-relaxed text-white/55">
+                      请查收 {passwordResetChallenge.email || form.email} 的 6 位验证码，并设置一个至少 8 位的新密码。
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={passwordResetCode}
+                        onChange={(event) => setPasswordResetCode(event.target.value.replace(/[^\d]/g, '').slice(0, 6))}
+                        placeholder="6 位验证码"
+                        className="h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+                      />
+                      <input
+                        type="password"
+                        minLength={8}
+                        value={newPassword}
+                        onChange={(event) => setNewPassword(event.target.value)}
+                        placeholder="新密码，至少 8 位"
+                        className="h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+                      />
+                      <input
+                        type="password"
+                        minLength={8}
+                        value={confirmNewPassword}
+                        onChange={(event) => setConfirmNewPassword(event.target.value)}
+                        placeholder="再次输入新密码"
+                        className="h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={isConfirmingPasswordReset}
+                        onClick={finishPasswordReset}
+                        className="btn-primary flex-1 justify-center !px-4"
+                      >
+                        {isConfirmingPasswordReset ? '重置中...' : '确认重置'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPasswordResetChallenge(null)
+                          setPasswordResetCode('')
+                          setNewPassword('')
+                          setConfirmNewPassword('')
+                        }}
+                        className="rounded-xl border border-white/10 px-4 text-xs text-white/55 hover:text-white hover:bg-white/5"
+                      >
+                        取消
+                      </button>
+                    </div>
                   </div>
                 )}
               </form>
@@ -591,6 +762,8 @@ export default function AuthDrawer({ open, onClose }) {
                   <button
                     key={m.key}
                     type="button"
+                    onClick={() => handleSocialLogin(m)}
+                    disabled={Boolean(socialBusy)}
                     className="group w-full flex items-center gap-3 px-4 h-11 rounded-xl bg-white/[0.03] border border-white/10 hover:border-white/25 hover:bg-white/[0.06] transition-colors text-sm text-white/85"
                   >
                     <span
@@ -599,7 +772,10 @@ export default function AuthDrawer({ open, onClose }) {
                     >
                       <m.Logo size={18} />
                     </span>
-                    <span>使用 {m.label} 继续</span>
+                    <span>{socialBusy === m.key ? `${m.label}连接中...` : `使用 ${m.label} 继续`}</span>
+                    <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-white/35">
+                      演示接入
+                    </span>
                     <span className="ml-auto text-white/35 group-hover:text-white/70 transition-colors">
                       <Icon name="arrow" size={14} />
                     </span>

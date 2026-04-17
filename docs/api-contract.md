@@ -5,11 +5,16 @@ This is the first backend contract for the buying/selling order MVP. The current
 Auth-related account endpoints:
 
 - `POST /api/auth/session`: sign up or sign in with email/password.
+- `POST /api/auth/provider`: sign in with the MVP provider bridge for phone, WeChat, QQ or GitHub.
 - `GET /api/auth/session`: restore the current bearer-token session.
 - `PATCH /api/auth/profile`: update profile fields for the logged-in user.
 - `DELETE /api/auth/account`: delete a disposable test account when it has no linked services, orders, payments or messages.
 - `POST /api/auth/email-verification`: create and send a 6-digit email verification code.
 - `POST /api/auth/email-verification/confirm`: confirm the 6-digit code and mark the email as verified.
+- `POST /api/auth/password-reset`: request a password reset code by email.
+- `POST /api/auth/password-reset/confirm`: confirm the reset code and set a new password.
+- `GET /api/auth/verification`: read the current logged-in user's real-name verification status.
+- `POST /api/auth/verification`: submit a real-name verification request for the current logged-in user.
 - `GET /api/verification`: read the logged-in user's real-name verification status.
 - `POST /api/verification`: submit a real-name verification request.
 
@@ -73,6 +78,27 @@ For login, send:
 }
 ```
 
+### `POST /api/auth/provider`
+
+Creates a session through the MVP provider bridge. This makes every UI entry point usable for demos today. It does not yet perform real WeChat/QQ/GitHub OAuth or SMS verification; those can replace the bridge later using the same endpoint shape once app credentials are available.
+
+Supported `provider` values:
+
+- `phone`
+- `wechat`
+- `qq`
+- `github`
+
+```json
+{
+  "provider": "github",
+  "role": "buyer",
+  "displayName": "GitHub用户"
+}
+```
+
+The response shape matches `POST /api/auth/session` and returns a bearer session token.
+
 ### `GET /api/auth/profile`
 
 Returns the current bearer-token user profile.
@@ -104,6 +130,36 @@ Creates a short-lived hashed verification code and sends it by email. Production
 ### `POST /api/auth/email-verification/confirm`
 
 Confirms the 6-digit email code. Send/confirm endpoints are rate-limited by IP and session token to reduce verification-code abuse.
+
+### `POST /api/auth/password-reset`
+
+Requests a password reset code for an email/password account. The API intentionally returns a generic success response even when the email is not registered, so attackers cannot enumerate accounts. Real delivery requires the same `RESEND_API_KEY` and `EMAIL_FROM` variables as email verification.
+
+```json
+{
+  "email": "founder@whitehive.cn"
+}
+```
+
+### `POST /api/auth/password-reset/confirm`
+
+Confirms the password reset code and stores a new scrypt-hashed password. Existing sessions for that account are invalidated.
+
+```json
+{
+  "email": "founder@whitehive.cn",
+  "code": "123456",
+  "password": "new-demo-password"
+}
+```
+
+### `GET /api/auth/verification`
+
+Returns the current bearer-token user's real-name verification profile. This is the product-safe endpoint the frontend should prefer after login.
+
+### `POST /api/auth/verification`
+
+Submits a real-name verification request for the current bearer-token user. The backend ignores incoming `userId` on this endpoint and binds the request to the session user.
 
 ## Services
 

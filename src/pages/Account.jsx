@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Section, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
-import { confirmEmailVerification, getVerificationProfile, requestEmailVerification, submitVerification } from '../lib/api.js'
+import {
+  confirmEmailVerification,
+  getCurrentVerificationProfile,
+  requestEmailVerification,
+  submitCurrentVerification,
+} from '../lib/api.js'
 import { useAuth } from '../lib/auth.jsx'
 
 const verificationLabels = {
@@ -41,7 +46,7 @@ export default function Account() {
   useEffect(() => {
     if (!isAuthenticated) return
     let cancelled = false
-    getVerificationProfile()
+    getCurrentVerificationProfile()
       .then((profile) => {
         if (cancelled) return
         setVerificationProfile(profile)
@@ -103,7 +108,7 @@ export default function Account() {
     setNotice('')
     setError('')
     try {
-      const result = await submitVerification(verificationForm)
+      const result = await submitCurrentVerification(verificationForm)
       await refreshUser()
       setVerificationProfile((current) => ({
         ...(current || {}),

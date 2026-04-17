@@ -1,11 +1,14 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import {
   clearSession,
+  confirmPasswordReset as confirmPasswordResetRequest,
   confirmEmailVerification as confirmEmailVerificationRequest,
+  createProviderSession,
   createSession,
   deleteAccount as deleteAccountRequest,
   getSession,
   hasSessionToken,
+  requestPasswordReset as requestPasswordResetRequest,
   requestEmailVerification as requestEmailVerificationRequest,
 } from './api.js'
 
@@ -52,6 +55,12 @@ export function AuthProvider({ children }) {
     return data
   }, [])
 
+  const loginWithProvider = useCallback(async (provider, payload) => {
+    const data = await createProviderSession(provider, payload)
+    if (data?.user) setUser(data.user)
+    return data
+  }, [])
+
   const logout = useCallback(() => {
     clearSession()
     setUser(null)
@@ -76,6 +85,14 @@ export function AuthProvider({ children }) {
     return data
   }, [])
 
+  const requestPasswordReset = useCallback(async (email) => {
+    return requestPasswordResetRequest(email)
+  }, [])
+
+  const confirmPasswordReset = useCallback(async (payload) => {
+    return confirmPasswordResetRequest(payload)
+  }, [])
+
   const refreshUser = useCallback(async () => {
     try {
       const data = await getSession()
@@ -97,11 +114,14 @@ export function AuthProvider({ children }) {
         isLoading,
         login,
         signup,
+        loginWithProvider,
         logout,
         deleteAccount,
         refreshUser,
         requestEmailVerification,
         confirmEmailVerification,
+        requestPasswordReset,
+        confirmPasswordReset,
       }}
     >
       {children}

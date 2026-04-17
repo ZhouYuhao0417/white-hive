@@ -14,6 +14,8 @@ create table if not exists users (
   city text not null default '',
   bio text not null default '',
   avatar_url text not null default '',
+  auth_provider text not null default 'password',
+  provider_user_id text not null default '',
   email_verified_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -114,6 +116,16 @@ create table if not exists email_verification_tokens (
   used_at timestamptz
 );
 
+create table if not exists password_reset_tokens (
+  id text primary key,
+  user_id text not null references users(id) on delete cascade,
+  email text not null,
+  code_hash text not null,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  used_at timestamptz
+);
+
 create table if not exists rate_limit_events (
   id text primary key,
   bucket text not null,
@@ -130,4 +142,8 @@ create index if not exists payments_order_idx on payments(order_id, created_at);
 create index if not exists messages_order_idx on messages(order_id, created_at);
 create index if not exists verification_requests_user_idx on verification_requests(user_id, created_at);
 create index if not exists email_verification_tokens_user_idx on email_verification_tokens(user_id, expires_at);
+create index if not exists password_reset_tokens_email_idx on password_reset_tokens(email, expires_at);
+create unique index if not exists users_provider_identity_idx
+  on users(auth_provider, provider_user_id)
+  where provider_user_id <> '';
 create index if not exists rate_limit_events_lookup_idx on rate_limit_events(bucket, identifier_hash, created_at);

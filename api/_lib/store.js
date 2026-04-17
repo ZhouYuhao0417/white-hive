@@ -58,6 +58,18 @@ export function upsertDemoSession(input) {
   return callStore('upsertDemoSession', [input])
 }
 
+export function upsertProviderSession(input) {
+  return callStore('upsertProviderSession', [input])
+}
+
+export function requestPasswordReset(input) {
+  return callStore('requestPasswordReset', [input])
+}
+
+export function confirmPasswordReset(input) {
+  return callStore('confirmPasswordReset', [input])
+}
+
 export function getSessionByToken(token) {
   return callStore('getSessionByToken', [token])
 }
