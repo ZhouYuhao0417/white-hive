@@ -8,7 +8,8 @@ import { useAuth } from '../lib/auth.jsx'
 const links = [
   { to: '/', label: '首页' },
   { to: '/services', label: '服务' },
-  { to: '/ai-match', label: 'AI 匹配', badge: 'NEW' },
+  { to: '/local', label: '本地服务', badge: 'NEW' },
+  { to: '/ai-match', label: 'AI 匹配' },
   { to: '/dashboard', label: '工作台' },
   { to: '/trust', label: '可信机制' },
   { to: '/how-it-works', label: '流程' },

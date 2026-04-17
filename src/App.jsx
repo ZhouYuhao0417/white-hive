@@ -9,6 +9,7 @@ import Services from './pages/Services.jsx'
 import ServiceDetail from './pages/ServiceDetail.jsx'
 import AIMatch from './pages/AIMatch.jsx'
 import Sell from './pages/Sell.jsx'
+import Local from './pages/Local.jsx'
 import OrderDetail from './pages/OrderDetail.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Account from './pages/Account.jsx'
@@ -22,6 +23,7 @@ const titles = {
   '/services': '服务分类 · WhiteHive',
   '/ai-match': 'AI 精准匹配 · WhiteHive',
   '/sell': '开设服务 · WhiteHive',
+  '/local': '本地服务 · WhiteHive',
   '/dashboard': '工作台 · WhiteHive',
   '/account': '账号与认证 · WhiteHive',
   '/orders': '订单详情 · WhiteHive',
@@ -63,6 +65,7 @@ export default function App() {
           <Route path="/services/:slug" element={<ServiceDetail />} />
           <Route path="/ai-match" element={<AIMatch />} />
           <Route path="/sell" element={<Sell />} />
+          <Route path="/local" element={<Local />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/account" element={<Account />} />
           <Route path="/orders/:id" element={<OrderDetail />} />
