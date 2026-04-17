@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Section, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
+import OrderChat from '../components/OrderChat.jsx'
+import DisputeModal from '../components/DisputeModal.jsx'
 import { createMessage, createPayment, getSession, listMessages, listOrders, updateOrder } from '../lib/api.js'
 import { cacheOrder, readCachedOrder } from '../lib/orderCache.js'
 
@@ -84,47 +86,16 @@ function StatusTimeline({ status }) {
   )
 }
 
-function MessageBubble({ message, order }) {
-  const isSystem = message.senderId === 'usr_system' || message.sender?.role === 'admin'
-  const fromBuyer = message.senderId === order?.buyerId || message.sender?.role === 'buyer'
-
-  if (isSystem) {
-    return (
-      <div className="flex justify-center">
-        <div className="max-w-[90%] rounded-xl border border-[#5EEAD4]/20 bg-[#5EEAD4]/10 px-3 py-2 text-xs text-[#CFFDF5]">
-          {message.body}
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className={`flex ${fromBuyer ? 'justify-end' : 'justify-start'}`}>
-      <div
-        className={`max-w-[82%] rounded-2xl px-4 py-3 border text-sm leading-relaxed ${
-          fromBuyer
-            ? 'rounded-tr-sm bg-[#7FD3FF]/10 border-[#7FD3FF]/25 text-[#E8F7FF]'
-            : 'rounded-tl-sm bg-white/[0.035] border-white/10 text-white/75'
-        }`}
-      >
-        <div className="text-[10px] text-white/35 mb-1">
-          {message.sender?.displayName || (fromBuyer ? '买家' : '卖家')} · {new Date(message.createdAt).toLocaleString('zh-CN')}
-        </div>
-        {message.body}
-      </div>
-    </div>
-  )
-}
-
 export default function OrderDetail() {
   const { id } = useParams()
   const [order, setOrder] = useState(() => readCachedOrder(id))
   const [messages, setMessages] = useState([])
-  const [body, setBody] = useState('')
   const [currentSession, setCurrentSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
+  const [disputeOpen, setDisputeOpen] = useState(false)
+  const [disputeActive, setDisputeActive] = useState(false)
 
   const action = useMemo(() => (order ? nextStatus[order.status] : null), [order])
 
@@ -228,19 +199,13 @@ export default function OrderDetail() {
     }
   }
 
-  const sendMessage = async (event) => {
-    event.preventDefault()
-    const text = body.trim()
-    if (!text) return
-
-    setBody('')
+  const sendChatMessage = async (text) => {
+    const value = (text || '').trim()
+    if (!value) return
     setNotice('')
 
     try {
-      const created = await createMessage({
-        orderId: id,
-        body: text,
-      })
+      const created = await createMessage({ orderId: id, body: value })
       setMessages((current) => [...current, created])
     } catch {
       setMessages((current) => [
@@ -250,12 +215,48 @@ export default function OrderDetail() {
           orderId: id,
           senderId: currentSession?.user?.id || order?.buyerId || 'usr_demo_buyer',
           sender: currentSession?.user || order?.buyer || null,
-          body: text,
+          body: value,
           createdAt: new Date().toISOString(),
         },
       ])
-      setNotice('留言已临时保存在当前演示会话；接入数据库后会持久保存。')
+      setNotice('消息已临时保存在当前演示会话；接入数据库后会持久保存。')
     }
+  }
+
+  const submitDispute = async ({ reason, details, contact }) => {
+    const reasonLabels = {
+      no_reply: '对方长时间不回复',
+      delay: '交付进度延迟',
+      mismatch: '交付物与需求不符',
+      quality: '质量不达标',
+      refund: '申请退款 / 取消',
+      other: '其它争议',
+    }
+    const contactLabels = {
+      platform: '站内消息',
+      email: '邮件',
+      phone: '电话',
+    }
+
+    // 1) 把当事人提交动作作为普通消息插入
+    const reasonLabel = reasonLabels[reason] || reason
+    const userMsg = `我申请平台介入。原因：${reasonLabel}\n详情：${details}\n联系方式偏好：${contactLabels[contact] || contact}`
+    await sendChatMessage(userMsg)
+
+    // 2) 插入一条平台系统回执
+    const systemNotice = {
+      id: `local_sys_${Date.now()}`,
+      orderId: id,
+      senderId: 'usr_system',
+      sender: { role: 'admin', displayName: '平台客服' },
+      body: `已收到平台介入申请（${reasonLabel}）。客服将在 24 小时内联系你与对方，资金托管已自动冻结。`,
+      createdAt: new Date().toISOString(),
+    }
+    setMessages((current) => [...current, systemNotice])
+
+    setDisputeActive(true)
+    setDisputeOpen(false)
+    setNotice('已提交平台介入申请，客服将在 24 小时内介入。')
   }
 
   if (loading && !order) {
@@ -374,50 +375,20 @@ export default function OrderDetail() {
           </Reveal>
 
           <Reveal delay={0.08}>
-            <div className="card p-6 md:p-7">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="mono-label">MESSAGES</div>
-                  <h2 className="mt-1 text-xl font-semibold text-white">订单留言</h2>
-                </div>
-                <span className="text-xs text-white/40">{messages.length} 条</span>
-              </div>
-
+            <div className="space-y-3">
               {notice && (
-                <div className="mt-4 rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-3 py-2 text-xs text-[#CFFDF5]">
+                <div className="rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-3 py-2 text-xs text-[#CFFDF5]">
                   {notice}
                 </div>
               )}
-
-              <div className="mt-5 min-h-48 max-h-[420px] overflow-y-auto space-y-3 pr-1">
-                {messages.length === 0 ? (
-                  <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4 text-sm text-white/45">
-                    还没有留言。你可以先补充一句需求背景。
-                  </div>
-                ) : (
-                  messages.map((message) => (
-                    <MessageBubble key={message.id} message={message} order={order} />
-                  ))
-                )}
-              </div>
-
-              <form onSubmit={sendMessage} className="mt-5 pt-5 border-t border-white/6">
-                <div className="mb-3 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 text-xs text-white/50">
-                  将以 {currentSession?.session?.mode === 'demo'
-                    ? '演示买家'
-                    : currentSession?.user?.displayName || currentSession?.user?.email || '当前登录用户'} 身份发送。
-                </div>
-                <textarea
-                  value={body}
-                  onChange={(event) => setBody(event.target.value)}
-                  rows={4}
-                  placeholder="写一条订单留言，例如补充需求、确认范围、提交交付说明..."
-                  className="w-full bg-white/[0.03] rounded-xl border border-white/10 p-4 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors leading-relaxed resize-none"
-                />
-                <button type="submit" className="btn-primary !py-2.5 !px-5 mt-3">
-                  发送留言 <Icon name="arrow" size={16} />
-                </button>
-              </form>
+              <OrderChat
+                order={order}
+                messages={messages}
+                currentSession={currentSession}
+                onSend={sendChatMessage}
+                onOpenDispute={() => setDisputeOpen(true)}
+                disputeActive={disputeActive}
+              />
             </div>
           </Reveal>
         </div>
@@ -441,6 +412,13 @@ export default function OrderDetail() {
           </Link>
         </motion.div>
       </Section>
+
+      <DisputeModal
+        open={disputeOpen}
+        onClose={() => setDisputeOpen(false)}
+        orderId={order.id}
+        onSubmit={submitDispute}
+      />
     </>
   )
 }
