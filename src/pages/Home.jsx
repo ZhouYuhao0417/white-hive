@@ -224,6 +224,129 @@ function PopularCategories() {
 }
 
 /* ============================================================
+   LocalPromo · 本地服务推广（首页第二条产品线）
+   ============================================================ */
+function LocalPromo() {
+  const localPicks = [
+    { icon: 'document', label: '家教辅导', hint: '¥80–240/小时', accent: '#BEE6FF' },
+    { icon: 'palette',  label: '摄影陪拍', hint: '同城上门',     accent: '#7FD3FF' },
+    { icon: 'wand',     label: '设备调试', hint: '3–10km 上门',  accent: '#5EEAD4' },
+    { icon: 'route',    label: '同城跑腿', hint: '校园 / 同城',  accent: '#FBBF77' },
+  ]
+
+  return (
+    <Section className="!py-20 md:!py-24">
+      <Reveal>
+        <div
+          className="relative overflow-hidden rounded-2xl sm:rounded-3xl border p-5 sm:p-8 md:p-10"
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(94,234,212,0.08) 0%, rgba(127,211,255,0.08) 55%, rgba(165,180,252,0.05) 100%)',
+            borderColor: 'rgba(94,234,212,0.28)',
+          }}
+        >
+          {/* 装饰光晕 */}
+          <div
+            aria-hidden
+            className="absolute inset-0 opacity-70"
+            style={{
+              background:
+                'radial-gradient(45% 60% at 100% 0%, rgba(94,234,212,0.20), transparent 60%), radial-gradient(40% 50% at 0% 100%, rgba(127,211,255,0.18), transparent 60%)',
+            }}
+          />
+
+          <div className="relative grid lg:grid-cols-[1.1fr_.9fr] gap-6 sm:gap-8 lg:gap-10 items-center">
+            {/* 左：介绍 + CTA */}
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#5EEAD4]/35 bg-[#5EEAD4]/10 text-[11px] text-[#CFFDF5] tracking-wider">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#5EEAD4] animate-pulse" />
+                WHITEHIVE LOCAL · 本地服务
+              </div>
+
+              <h3 className="mt-4 text-2xl sm:text-3xl md:text-4xl font-semibold text-white leading-tight tracking-tight">
+                附近的人,<br className="sm:hidden" />
+                <span
+                  className="bg-clip-text text-transparent"
+                  style={{ backgroundImage: 'linear-gradient(120deg,#BEE6FF,#7FD3FF 45%,#5EEAD4)' }}
+                >
+                  面对面更可信
+                </span>
+              </h3>
+
+              <p className="mt-3 sm:mt-4 text-sm sm:text-base text-white/65 leading-relaxed max-w-xl">
+                除了线上数字服务, WhiteHive 还有第二条产品线 ——
+                专注同城、近距离、必须线下交付的服务：家教、陪拍、设备上门、校园跑腿。
+                可以先线上聊、再线下见, 让本地服务更踏实。
+              </p>
+
+              {/* 三个微指标 */}
+              <div className="mt-5 sm:mt-6 flex flex-wrap gap-2">
+                <span className="chip text-[11px] sm:text-xs">附近可见面</span>
+                <span className="chip text-[11px] sm:text-xs">实名 / 学生认证</span>
+                <span className="chip text-[11px] sm:text-xs">模糊定位保护</span>
+              </div>
+
+              <div className="mt-6 sm:mt-7 flex flex-wrap gap-2.5 sm:gap-3">
+                <Link to="/local" className="btn-primary">
+                  进入本地服务
+                  <Icon name="arrow" size={16} />
+                </Link>
+                <Link
+                  to="/local#post-need"
+                  className="inline-flex items-center gap-2 px-4 sm:px-5 h-10 sm:h-11 rounded-xl border border-white/15 hover:border-[#5EEAD4]/50 hover:bg-white/[0.04] text-sm text-white/85 hover:text-white transition-colors"
+                >
+                  发布本地需求
+                </Link>
+              </div>
+            </div>
+
+            {/* 右：四个本地分类精选 */}
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+              {localPicks.map((p, i) => (
+                <motion.div
+                  key={p.label}
+                  initial={{ opacity: 0, y: 14 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-40px' }}
+                  transition={{ duration: 0.45, delay: i * 0.07 }}
+                >
+                  <Link
+                    to="/local"
+                    className="group block h-full rounded-xl sm:rounded-2xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/25 p-3 sm:p-4 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl grid place-items-center"
+                        style={{
+                          background: `${p.accent}18`,
+                          border: `1px solid ${p.accent}40`,
+                          color: p.accent,
+                        }}
+                      >
+                        <Icon name={p.icon} size={16} />
+                      </span>
+                      <span className="text-white/30 group-hover:text-white/70 transition-colors">
+                        <Icon name="arrow" size={14} />
+                      </span>
+                    </div>
+                    <div className="mt-2.5 sm:mt-4 text-sm sm:text-base font-medium text-white">
+                      {p.label}
+                    </div>
+                    <div className="mt-0.5 text-[11px] sm:text-xs text-white/50">
+                      {p.hint}
+                    </div>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Reveal>
+    </Section>
+  )
+}
+
+/* ============================================================
    ProcessTimeline · 7 步流程 (入场一次性级联点亮)
    ============================================================ */
 function ProcessTimeline() {
@@ -722,6 +845,7 @@ export default function Home() {
       <Hero />
       <div className="divider-line mx-auto max-w-7xl" />
       <PopularCategories />
+      <LocalPromo />
       <ProcessTimeline />
       <ProblemSolution />
       <VibeCoding />
