@@ -1,6 +1,12 @@
 import { createId, nowIso } from './ids.js'
 import { HttpError } from './http.js'
 import { listServices } from './store.js'
+import { callDeepSeek, isDeepSeekConfigured, parseJsonFromLlm } from './deepseek.js'
+
+/* ============================================================
+   Rule-based matching — always runs as pre-filter and as fallback
+   when DeepSeek is not configured or errors.
+   ============================================================ */
 
 const categorySignals = {
   web: ['官网', '落地页', '网站', '预约', '表单', 'vercel', 'react', '前端', '上线'],
@@ -148,7 +154,7 @@ function scoreService(service, input, signals) {
     }
   } else if (signals.includes(service.category)) {
     score += 18
-    reasons.push(`AI 从描述中识别出 ${categoryReason(service.category)} 方向。`)
+    reasons.push(`规则从描述中识别出 ${categoryReason(service.category)} 方向。`)
   } else {
     score += 5
   }
@@ -268,6 +274,221 @@ function confidenceFrom(matches, input) {
   return 'low'
 }
 
+/* ============================================================
+   LLM layer — DeepSeek-powered enrichment
+   ============================================================ */
+
+const llmSystemPrompt = `你是 WhiteHive 的 AI 匹配助理。WhiteHive 是一个可信交易平台，连接青年创作者、自由职业者、学生卖家，与个人买家。你的任务：
+
+1. 理解买家结构化需求 + 自由文本描述
+2. 从给定候选服务中挑选最匹配的 3-5 个，给出自然语言的匹配理由和警告
+3. 根据买家已经给出的信息，生成 2-4 条「还缺什么我们才能帮你选得更准」的追问
+
+严格规则：
+- 只能使用候选服务列表里提供的 id。绝不编造服务。
+- 买家已经填写过的字段（预算、时限、分类、主要目标）不要再追问。
+- reasons / warnings 每条 ≤ 40 字，中文，避免空话如「非常合适」。
+- 追问 label 要具体、能直接抄答，而不是「你还有什么想法」这种开放题。
+- 输出严格 JSON，键名使用 snake_case，不要包含 markdown 代码块。
+
+输出格式：
+{
+  "intent": {
+    "category_guess": "web|design|video|resume|data|ai|gaming|unknown",
+    "budget_clarity": "clear|rough|missing",
+    "deadline_clarity": "clear|rough|missing",
+    "summary": "一句话总结买家要的是什么（≤ 60 字）"
+  },
+  "clarifying_questions": [
+    { "key": "reference", "label": "问题文本", "reason": "为什么问这个（≤ 30 字）" }
+  ],
+  "rankings": [
+    {
+      "id": "svc_xxx",
+      "score": 0-100,
+      "fit": "strong|possible|weak",
+      "reasons": ["..."],
+      "warnings": ["..."]
+    }
+  ]
+}`
+
+function compactServiceForLlm(service) {
+  return {
+    id: service.id,
+    category: service.category,
+    title: service.title,
+    summary: (service.summary || '').slice(0, 200),
+    tags: (service.tags || []).slice(0, 6),
+    priceCents: service.priceCents || null,
+    deliveryDays: service.deliveryDays || null,
+    seller: service.seller
+      ? {
+          displayName: service.seller.displayName || null,
+          verificationStatus: service.seller.verificationStatus || null,
+          role: service.seller.role || null,
+        }
+      : null,
+  }
+}
+
+function buildLlmUserPrompt(input, candidates) {
+  const budget = numberOrUndefined(input.budgetCents)
+  const answersEntries =
+    input.answers && typeof input.answers === 'object'
+      ? Object.entries(input.answers)
+          .map(([k, v]) => `  - ${k}: ${String(v || '').slice(0, 200)}`)
+          .join('\n')
+      : ''
+
+  const buyer = [
+    `分类: ${input.category || '(买家未指定)'}`,
+    `预算(CNY分): ${budget ? budget : '(未提供)'}`,
+    `时限: ${input.deadline || '(未提供)'}`,
+    `主要目标/标题: ${input.title || input.goal || '(未提供)'}`,
+    `描述/brief: ${input.brief || '(未提供)'}`,
+    input.notes ? `补充备注: ${input.notes}` : '',
+    answersEntries ? `追问答案:\n${answersEntries}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  const servicesJson = JSON.stringify(candidates.map(compactServiceForLlm), null, 0)
+
+  return `买家需求:
+${buyer}
+
+候选服务 (已按规则预筛，${candidates.length} 条):
+${servicesJson}
+
+请按系统指令返回 JSON。`
+}
+
+function clampScore(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return 0
+  return clamp(Math.round(number), 0, 100)
+}
+
+function sanitizeStringArray(value, maxLen = 40, maxItems = 4) {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+    .slice(0, maxItems)
+    .map((item) => (item.length > maxLen ? item.slice(0, maxLen) : item))
+}
+
+function sanitizeClarifyingQuestions(value) {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      const key = String(item.key || item.id || '').trim().slice(0, 32) || 'detail'
+      const label = String(item.label || item.question || '').trim().slice(0, 80)
+      if (!label) return null
+      const reason = String(item.reason || item.rationale || '').trim().slice(0, 80)
+      return { key, label, reason }
+    })
+    .filter(Boolean)
+    .slice(0, 4)
+}
+
+function fitFrom(score, fallback) {
+  if (score >= 78) return 'strong'
+  if (score >= 58) return 'possible'
+  if (score > 0) return 'weak'
+  return fallback || 'weak'
+}
+
+function mergeLlmRankings(llmRankings, ruleMatches, limit) {
+  if (!Array.isArray(llmRankings) || llmRankings.length === 0) {
+    return ruleMatches.slice(0, limit)
+  }
+
+  const ruleById = new Map(ruleMatches.map((match) => [match.service.id, match]))
+  const merged = []
+
+  for (const ranking of llmRankings) {
+    if (!ranking || typeof ranking !== 'object') continue
+    const id = String(ranking.id || '').trim()
+    const ruleMatch = ruleById.get(id)
+    if (!ruleMatch) continue
+
+    const llmScore = clampScore(ranking.score)
+    const finalScore = llmScore > 0 ? llmScore : ruleMatch.score
+    const llmReasons = sanitizeStringArray(ranking.reasons, 60, 4)
+    const llmWarnings = sanitizeStringArray(ranking.warnings, 60, 3)
+
+    merged.push({
+      service: ruleMatch.service,
+      score: finalScore,
+      fit: typeof ranking.fit === 'string' ? ranking.fit : fitFrom(finalScore, ruleMatch.fit),
+      reasons: llmReasons.length > 0 ? llmReasons : ruleMatch.reasons,
+      warnings: llmWarnings.length > 0 ? llmWarnings : ruleMatch.warnings,
+    })
+
+    if (merged.length >= limit) break
+  }
+
+  // Top up from rule matches if LLM returned fewer than limit
+  if (merged.length < limit) {
+    const usedIds = new Set(merged.map((m) => m.service.id))
+    for (const match of ruleMatches) {
+      if (usedIds.has(match.service.id)) continue
+      merged.push(match)
+      if (merged.length >= limit) break
+    }
+  }
+
+  return merged.sort((a, b) => b.score - a.score)
+}
+
+async function runLlmEnrichment(input, ruleMatches, preFilterSize) {
+  if (!isDeepSeekConfigured()) {
+    return { ok: false, reason: 'not_configured' }
+  }
+
+  const candidates = ruleMatches.slice(0, preFilterSize).map((match) => match.service)
+  if (candidates.length === 0) {
+    return { ok: false, reason: 'no_candidates' }
+  }
+
+  const userPrompt = buildLlmUserPrompt(input, candidates)
+
+  const result = await callDeepSeek({
+    messages: [
+      { role: 'system', content: llmSystemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    jsonMode: true,
+    temperature: 0.2,
+    maxTokens: 1400,
+  })
+
+  if (!result.ok) {
+    return { ok: false, reason: result.reason || 'llm_call_failed', error: result.error }
+  }
+
+  const parsed = parseJsonFromLlm(result.text)
+  if (!parsed || typeof parsed !== 'object') {
+    return { ok: false, reason: 'llm_bad_json', rawPreview: result.text.slice(0, 200) }
+  }
+
+  return {
+    ok: true,
+    intent: parsed.intent && typeof parsed.intent === 'object' ? parsed.intent : null,
+    clarifyingQuestions: sanitizeClarifyingQuestions(parsed.clarifying_questions || parsed.clarifyingQuestions),
+    rankings: Array.isArray(parsed.rankings) ? parsed.rankings : [],
+    usage: result.usage,
+    model: result.model,
+  }
+}
+
+/* ============================================================
+   Public API — preserves legacy shape
+   ============================================================ */
+
 export async function createMatch(input = {}) {
   const limit = parseLimit(input.limit)
   const text = demandText(input)
@@ -278,26 +499,51 @@ export async function createMatch(input = {}) {
 
   const signals = extractSignals(text)
   const services = await listServices({ status: 'published' })
-  const matches = services
+
+  // Rule-based scoring always runs first as pre-filter and safety net.
+  const ruleRanked = services
     .map((service) => scoreService(service, input, signals))
     .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
 
-  const top = matches[0]
+  const preFilterSize = Math.min(ruleRanked.length, Math.max(limit * 3, 12))
+  const ruleTop = ruleRanked.slice(0, preFilterSize)
+
+  // Attempt LLM enrichment; on any failure we gracefully fall back to rule output.
+  const llm = await runLlmEnrichment(input, ruleTop, preFilterSize)
+
+  const finalMatches = llm.ok
+    ? mergeLlmRankings(llm.rankings, ruleTop, limit)
+    : ruleTop.slice(0, limit)
+
+  const clarifyingQuestions =
+    llm.ok && llm.clarifyingQuestions.length > 0
+      ? llm.clarifyingQuestions
+      : questionsFor(input, finalMatches)
+
+  const top = finalMatches[0]
 
   return {
     id: createId('mat'),
-    engine: 'whitehive-rule-match-v1',
+    engine: llm.ok ? 'whitehive-deepseek-v1' : 'whitehive-rule-match-v1',
+    engineDetails: {
+      llmUsed: llm.ok,
+      llmReason: llm.ok ? null : llm.reason || null,
+      llmModel: llm.ok ? llm.model : null,
+      llmUsage: llm.ok ? llm.usage : null,
+      preFilterSize,
+      totalCandidates: services.length,
+    },
     createdAt: nowIso(),
     query: {
       category: input.category || null,
       budgetCents: numberOrUndefined(input.budgetCents) || null,
       deadline: input.deadline || null,
       signals,
+      llmIntent: llm.ok ? llm.intent : null,
     },
-    confidence: confidenceFrom(matches, input),
-    matches,
-    clarifyingQuestions: questionsFor(input, matches),
+    confidence: confidenceFrom(finalMatches, input),
+    matches: finalMatches,
+    clarifyingQuestions,
     suggestedOrderDraft: top
       ? {
           serviceId: top.service.id,

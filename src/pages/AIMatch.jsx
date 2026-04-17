@@ -5,7 +5,7 @@ import { Section, SectionHeader, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
 import { services } from '../data/services.js'
 import { categoryDetails } from '../data/listings.js'
-import { createOrder } from '../lib/api.js'
+import { createOrder, matchServices } from '../lib/api.js'
 import { cacheOrder } from '../lib/orderCache.js'
 
 /* ============================================================
@@ -209,7 +209,33 @@ function StructuredForm({ form, setForm, onAdvance, canAdvance }) {
 /* ============================================================
    Stage 2 · AI 追问
    ============================================================ */
-function AIClarify({ form, answers, setAnswers, onAdvance, revealed }) {
+function hintFor(q) {
+  // LLM questions come with { key, label, reason } but no hint/placeholder.
+  // Fall back to the matching baseQuestion entry if available.
+  const base = baseQuestions.find((b) => b.key === q.key)
+  return {
+    hint: q.reason || base?.hint || '',
+    placeholder: base?.placeholder || '直接写下你的答案就行，一句话也可以。',
+  }
+}
+
+function AIClarify({
+  form,
+  answers,
+  setAnswers,
+  onAdvance,
+  revealed,
+  questions,
+  matchLoading,
+  matchError,
+  intentSummary,
+  engineLabel,
+}) {
+  const showLoading = matchLoading
+  const visibleQuestions = questions.slice(0, revealed)
+  const awaitingMore = !matchLoading && revealed < questions.length
+  const canAdvance = !matchLoading && revealed >= questions.length && questions.length > 0
+
   return (
     <div className="mt-8 card p-7 md:p-9 relative overflow-hidden">
       <div
@@ -246,53 +272,91 @@ function AIClarify({ form, answers, setAnswers, onAdvance, revealed }) {
             <Icon name="spark" size={16} />
           </div>
           <div className="flex-1 max-w-[85%] px-4 py-3 rounded-2xl rounded-tl-sm bg-[#7FD3FF]/[0.07] border border-[#7FD3FF]/25 text-sm text-white/80 leading-relaxed">
-            收到。我从你的描述里补齐了
-            <span className="text-[#BEE6FF]"> {form.deadline || '时限'} </span>和
-            <span className="text-[#BEE6FF]"> {form.budget || '预算'} </span>
-            两个字段。接下来我想再确认 4 件事, 这样匹配到的创作者会更贴近你想要的结果。
+            {showLoading ? (
+              <>
+                我正在读你的需求，并在已发布的服务里做初筛。等一下就告诉你我还想确认什么。
+              </>
+            ) : matchError ? (
+              <>
+                AI 匹配暂时拿不到结果（{matchError}），我先按通用模板继续追问，不影响后面提交。
+              </>
+            ) : intentSummary ? (
+              <>
+                {intentSummary}。接下来想再确认 {questions.length || '几'} 件事，这样匹配到的创作者会更贴近你要的结果。
+              </>
+            ) : (
+              <>
+                收到。我从你的描述里补齐了
+                <span className="text-[#BEE6FF]"> {form.deadline || '时限'} </span>和
+                <span className="text-[#BEE6FF]"> {form.budget || '预算'} </span>
+                两个字段。接下来我想再确认 {questions.length} 件事, 这样匹配到的创作者会更贴近你想要的结果。
+              </>
+            )}
           </div>
         </motion.div>
 
-        {/* 追问的 4 个问题, 级联出现 */}
+        {/* 追问区 */}
         <div className="mt-6 space-y-5">
-          {baseQuestions.slice(0, revealed).map((q, i) => (
-            <motion.div
-              key={q.key}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45 }}
-              className="flex items-start gap-3"
-            >
-              <div
-                className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 font-mono text-xs"
-                style={{
-                  background: 'rgba(165,180,252,0.14)',
-                  border: '1px solid rgba(165,180,252,0.45)',
-                  color: '#C7D2FE',
-                }}
-              >
-                Q{i + 1}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm text-white font-medium">{q.label}</div>
-                <div className="mt-1 text-[11px] text-white/45 leading-relaxed">
-                  {q.hint}
-                </div>
-                <input
-                  type="text"
-                  value={answers[q.key] || ''}
-                  onChange={(e) =>
-                    setAnswers({ ...answers, [q.key]: e.target.value })
-                  }
-                  placeholder={q.placeholder}
-                  className="mt-3 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#A5B4FC]/60 focus:bg-white/[0.05] transition-colors"
+          {showLoading ? (
+            <div className="flex items-center gap-2 text-xs text-white/55 pl-12 py-4">
+              <span className="inline-flex gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#7FD3FF] animate-pulse" />
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-[#A5B4FC] animate-pulse"
+                  style={{ animationDelay: '150ms' }}
                 />
-              </div>
-            </motion.div>
-          ))}
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-[#5EEAD4] animate-pulse"
+                  style={{ animationDelay: '300ms' }}
+                />
+              </span>
+              AI 正在读你的需求，这通常需要 5–15 秒…
+            </div>
+          ) : (
+            visibleQuestions.map((q, i) => {
+              const { hint, placeholder } = hintFor(q)
+              return (
+                <motion.div
+                  key={q.key}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45 }}
+                  className="flex items-start gap-3"
+                >
+                  <div
+                    className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 font-mono text-xs"
+                    style={{
+                      background: 'rgba(165,180,252,0.14)',
+                      border: '1px solid rgba(165,180,252,0.45)',
+                      color: '#C7D2FE',
+                    }}
+                  >
+                    Q{i + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-white font-medium">{q.label}</div>
+                    {hint && (
+                      <div className="mt-1 text-[11px] text-white/45 leading-relaxed">
+                        {hint}
+                      </div>
+                    )}
+                    <input
+                      type="text"
+                      value={answers[q.key] || ''}
+                      onChange={(e) =>
+                        setAnswers({ ...answers, [q.key]: e.target.value })
+                      }
+                      placeholder={placeholder}
+                      className="mt-3 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#A5B4FC]/60 focus:bg-white/[0.05] transition-colors"
+                    />
+                  </div>
+                </motion.div>
+              )
+            })
+          )}
 
-          {/* Typing indicator (AI 正在思考下一个问题) */}
-          {revealed < baseQuestions.length && (
+          {/* Typing indicator between staggered questions */}
+          {awaitingMore && (
             <div className="flex items-center gap-2 text-xs text-white/45 pl-12">
               <span className="inline-flex gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#7FD3FF] animate-pulse" />
@@ -312,12 +376,13 @@ function AIClarify({ form, answers, setAnswers, onAdvance, revealed }) {
 
         <div className="mt-7 pt-6 border-t border-white/6 flex items-center justify-between gap-4 flex-wrap">
           <div className="text-xs text-white/45">
+            {engineLabel ? <span className="text-[#5EEAD4]">● {engineLabel} · </span> : null}
             追问可以选择性回答。空着的字段 AI 会根据分类默认值推断。
           </div>
           <button
             type="button"
             onClick={onAdvance}
-            disabled={revealed < baseQuestions.length}
+            disabled={!canAdvance}
             className="btn-primary !py-2.5 !px-5 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             添加补充备注 <Icon name="arrow" size={16} />
@@ -546,6 +611,31 @@ export default function AIMatch() {
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // AI match state (Stage 2 clarifying questions come from /api/matches)
+  const [matchResult, setMatchResult] = useState(null)
+  const [matchLoading, setMatchLoading] = useState(false)
+  const [matchError, setMatchError] = useState('')
+
+  const liveQuestions = useMemo(() => {
+    const fromApi = matchResult?.clarifyingQuestions
+    if (Array.isArray(fromApi) && fromApi.length > 0) {
+      return fromApi.map((q) => ({
+        key: q.key || 'detail',
+        label: q.label,
+        reason: q.reason || '',
+      }))
+    }
+    return baseQuestions
+  }, [matchResult])
+
+  const engineLabel = matchResult
+    ? matchResult.engine === 'whitehive-deepseek-v1'
+      ? 'DeepSeek 实时推理'
+      : '规则匹配'
+    : null
+
+  const intentSummary = matchResult?.query?.llmIntent?.summary || null
+
   const canAdvanceToStage2 = useMemo(
     () =>
       !!form.deadline &&
@@ -555,18 +645,49 @@ export default function AIMatch() {
     [form]
   )
 
-  /* 进入 Stage 2 时, 模拟 AI 逐条生成问题 */
+  /* 进入 Stage 2 时，等 matcher 返回后逐条揭示问题。
+     loading 期间 revealed=0；questions 到位后每 700ms 揭示一个。 */
   useEffect(() => {
     if (stage !== 2) return
+    if (matchLoading) {
+      setRevealed(0)
+      return
+    }
+    const total = liveQuestions.length
+    if (total === 0) return
     setRevealed(0)
     let i = 0
     const iv = setInterval(() => {
       i += 1
       setRevealed(i)
-      if (i >= baseQuestions.length) clearInterval(iv)
+      if (i >= total) clearInterval(iv)
     }, 700)
     return () => clearInterval(iv)
-  }, [stage])
+  }, [stage, matchLoading, liveQuestions])
+
+  /* Stage 1 → Stage 2：触发 /api/matches，拿回 LLM 追问。
+     失败时静默回退到 baseQuestions，不阻塞用户推进。 */
+  async function advanceFromStage1() {
+    setStage(2)
+    setMatchLoading(true)
+    setMatchError('')
+    try {
+      const result = await matchServices({
+        category: form.category === 'any' ? undefined : form.category,
+        budgetCents: budgetToCents(form.budget),
+        deadline: form.deadline,
+        title: form.want,
+        brief: form.want,
+        limit: 5,
+      })
+      setMatchResult(result)
+    } catch (err) {
+      setMatchResult(null)
+      setMatchError(err?.message || '匹配服务暂时不可用')
+    } finally {
+      setMatchLoading(false)
+    }
+  }
 
   const reset = () => {
     setForm({ deadline: '', budget: '', category: '', want: '' })
@@ -577,13 +698,17 @@ export default function AIMatch() {
     setCreatedOrder(null)
     setSubmitError('')
     setSubmitting(false)
+    setMatchResult(null)
+    setMatchLoading(false)
+    setMatchError('')
   }
 
   const submitDemand = async () => {
     setSubmitting(true)
     setSubmitError('')
 
-    const clarification = baseQuestions
+    // Use the actual questions the user was asked (LLM-generated or fallback).
+    const clarification = liveQuestions
       .map((q) => `${q.label} ${answers[q.key] || '(未填写)'}`)
       .join('\n')
 
@@ -699,7 +824,7 @@ export default function AIMatch() {
                   form={form}
                   setForm={setForm}
                   canAdvance={canAdvanceToStage2}
-                  onAdvance={() => setStage(2)}
+                  onAdvance={advanceFromStage1}
                 />
               </div>
 
@@ -722,6 +847,11 @@ export default function AIMatch() {
                     answers={answers}
                     setAnswers={setAnswers}
                     revealed={revealed}
+                    questions={liveQuestions}
+                    matchLoading={matchLoading}
+                    matchError={matchError}
+                    intentSummary={intentSummary}
+                    engineLabel={engineLabel}
                     onAdvance={() => setStage(3)}
                   />
                 </motion.div>
