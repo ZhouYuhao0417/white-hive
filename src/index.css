@@ -21,6 +21,16 @@ html, body, #root {
   height: 100%;
 }
 
+/* 避免子组件 / framer-motion 动画意外产生横向滚动（尤其手机端 AIMatch 进入 Stage 2 之后） */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+#root {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
 body {
   background-color: var(--ink-900);
   color: #E6E9F2;

@@ -99,6 +99,158 @@ function Hero() {
 }
 
 /* ============================================================
+   CampusCDUT · 成都理工大学服务专区
+   —— 校园场景的"线下微服务": 快递代取 / 外卖代取 / 校园约拍。
+   视觉: 冰蓝 + 薄荷的校园感配色, 大卡统一入口 + 三张子卡
+   ============================================================ */
+function CampusCDUT() {
+  const items = [
+    {
+      key: 'parcel',
+      icon: 'route',
+      title: '快递代取',
+      desc: '宿舍 / 图书馆 / 实验楼, 顺手带到你手上。',
+      price: '¥3 起',
+      meta: '承诺 30 分钟内取件',
+      color: '#7FD3FF',
+    },
+    {
+      key: 'food',
+      icon: 'spark',
+      title: '外卖代取',
+      desc: '下课不赶趟? 校外取餐 / 食堂打包都行。',
+      price: '¥4 起',
+      meta: '午晚高峰也能抢到单',
+      color: '#A5B4FC',
+    },
+    {
+      key: 'photo',
+      icon: 'palette',
+      title: '校园约拍',
+      desc: '毕业照 · 社团活动 · 情侣照 · 证件照上门。',
+      price: '¥80 起',
+      meta: '在校摄影爱好者, 比外面便宜一半',
+      color: '#5EEAD4',
+    },
+  ]
+
+  return (
+    <Section className="!py-16 md:!py-20">
+      <Reveal>
+        <div
+          className="card p-6 sm:p-8 md:p-10 relative overflow-hidden"
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(127,211,255,0.07) 0%, rgba(94,234,212,0.05) 50%, rgba(165,180,252,0.05) 100%)',
+            borderColor: 'rgba(127,211,255,0.26)',
+          }}
+        >
+          <div
+            aria-hidden
+            className="absolute inset-0 opacity-60 pointer-events-none"
+            style={{
+              background:
+                'radial-gradient(40% 55% at 100% 0%, rgba(127,211,255,0.18), transparent 60%), radial-gradient(40% 55% at 0% 100%, rgba(94,234,212,0.14), transparent 60%)',
+            }}
+          />
+          <div className="relative">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="min-w-0">
+                <div className="mono-label text-[#BEE6FF]">CAMPUS · 校园专区</div>
+                <h3 className="mt-2 text-xl sm:text-2xl md:text-3xl font-semibold text-white tracking-tight leading-tight">
+                  成都理工大学
+                  <span className="text-cool-gradient"> 服务专区</span>
+                </h3>
+                <p className="mt-2 text-sm sm:text-base text-white/65 leading-relaxed max-w-2xl">
+                  本校同学提供的线下微服务, 走 WhiteHive 托管, 见面核销即结款。不靠熟人, 不加微信, 照样能托付。
+                </p>
+              </div>
+              <Link
+                to="/local"
+                className="btn-ghost text-xs sm:text-sm shrink-0"
+              >
+                查看全部校园服务 <Icon name="arrow" size={14} />
+              </Link>
+            </div>
+
+            {/* Cards */}
+            <div className="mt-6 sm:mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+              {items.map((it, i) => (
+                <Reveal key={it.key} delay={i * 0.06} y={16}>
+                  <Link
+                    to="/local"
+                    className="card card-hover block p-4 sm:p-5 h-full relative overflow-hidden group"
+                  >
+                    <div
+                      className="absolute inset-x-0 top-0 h-px"
+                      style={{
+                        background: `linear-gradient(to right, transparent, ${it.color}, transparent)`,
+                      }}
+                    />
+                    <div className="flex items-center justify-between">
+                      <div
+                        className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg flex items-center justify-center"
+                        style={{
+                          background: `${it.color}14`,
+                          border: `1px solid ${it.color}40`,
+                          color: it.color,
+                        }}
+                      >
+                        <Icon name={it.icon} size={18} />
+                      </div>
+                      <span
+                        className="text-[11px] sm:text-xs font-mono shrink-0"
+                        style={{ color: it.color }}
+                      >
+                        {it.price}
+                      </span>
+                    </div>
+                    <div className="mt-3 text-white font-medium text-sm sm:text-base leading-snug">
+                      {it.title}
+                    </div>
+                    <p className="mt-1 text-xs text-white/60 leading-relaxed line-clamp-2">
+                      {it.desc}
+                    </p>
+                    <div className="mt-3 pt-3 border-t border-white/6 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-white/45 truncate">
+                        {it.meta}
+                      </span>
+                      <span
+                        className="text-[11px] opacity-70 group-hover:opacity-100 transition-opacity flex items-center gap-1 shrink-0"
+                        style={{ color: it.color }}
+                      >
+                        下单 <Icon name="arrow" size={12} />
+                      </span>
+                    </div>
+                  </Link>
+                </Reveal>
+              ))}
+            </div>
+
+            {/* Footer tags */}
+            <div className="mt-6 flex items-center gap-4 sm:gap-6 text-[11px] sm:text-xs text-white/50 flex-wrap">
+              <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#7FD3FF]" />
+                学生身份核验
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#A5B4FC]" />
+                平台托管结款
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#5EEAD4]" />
+                同校就近接单
+              </span>
+            </div>
+          </div>
+        </div>
+      </Reveal>
+    </Section>
+  )
+}
+
+/* ============================================================
    PopularCategories · 热门分类 (点击直达 /services/:slug)
    ============================================================ */
 function PopularCategories() {
@@ -844,6 +996,7 @@ export default function Home() {
     <>
       <Hero />
       <div className="divider-line mx-auto max-w-7xl" />
+      <CampusCDUT />
       <PopularCategories />
       <LocalPromo />
       <ProcessTimeline />

@@ -94,10 +94,10 @@ export const services = [
   },
   {
     slug: 'gaming',
-    title: '游戏代肝与陪练',
+    title: '游戏护航，代肝',
     icon: 'gamepad',
     color: '#F87171', // red
-    tagline: '把重复的肝，交给信得过的人。',
+    tagline: '不想肝、冲不上、打不过？交给能打的人就行。',
     audience: ['上班族玩家', '学生玩家', '想上分的玩家'],
     deliverables: [
       '日常任务 / 副本代打',
@@ -105,7 +105,7 @@ export const services = [
       '账号安全承诺与托管',
       '全程可追溯的服务记录',
     ],
-    example: '为一位上班族代完成每周日常任务，按进度结算。',
+    example: '周末没时间，让熟手帮你把这周日常清掉，按进度结算。',
   },
 ]
 

@@ -154,6 +154,27 @@ Pure-logic domain model:
 - `computeSlaDeadline(status, fromIso)` — auto-advance deadline ISO string.
 - `publicDisputeShape(dispute)` — safe public projection.
 
+### `api/_lib/escrow.js`
+
+纯逻辑的托管状态机 —— 强制"买卖双方都确认后才放款"。
+
+```js
+import { applyAction, validateAction, canRelease, publicEscrowShape } from './escrow.js'
+
+const { payment, released, refunded, dualConfirmed } = applyAction(oldPayment, {
+  action: 'confirm_delivery', // | 'ready_for_release' | 'cancel_confirmation' | 'force_release' | 'force_refund'
+  actorRole: 'buyer',         // | 'seller' | 'admin'
+  actorId: 'usr_...',
+})
+```
+
+- 双方都确认时自动 `held → released`，并记录 `releaseRequestedBy`。
+- `cancel_confirmation` 只回滚自己那一侧，不能在 terminal 状态下用。
+- `force_release` / `force_refund` 仅 admin 可用，用于纠纷裁决。
+- 非法动作抛 `HttpError(409, 'escrow_action_rejected', …, { reason })`，详细原因见 `validateAction` 的返回码。
+
+接入 store 的完整指引：[`docs/escrow-dual-confirm.md`](./escrow-dual-confirm.md)。
+
 ### `api/_lib/validate.js`
 
 ```js

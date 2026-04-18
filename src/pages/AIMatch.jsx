@@ -249,7 +249,7 @@ function AIClarify({
       <div className="relative">
         {/* 用户说的话 (用 chat bubble 呈现) */}
         <div className="flex justify-end">
-          <div className="max-w-[80%] px-4 py-3 rounded-2xl rounded-tr-sm bg-white/[0.06] border border-white/10 text-sm text-white/85 leading-relaxed">
+          <div className="max-w-[80%] px-4 py-3 rounded-2xl rounded-tr-sm bg-white/[0.06] border border-white/10 text-sm text-white/85 leading-relaxed break-words">
             {form.want}
           </div>
         </div>
@@ -271,7 +271,7 @@ function AIClarify({
           >
             <Icon name="spark" size={16} />
           </div>
-          <div className="flex-1 max-w-[85%] px-4 py-3 rounded-2xl rounded-tl-sm bg-[#7FD3FF]/[0.07] border border-[#7FD3FF]/25 text-sm text-white/80 leading-relaxed">
+          <div className="flex-1 min-w-0 max-w-[85%] px-4 py-3 rounded-2xl rounded-tl-sm bg-[#7FD3FF]/[0.07] border border-[#7FD3FF]/25 text-sm text-white/80 leading-relaxed break-words">
             {showLoading ? (
               <>
                 我正在读你的需求，并在已发布的服务里做初筛。等一下就告诉你我还想确认什么。

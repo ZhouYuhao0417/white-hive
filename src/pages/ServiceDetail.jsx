@@ -258,7 +258,7 @@ function DocsView({ cat, listings }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span
-                className="text-[10px] px-1.5 py-0.5 rounded"
+                className="inline-block whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded"
                 style={{
                   background: `${cat.color}1A`,
                   border: `1px solid ${cat.color}40`,
@@ -382,7 +382,7 @@ function WorkflowView({ cat, listings }) {
         >
           <div className="flex items-center justify-between">
             <span
-              className="text-[10px] px-1.5 py-0.5 rounded"
+              className="inline-block whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded"
               style={{
                 background: `${cat.color}1A`,
                 border: `1px solid ${cat.color}40`,
@@ -447,7 +447,8 @@ function WorkflowView({ cat, listings }) {
 function ListView({ cat, listings }) {
   return (
     <div className="mt-8 card p-2 md:p-3">
-      <div className="grid grid-cols-12 gap-2 px-3 py-3 text-[11px] mono-label text-white/45 border-b border-white/5">
+      {/* Desktop 表头 */}
+      <div className="hidden md:grid grid-cols-12 gap-2 px-3 py-3 text-[11px] mono-label text-white/45 border-b border-white/5">
         <div className="col-span-5">服务</div>
         <div className="col-span-2">类型</div>
         <div className="col-span-2">价格</div>
@@ -461,48 +462,101 @@ function ListView({ cat, listings }) {
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true, margin: '-40px' }}
           transition={{ duration: 0.4, delay: i * 0.04 }}
-          className="grid grid-cols-12 gap-2 px-3 py-4 items-center border-b border-white/5 hover:bg-white/[0.02] transition-colors"
+          className="border-b border-white/5 hover:bg-white/[0.02] transition-colors"
         >
-          <div className="col-span-5 flex items-center gap-3 min-w-0">
-            <div
-              className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0"
-              style={{
-                background: `${cat.color}18`,
-                border: `1px solid ${cat.color}45`,
-                color: cat.color,
-              }}
-            >
-              <Icon name={item.icon} size={18} />
+          {/* Desktop: 原 12 列 grid */}
+          <div className="hidden md:grid grid-cols-12 gap-2 px-3 py-4 items-center">
+            <div className="col-span-5 flex items-center gap-3 min-w-0">
+              <div
+                className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0"
+                style={{
+                  background: `${cat.color}18`,
+                  border: `1px solid ${cat.color}45`,
+                  color: cat.color,
+                }}
+              >
+                <Icon name={item.icon} size={18} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm text-white font-medium truncate">{item.title}</div>
+                <div className="text-[11px] text-white/50 truncate">{item.desc}</div>
+              </div>
             </div>
-            <div className="min-w-0">
-              <div className="text-sm text-white font-medium truncate">{item.title}</div>
-              <div className="text-[11px] text-white/50 truncate">{item.desc}</div>
+            <div className="col-span-2">
+              <span
+                className="inline-block whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded"
+                style={{
+                  background: `${cat.color}14`,
+                  border: `1px solid ${cat.color}35`,
+                  color: cat.color,
+                }}
+              >
+                {item.kind}
+              </span>
+            </div>
+            <div className="col-span-2">
+              <span className="text-sm font-semibold" style={{ color: cat.color }}>
+                ¥{item.price}
+              </span>
+              <span className="text-[11px] text-white/50 ml-1">/{item.priceUnit}</span>
+            </div>
+            <div className="col-span-2 text-xs text-white/65 truncate">
+              {item.seller.name}
+              <div className="text-[10px] text-white/40">{item.seller.level}</div>
+            </div>
+            <div className="col-span-1 text-right text-xs" style={{ color: cat.color }}>
+              ★ {item.rating}
             </div>
           </div>
-          <div className="col-span-2">
-            <span
-              className="text-[10px] px-1.5 py-0.5 rounded"
-              style={{
-                background: `${cat.color}14`,
-                border: `1px solid ${cat.color}35`,
-                color: cat.color,
-              }}
-            >
-              {item.kind}
-            </span>
-          </div>
-          <div className="col-span-2">
-            <span className="text-sm font-semibold" style={{ color: cat.color }}>
-              ¥{item.price}
-            </span>
-            <span className="text-[11px] text-white/50 ml-1">/{item.priceUnit}</span>
-          </div>
-          <div className="col-span-2 text-xs text-white/65 truncate">
-            {item.seller.name}
-            <div className="text-[10px] text-white/40">{item.seller.level}</div>
-          </div>
-          <div className="col-span-1 text-right text-xs" style={{ color: cat.color }}>
-            ★ {item.rating}
+
+          {/* Mobile: 纵向堆叠,不再硬塞 12 列 */}
+          <div className="md:hidden px-3 py-3.5">
+            <div className="flex items-start gap-3 min-w-0">
+              <div
+                className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0"
+                style={{
+                  background: `${cat.color}18`,
+                  border: `1px solid ${cat.color}45`,
+                  color: cat.color,
+                }}
+              >
+                <Icon name={item.icon} size={18} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-sm text-white font-medium truncate min-w-0">
+                    {item.title}
+                  </div>
+                  <span className="text-xs shrink-0" style={{ color: cat.color }}>
+                    ★ {item.rating}
+                  </span>
+                </div>
+                <div className="mt-0.5 text-[11px] text-white/50 line-clamp-2 leading-snug">
+                  {item.desc}
+                </div>
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  <span
+                    className="inline-block whitespace-nowrap text-[10px] px-1.5 py-0.5 rounded"
+                    style={{
+                      background: `${cat.color}14`,
+                      border: `1px solid ${cat.color}35`,
+                      color: cat.color,
+                    }}
+                  >
+                    {item.kind}
+                  </span>
+                  <span className="text-[11px] text-white/60 truncate">
+                    {item.seller.name} · {item.seller.level}
+                  </span>
+                </div>
+                <div className="mt-1.5">
+                  <span className="text-sm font-semibold" style={{ color: cat.color }}>
+                    ¥{item.price}
+                  </span>
+                  <span className="text-[11px] text-white/50 ml-1">/{item.priceUnit}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </motion.div>
       ))}
