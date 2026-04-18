@@ -105,6 +105,13 @@ export function updateProfile(profile) {
   })
 }
 
+export function uploadAvatar({ dataUrl, fileName, contentType }) {
+  return request('/uploads/avatar', {
+    method: 'POST',
+    body: JSON.stringify({ dataUrl, fileName, contentType }),
+  })
+}
+
 export function getCurrentVerificationProfile() {
   return request('/auth/verification')
 }

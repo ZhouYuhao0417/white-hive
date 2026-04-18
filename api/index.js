@@ -1,5 +1,7 @@
 import { fail, getQuery, HttpError, methodNotAllowed, ok, readBody, withApiErrors } from './_lib/http.js'
 import { createMatch } from './_lib/matcher.js'
+import { blobStatus, uploadAvatarToBlob } from './_lib/blob.js'
+import { emailStatus } from './_lib/email.js'
 import {
   createMessage,
   createOrder,
@@ -189,15 +191,87 @@ async function requireSessionUser(request) {
 }
 
 function ensureOrderParticipant(user, order) {
-  if (!user || !order) return
+  if (!user || !order) {
+    throw new HttpError(401, 'missing_session', '请先登录。')
+  }
   if (order.buyerId === user.id || order.sellerId === user.id || user.role === 'admin') return
   throw new HttpError(403, 'not_order_participant', '你不是这个订单的参与方。')
 }
 
 function ensureOrderBuyer(user, order) {
-  if (!user || !order) return
+  if (!user || !order) {
+    throw new HttpError(401, 'missing_session', '请先登录。')
+  }
   if (order.buyerId === user.id || user.role === 'admin') return
   throw new HttpError(403, 'not_order_buyer', '只有买家可以发起付款。')
+}
+
+function ensureOrderStatusActor(user, order, nextStatus) {
+  ensureOrderParticipant(user, order)
+  if (!nextStatus || user.role === 'admin') return
+
+  const sellerStatuses = ['accepted', 'in_progress', 'delivered', 'cancelled']
+  const buyerStatuses = ['completed', 'cancelled']
+
+  if (order.sellerId === user.id && sellerStatuses.includes(nextStatus)) return
+  if (order.buyerId === user.id && buyerStatuses.includes(nextStatus)) return
+
+  throw new HttpError(403, 'order_status_forbidden', '当前账号不能执行这个订单状态操作。')
+}
+
+async function requireAdminReviewer(request) {
+  const configuredReviewToken = process.env.WHITEHIVE_ADMIN_REVIEW_TOKEN || ''
+  const reviewToken = request.headers.get('x-whitehive-admin-token') || ''
+  if (configuredReviewToken && reviewToken && reviewToken === configuredReviewToken) {
+    return {
+      id: 'usr_admin_token',
+      email: 'admin-token@whitehive.local',
+      role: 'admin',
+    }
+  }
+
+  const user = await requireSessionUser(request)
+
+  const adminEmails = String(process.env.WHITEHIVE_ADMIN_EMAILS || '')
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean)
+
+  if (user?.role === 'admin' || (user?.email && adminEmails.includes(user.email.toLowerCase()))) return
+
+  throw new HttpError(403, 'admin_required', '只有管理员可以审核实名认证申请。')
+}
+
+function authProviderStatus() {
+  return {
+    password: { mode: 'active', configured: true },
+    phone: {
+      mode: process.env.SMS_PROVIDER && process.env.SMS_API_KEY ? 'live' : 'demo',
+      configured: Boolean(process.env.SMS_PROVIDER && process.env.SMS_API_KEY),
+      missing: process.env.SMS_PROVIDER && process.env.SMS_API_KEY ? [] : ['SMS_PROVIDER', 'SMS_API_KEY'],
+    },
+    github: {
+      mode: process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET ? 'live' : 'demo',
+      configured: Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
+      missing: process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
+        ? []
+        : ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET'],
+    },
+    wechat: {
+      mode: process.env.WECHAT_CLIENT_ID && process.env.WECHAT_CLIENT_SECRET ? 'live' : 'demo',
+      configured: Boolean(process.env.WECHAT_CLIENT_ID && process.env.WECHAT_CLIENT_SECRET),
+      missing: process.env.WECHAT_CLIENT_ID && process.env.WECHAT_CLIENT_SECRET
+        ? []
+        : ['WECHAT_CLIENT_ID', 'WECHAT_CLIENT_SECRET'],
+    },
+    qq: {
+      mode: process.env.QQ_CLIENT_ID && process.env.QQ_CLIENT_SECRET ? 'live' : 'demo',
+      configured: Boolean(process.env.QQ_CLIENT_ID && process.env.QQ_CLIENT_SECRET),
+      missing: process.env.QQ_CLIENT_ID && process.env.QQ_CLIENT_SECRET
+        ? []
+        : ['QQ_CLIENT_ID', 'QQ_CLIENT_SECRET'],
+    },
+  }
 }
 
 export default {
@@ -213,6 +287,11 @@ export default {
           status: 'ok',
           time: new Date().toISOString(),
           storage: await storeInfo(),
+          email: emailStatus(),
+          uploads: {
+            avatar: blobStatus(),
+          },
+          authProviders: authProviderStatus(),
         })
       }
 
@@ -252,6 +331,14 @@ export default {
         return methodNotAllowed(request.method, ['POST'])
       }
 
+      if (path === 'auth/providers') {
+        if (request.method === 'GET') {
+          return ok(authProviderStatus())
+        }
+
+        return methodNotAllowed(request.method, ['GET'])
+      }
+
       if (path === 'auth/password-reset') {
         if (request.method === 'POST') {
           const body = await readBody(request)
@@ -284,6 +371,27 @@ export default {
         }
 
         return methodNotAllowed(request.method, ['GET', 'PATCH'])
+      }
+
+      if (path === 'uploads/avatar') {
+        if (request.method === 'POST') {
+          const token = bearerToken(request)
+          const user = await requireSessionUser(request)
+          const body = await readBody(request)
+          const upload = await uploadAvatarToBlob({
+            userId: user.id,
+            fileName: body.fileName,
+            contentType: body.contentType,
+            dataUrl: body.dataUrl || body.avatarUrl,
+          })
+          const profile = await updateUserProfile(token, { avatarUrl: upload.url })
+          return ok({
+            upload,
+            user: profile.user,
+          })
+        }
+
+        return methodNotAllowed(request.method, ['POST'])
       }
 
       if (path === 'auth/verification') {
@@ -354,12 +462,15 @@ export default {
 
         if (request.method === 'POST') {
           const body = await readBody(request)
-          const user = await optionalSessionUser(request)
+          const user = await requireSessionUser(request)
+          if (!['seller', 'admin'].includes(user.role)) {
+            throw new HttpError(403, 'seller_required', '只有创作者账号可以发布服务。')
+          }
           await enforceVerificationSubmitRateLimit(request, user?.id || body.userId)
           return ok(
             await createService({
               ...body,
-              sellerId: user?.id || body.sellerId,
+              sellerId: user.id,
             }),
           )
         }
@@ -369,12 +480,19 @@ export default {
 
       if (path === 'orders') {
         if (request.method === 'GET') {
+          const user = await optionalSessionUser(request)
           const id = query.get('id')
-          if (id) return ok(await getOrder(id))
+          if (id) {
+            const order = await getOrder(id)
+            ensureOrderParticipant(user, order)
+            return ok(order)
+          }
+
+          if (!user) return ok([])
 
           return ok(
             await listOrders({
-              userId: query.get('userId') || undefined,
+              userId: user.role === 'admin' ? query.get('userId') || undefined : user.id,
               status: query.get('status') || undefined,
             }),
           )
@@ -382,17 +500,23 @@ export default {
 
         if (request.method === 'POST') {
           const body = await readBody(request)
-          const user = await optionalSessionUser(request)
+          const user = await requireSessionUser(request)
           return ok(
             await createOrder({
               ...body,
-              buyerId: user?.id || body.buyerId,
+              buyerId: user.id,
             }),
           )
         }
 
         if (request.method === 'PATCH') {
           const body = await readBody(request)
+          const user = await requireSessionUser(request)
+          const order = await getOrder(query.get('id'))
+          ensureOrderStatusActor(user, order, body.status)
+          if (body.paymentStatus !== undefined && user.role !== 'admin') {
+            throw new HttpError(403, 'payment_status_admin_only', '付款状态只能由支付流程或管理员更新。')
+          }
           return ok(await updateOrder(query.get('id'), body))
         }
 
@@ -422,28 +546,42 @@ export default {
 
       if (path === 'payments') {
         if (request.method === 'GET') {
+          const user = await requireSessionUser(request)
           const id = query.get('id')
-          if (id) return ok(await getPayment(id))
+          if (id) {
+            const payment = await getPayment(id)
+            const order = await getOrder(payment.orderId)
+            ensureOrderParticipant(user, order)
+            return ok(payment)
+          }
+
+          const orderId = query.get('orderId') || undefined
+          if (orderId) {
+            const order = await getOrder(orderId)
+            ensureOrderParticipant(user, order)
+          }
+
+          const payments = await listPayments({
+            orderId,
+            status: query.get('status') || undefined,
+          })
 
           return ok(
-            await listPayments({
-              orderId: query.get('orderId') || undefined,
-              status: query.get('status') || undefined,
-            }),
+            user.role === 'admin'
+              ? payments
+              : payments.filter((payment) => payment.buyerId === user.id || payment.sellerId === user.id),
           )
         }
 
         if (request.method === 'POST') {
           const body = await readBody(request)
-          const user = await optionalSessionUser(request)
-          if (user) {
-            const order = await getOrder(body.orderId)
-            ensureOrderBuyer(user, order)
-          }
+          const user = await requireSessionUser(request)
+          const order = await getOrder(body.orderId)
+          ensureOrderBuyer(user, order)
           return ok(
             await createPayment({
               ...body,
-              buyerId: user?.id || body.buyerId,
+              buyerId: user.id,
             }),
           )
         }
@@ -453,20 +591,21 @@ export default {
 
       if (path === 'messages') {
         if (request.method === 'GET') {
+          const user = await requireSessionUser(request)
+          const order = await getOrder(query.get('orderId'))
+          ensureOrderParticipant(user, order)
           return ok(await listMessages(query.get('orderId')))
         }
 
         if (request.method === 'POST') {
           const body = await readBody(request)
-          const user = await optionalSessionUser(request)
-          if (user) {
-            const order = await getOrder(body.orderId)
-            ensureOrderParticipant(user, order)
-          }
+          const user = await requireSessionUser(request)
+          const order = await getOrder(body.orderId)
+          ensureOrderParticipant(user, order)
           return ok(
             await createMessage({
               ...body,
-              senderId: user?.id || body.senderId,
+              senderId: user.id,
             }),
           )
         }
@@ -476,22 +615,28 @@ export default {
 
       if (path === 'verification') {
         if (request.method === 'GET') {
-          const user = await optionalSessionUser(request)
-          return ok(await getVerificationProfile(user?.id || query.get('userId') || 'usr_demo_seller'))
+          const user = await requireSessionUser(request)
+          const requestedUserId = query.get('userId') || user.id
+          if (requestedUserId !== user.id) {
+            await requireAdminReviewer(request)
+          }
+          return ok(await getVerificationProfile(requestedUserId))
         }
 
         if (request.method === 'POST') {
           const body = await readBody(request)
-          const user = await optionalSessionUser(request)
+          const user = await requireSessionUser(request)
+          await enforceVerificationSubmitRateLimit(request, user.id)
           return ok(
             await submitVerification({
               ...body,
-              userId: user?.id || body.userId,
+              userId: user.id,
             }),
           )
         }
 
         if (request.method === 'PATCH') {
+          await requireAdminReviewer(request)
           const body = await readBody(request)
           return ok(await reviewVerification(query.get('id'), body))
         }

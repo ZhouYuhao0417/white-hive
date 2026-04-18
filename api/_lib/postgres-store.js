@@ -215,15 +215,26 @@ async function migrateAndSeed() {
       user_id text not null references users(id) on delete cascade,
       real_name text not null,
       role text not null,
+      verification_type text not null default 'individual',
       id_number_last4 text not null default '',
       contact_email text not null,
+      school_or_company text not null default '',
+      city text not null default '',
+      evidence_url text not null default '',
       status text not null default 'pending'
         check (status in ('pending', 'approved', 'rejected')),
       reviewer_note text not null default '',
+      reviewed_at timestamptz,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     )
   `
+
+  await db`alter table verification_requests add column if not exists verification_type text not null default 'individual'`
+  await db`alter table verification_requests add column if not exists school_or_company text not null default ''`
+  await db`alter table verification_requests add column if not exists city text not null default ''`
+  await db`alter table verification_requests add column if not exists evidence_url text not null default ''`
+  await db`alter table verification_requests add column if not exists reviewed_at timestamptz`
 
   await db`
     create table if not exists email_verification_tokens (
@@ -365,6 +376,8 @@ export async function storeInfo() {
       'sessions',
       'email_verification',
       'password_reset',
+      'resend_email_ready',
+      'blob_avatar_ready',
       'orders',
       'messages',
       'mock_payments',
@@ -1104,6 +1117,10 @@ export async function submitVerification(input) {
   const realName = String(input.realName || '').trim()
   const contactEmail = String(input.contactEmail || user.email || '').trim().toLowerCase()
   const idNumberLast4 = String(input.idNumberLast4 || '').replace(/[^\dXx]/g, '').slice(-4)
+  const verificationType = normalizeVerificationType(input.verificationType)
+  const schoolOrCompany = limitText(input.schoolOrCompany || user.schoolOrCompany, 80)
+  const city = limitText(input.city || user.city, 40)
+  const evidenceUrl = sanitizeEvidenceUrl(input.evidenceUrl)
 
   if (realName.length < 2) {
     throw new HttpError(400, 'invalid_real_name', '请填写真实姓名或主体名称。')
@@ -1120,11 +1137,13 @@ export async function submitVerification(input) {
   const createdAt = nowIso()
   const rows = await query`
     insert into verification_requests (
-      id, user_id, real_name, role, id_number_last4, contact_email, status, reviewer_note, created_at, updated_at
+      id, user_id, real_name, role, verification_type, id_number_last4, contact_email,
+      school_or_company, city, evidence_url, status, reviewer_note, created_at, updated_at
     )
     values (
-      ${createId('ver')}, ${user.id}, ${realName}, ${input.role || user.role}, ${idNumberLast4},
-      ${contactEmail}, 'pending', '', ${createdAt}, ${createdAt}
+      ${createId('ver')}, ${user.id}, ${realName}, ${input.role || user.role}, ${verificationType},
+      ${idNumberLast4}, ${contactEmail}, ${schoolOrCompany}, ${city}, ${evidenceUrl},
+      'pending', '', ${createdAt}, ${createdAt}
     )
     returning *
   `
@@ -1147,7 +1166,11 @@ export async function reviewVerification(id, input) {
 
   const rows = await query`
     update verification_requests
-    set status = ${input.status}, reviewer_note = ${String(input.reviewerNote || '').trim()}, updated_at = ${nowIso()}
+    set
+      status = ${input.status},
+      reviewer_note = ${String(input.reviewerNote || '').trim()},
+      reviewed_at = ${nowIso()},
+      updated_at = ${nowIso()}
     where id = ${id}
     returning *
   `
@@ -1379,13 +1402,35 @@ function sanitizeVerificationRequest(request) {
     userId: request.userId,
     realName: request.realName,
     role: request.role,
+    verificationType: request.verificationType || 'individual',
     idNumberLast4: request.idNumberLast4,
     contactEmail: request.contactEmail,
+    schoolOrCompany: request.schoolOrCompany || '',
+    city: request.city || '',
+    evidenceUrl: request.evidenceUrl || '',
     status: request.status,
     reviewerNote: request.reviewerNote,
+    reviewedAt: request.reviewedAt || null,
     createdAt: request.createdAt,
     updatedAt: request.updatedAt,
   }
+}
+
+function normalizeVerificationType(value) {
+  const text = String(value || '').trim()
+  return ['individual', 'studio', 'company'].includes(text) ? text : 'individual'
+}
+
+function limitText(value, maxLength) {
+  const text = String(value || '').trim()
+  return text.length > maxLength ? text.slice(0, maxLength) : text
+}
+
+function sanitizeEvidenceUrl(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  if (/^https:\/\/[^\s"'<>]+$/i.test(text)) return text.slice(0, 500)
+  throw new HttpError(400, 'invalid_evidence_url', '辅助证明链接必须是 HTTPS 地址。')
 }
 
 function userFromRow(row) {
@@ -1479,10 +1524,15 @@ function verificationRequestFromRow(row) {
     userId: row.user_id,
     realName: row.real_name,
     role: row.role,
+    verificationType: row.verification_type || 'individual',
     idNumberLast4: row.id_number_last4,
     contactEmail: row.contact_email,
+    schoolOrCompany: row.school_or_company || '',
+    city: row.city || '',
+    evidenceUrl: row.evidence_url || '',
     status: row.status,
     reviewerNote: row.reviewer_note,
+    reviewedAt: toIso(row.reviewed_at),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   }

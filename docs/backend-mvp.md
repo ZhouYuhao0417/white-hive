@@ -24,6 +24,7 @@ Public endpoints:
 - `GET /api/auth/session`
 - `POST /api/auth/session`
 - `POST /api/auth/provider`
+- `GET /api/auth/providers`
 - `GET /api/auth/profile`
 - `PATCH /api/auth/profile`
 - `DELETE /api/auth/account`
@@ -31,6 +32,7 @@ Public endpoints:
 - `POST /api/auth/email-verification/confirm`
 - `POST /api/auth/password-reset`
 - `POST /api/auth/password-reset/confirm`
+- `POST /api/uploads/avatar`
 - `GET /api/auth/verification`
 - `POST /api/auth/verification`
 - `GET /api/services`
@@ -73,12 +75,14 @@ Current storage:
 - Phone, WeChat, QQ and GitHub buttons now create provider-backed MVP sessions through `POST /api/auth/provider`, so every advertised login/register entry point is usable in demos. These are provider bridges, not final OAuth/SMS integrations yet.
 - Registration/login and email verification now have simple IP/session/email rate limits backed by the active store.
 - Profile data now supports an optional compressed avatar image for higher-trust accounts.
+- Avatar upload now has a Vercel Blob endpoint. When `BLOB_READ_WRITE_TOKEN` is configured, newly uploaded profile photos can move out of the database payload and into object storage.
 - Email verification now stores short-lived hashed verification codes. Production email requires `RESEND_API_KEY` and `EMAIL_FROM`; the UI no longer displays mock codes.
 - Password reset now stores short-lived hashed reset codes, invalidates old sessions after a reset, and uses the same email delivery configuration.
 - Real-name verification now has session-bound endpoints under `/api/auth/verification`, so the frontend can submit verification for the logged-in user without trusting a browser-provided `userId`.
+- Real-name verification requests now track `verificationType`, school/company, city, optional HTTPS evidence link and review timestamp.
 - Disposable test accounts can be deleted from `/account` when they have no linked services, orders, payments or messages.
-- Service publishing, order creation, order messages, mock payments and verification now prefer the bearer-token user over hard-coded demo IDs.
-- Logged-in users can only pay for their own buyer-side orders and can only send messages inside orders they participate in.
+- Service publishing, order creation, order detail reads, order messages, mock payments and verification now bind to the bearer-token user instead of hard-coded demo IDs.
+- Logged-in users can only read/chat/pay inside orders they participate in; seller/buyer status transitions are separated by role.
 - Without a database URL, data is still not persistent across cold starts or redeploys.
 - With a database URL, the API auto-creates the MVP tables and seeds demo records.
 
@@ -115,11 +119,11 @@ Verification statuses:
 
 ## Next Backend Steps
 
-1. Add a real email sender such as Resend in Vercel and verify `whitehive.cn` as a sender domain.
+1. In Vercel, set `RESEND_API_KEY`, `EMAIL_FROM`, `BLOB_READ_WRITE_TOKEN`, `WHITEHIVE_ADMIN_EMAILS` and optionally `WHITEHIVE_ADMIN_REVIEW_TOKEN`; then verify `/api/health`.
 2. Replace the provider bridges with real SMS, WeChat, QQ and GitHub OAuth credentials.
 3. Replace the MVP password auth with Clerk/Auth0 or email magic-link auth when the product leaves demo mode.
-4. Move avatar images from compressed data URLs into Vercel Blob or Alibaba Cloud OSS.
-5. Replace browser cache fallback with Postgres-backed user data everywhere.
+4. Replace browser cache fallback with Postgres-backed user data everywhere.
+5. Add an admin review page for pending real-name verification requests.
 6. Split `/dashboard` into real buyer/seller dashboards after auth is connected across all flows.
 7. Add the final payment confirmation UI on top of `/api/payments`.
 8. Replace `whitehive-rule-match-v1` with LLM + embedding search after service data grows.

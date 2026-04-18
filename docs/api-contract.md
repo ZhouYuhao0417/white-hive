@@ -6,6 +6,7 @@ Auth-related account endpoints:
 
 - `POST /api/auth/session`: sign up or sign in with email/password.
 - `POST /api/auth/provider`: sign in with the MVP provider bridge for phone, WeChat, QQ or GitHub.
+- `GET /api/auth/providers`: inspect which provider logins are live vs demo.
 - `GET /api/auth/session`: restore the current bearer-token session.
 - `PATCH /api/auth/profile`: update profile fields for the logged-in user.
 - `DELETE /api/auth/account`: delete a disposable test account when it has no linked services, orders, payments or messages.
@@ -13,10 +14,12 @@ Auth-related account endpoints:
 - `POST /api/auth/email-verification/confirm`: confirm the 6-digit code and mark the email as verified.
 - `POST /api/auth/password-reset`: request a password reset code by email.
 - `POST /api/auth/password-reset/confirm`: confirm the reset code and set a new password.
+- `POST /api/uploads/avatar`: upload the current user's avatar to Vercel Blob when configured.
 - `GET /api/auth/verification`: read the current logged-in user's real-name verification status.
 - `POST /api/auth/verification`: submit a real-name verification request for the current logged-in user.
 - `GET /api/verification`: read the logged-in user's real-name verification status.
 - `POST /api/verification`: submit a real-name verification request.
+- `PATCH /api/verification`: admin-only real-name verification review.
 
 ## Response Shape
 
@@ -99,6 +102,10 @@ Supported `provider` values:
 
 The response shape matches `POST /api/auth/session` and returns a bearer session token.
 
+### `GET /api/auth/providers`
+
+Returns a safe configuration summary for password, phone, GitHub, WeChat and QQ login. It never returns secrets. Until SMS/OAuth app credentials are configured, non-password providers remain in `demo` mode.
+
 ### `GET /api/auth/profile`
 
 Returns the current bearer-token user profile.
@@ -153,6 +160,18 @@ Confirms the password reset code and stores a new scrypt-hashed password. Existi
 }
 ```
 
+### `POST /api/uploads/avatar`
+
+Uploads a compressed data URL avatar for the current bearer-token user. This endpoint requires `BLOB_READ_WRITE_TOKEN`; otherwise it returns `blob_not_configured` and the frontend keeps the local compressed avatar as an MVP fallback.
+
+```json
+{
+  "fileName": "avatar.jpg",
+  "contentType": "image/jpeg",
+  "dataUrl": "data:image/jpeg;base64,..."
+}
+```
+
 ### `GET /api/auth/verification`
 
 Returns the current bearer-token user's real-name verification profile. This is the product-safe endpoint the frontend should prefer after login.
@@ -160,6 +179,19 @@ Returns the current bearer-token user's real-name verification profile. This is 
 ### `POST /api/auth/verification`
 
 Submits a real-name verification request for the current bearer-token user. The backend ignores incoming `userId` on this endpoint and binds the request to the session user.
+
+```json
+{
+  "verificationType": "individual",
+  "realName": "周同学",
+  "role": "买家个人",
+  "idNumberLast4": "1234",
+  "contactEmail": "founder@whitehive.cn",
+  "schoolOrCompany": "成都理工大学",
+  "city": "成都",
+  "evidenceUrl": "https://www.whitehive.cn"
+}
+```
 
 ## Services
 
@@ -177,7 +209,7 @@ Returns one service.
 
 ### `POST /api/services`
 
-Creates a service draft/published listing.
+Creates a service draft/published listing. Requires a bearer session whose user role is `seller` or `admin`; the backend ignores incoming `sellerId` and binds the service to the logged-in user.
 
 ```json
 {
@@ -192,9 +224,7 @@ Creates a service draft/published listing.
 }
 ```
 
-In the current frontend, `/sell` sends this request and stores the latest created services in browser local storage as a demo fallback until Postgres is connected.
-
-When the browser has a bearer session token, the backend ignores any incoming `sellerId` and publishes the service under the current logged-in user.
+In the current frontend, `/sell` sends this request and stores the latest created services in browser local storage as a demo fallback when the API is unavailable.
 
 ## Orders
 
@@ -205,9 +235,11 @@ Query params:
 - `userId`: optional buyer/seller user id
 - `status`: optional order status
 
+When called without a bearer token, the endpoint returns an empty list. Logged-in users only see orders where they are buyer or seller; admins may query another `userId`.
+
 ### `GET /api/orders?id=ord_demo_001`
 
-Returns one order with service, buyer, seller and `messageCount`.
+Returns one order with service, buyer, seller and `messageCount`. Requires the current bearer-token user to be the buyer, seller or admin for that order.
 
 ### `POST /api/orders`
 
@@ -216,17 +248,16 @@ Creates an order from a selected service.
 ```json
 {
   "serviceId": "svc_web_landing",
-  "buyerId": "usr_demo_buyer",
   "brief": "我需要一个能用于比赛路演的官网。",
   "budgetCents": 300000
 }
 ```
 
-When the browser has a bearer session token, the backend ignores any incoming `buyerId` and creates the order under the current logged-in user.
+Requires a bearer session. The backend sets `buyerId` from the logged-in user.
 
 ### `PATCH /api/orders?id=ord_demo_001`
 
-Updates order status. The backend now validates that the order does not skip workflow nodes.
+Updates order status. Requires the current user to be an order participant. Seller-side users may accept/start/deliver/cancel; buyer-side users may complete/cancel. Direct `paymentStatus` mutation is admin-only because normal payment updates must go through `/api/payments`.
 
 ```json
 {
@@ -323,7 +354,7 @@ The response includes:
 
 ### `GET /api/messages?orderId=ord_demo_001`
 
-Returns messages for an order.
+Returns messages for an order. Requires the current bearer-token user to be an order participant.
 
 ### `POST /api/messages`
 
@@ -343,9 +374,7 @@ Verification is also a mock workflow for now. It gives the product a stable trus
 
 ### `GET /api/verification?userId=usr_demo_seller`
 
-Returns the user verification profile plus the latest request.
-
-When logged in, the current bearer-token user is used automatically.
+Returns the user verification profile plus the latest request. A user can read their own profile; reading another user's profile requires admin permission.
 
 ### `POST /api/verification`
 
@@ -357,7 +386,11 @@ Creates a pending verification request.
   "realName": "蜂巢创作者",
   "idNumberLast4": "2026",
   "contactEmail": "seller@whitehive.cn",
-  "role": "seller"
+  "role": "seller",
+  "verificationType": "studio",
+  "schoolOrCompany": "成都理工大学",
+  "city": "成都",
+  "evidenceUrl": "https://www.whitehive.cn"
 }
 ```
 
@@ -365,7 +398,7 @@ When logged in, the verification request is attached to the current bearer-token
 
 ### `PATCH /api/verification?id=ver_xxx`
 
-Reviews a request in demo/admin mode.
+Reviews a verification request. Requires either `WHITEHIVE_ADMIN_EMAILS` to include the logged-in user's email or a valid `x-whitehive-admin-token` matching `WHITEHIVE_ADMIN_REVIEW_TOKEN`.
 
 ```json
 {

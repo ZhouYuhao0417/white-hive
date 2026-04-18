@@ -97,11 +97,16 @@ create table if not exists verification_requests (
   user_id text not null references users(id) on delete cascade,
   real_name text not null,
   role text not null,
+  verification_type text not null default 'individual',
   id_number_last4 text not null default '',
   contact_email text not null,
+  school_or_company text not null default '',
+  city text not null default '',
+  evidence_url text not null default '',
   status text not null default 'pending'
     check (status in ('pending', 'approved', 'rejected')),
   reviewer_note text not null default '',
+  reviewed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

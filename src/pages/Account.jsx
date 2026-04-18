@@ -23,11 +23,21 @@ const requestStatusLabels = {
   rejected: '未通过',
 }
 
+const verificationTypeLabels = {
+  individual: '个人',
+  studio: '团队 / 工作室',
+  company: '企业主体',
+}
+
 const initialVerificationForm = {
+  verificationType: 'individual',
   realName: '',
   role: '个人创作者',
   idNumberLast4: '',
   contactEmail: '',
+  schoolOrCompany: '',
+  city: '',
+  evidenceUrl: '',
 }
 
 export default function Account() {
@@ -53,6 +63,8 @@ export default function Account() {
         setVerificationForm((current) => ({
           ...current,
           contactEmail: profile?.user?.email || user?.email || '',
+          schoolOrCompany: profile?.user?.schoolOrCompany || '',
+          city: profile?.user?.city || '',
         }))
       })
       .catch(() => {
@@ -312,9 +324,22 @@ export default function Account() {
                 <div className="mt-3 grid sm:grid-cols-2 gap-3 text-xs text-white/50">
                   <div>主体：{latestRequest.realName}</div>
                   <div>身份：{latestRequest.role}</div>
+                  <div>类型：{verificationTypeLabels[latestRequest.verificationType] || latestRequest.verificationType || '个人'}</div>
+                  <div>城市：{latestRequest.city || '未填'}</div>
+                  <div>学校/公司：{latestRequest.schoolOrCompany || '未填'}</div>
                   <div>证件尾号：{latestRequest.idNumberLast4 || '未填'}</div>
                   <div>联系邮箱：{latestRequest.contactEmail}</div>
                 </div>
+                {latestRequest.evidenceUrl && (
+                  <a
+                    href={latestRequest.evidenceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex text-xs text-[#BEE6FF] hover:text-white"
+                  >
+                    查看辅助证明链接
+                  </a>
+                )}
                 {latestRequest.reviewerNote && (
                   <p className="mt-3 text-xs text-white/45">审核备注：{latestRequest.reviewerNote}</p>
                 )}
@@ -322,6 +347,18 @@ export default function Account() {
             )}
 
             <form className="mt-6 space-y-4" onSubmit={submitRealName}>
+              <label className="block">
+                <span className="mono-label">认证类型</span>
+                <select
+                  value={verificationForm.verificationType}
+                  onChange={(event) => updateVerificationForm('verificationType', event.target.value)}
+                  className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-ink-900"
+                >
+                  <option value="individual">个人</option>
+                  <option value="studio">团队 / 工作室</option>
+                  <option value="company">企业主体</option>
+                </select>
+              </label>
               <label className="block">
                 <span className="mono-label">真实姓名 / 主体名称</span>
                 <input
@@ -348,6 +385,26 @@ export default function Account() {
               </label>
               <div className="grid sm:grid-cols-2 gap-4">
                 <label className="block">
+                  <span className="mono-label">学校 / 公司</span>
+                  <input
+                    value={verificationForm.schoolOrCompany}
+                    onChange={(event) => updateVerificationForm('schoolOrCompany', event.target.value)}
+                    placeholder="例如：成都理工大学"
+                    className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mono-label">所在城市</span>
+                  <input
+                    value={verificationForm.city}
+                    onChange={(event) => updateVerificationForm('city', event.target.value)}
+                    placeholder="例如：成都"
+                    className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
+                  />
+                </label>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <label className="block">
                   <span className="mono-label">证件后 4 位</span>
                   <input
                     value={verificationForm.idNumberLast4}
@@ -367,8 +424,18 @@ export default function Account() {
                   />
                 </label>
               </div>
+              <label className="block">
+                <span className="mono-label">辅助证明链接</span>
+                <input
+                  type="url"
+                  value={verificationForm.evidenceUrl}
+                  onChange={(event) => updateVerificationForm('evidenceUrl', event.target.value)}
+                  placeholder="选填，HTTPS 链接，例如作品集/学生主页/企业官网"
+                  className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
+                />
+              </label>
               <p className="text-xs text-white/40 leading-relaxed">
-                MVP 阶段不上传身份证照片，只记录必要的演示字段。正式上线前需要接入合规实名服务商，并更新隐私政策与数据留存策略。
+                MVP 阶段不上传身份证照片，只记录必要的演示字段和可公开证明链接。正式上线前需要接入合规实名服务商，并更新隐私政策与数据留存策略。
               </p>
               <button type="submit" disabled={submittingVerification} className="btn-primary w-full justify-center">
                 {submittingVerification ? '提交中...' : '提交实名认证申请'}

@@ -93,6 +93,8 @@ export function storeInfo() {
       'sessions',
       'email_verification',
       'password_reset',
+      'resend_email_ready',
+      'blob_avatar_ready',
       'orders',
       'messages',
       'mock_payments',
@@ -816,6 +818,10 @@ export function submitVerification(input) {
   const realName = String(input.realName || '').trim()
   const contactEmail = String(input.contactEmail || user.email || '').trim().toLowerCase()
   const idNumberLast4 = String(input.idNumberLast4 || '').replace(/[^\dXx]/g, '').slice(-4)
+  const verificationType = normalizeVerificationType(input.verificationType)
+  const schoolOrCompany = limitText(input.schoolOrCompany || user.schoolOrCompany, 80)
+  const city = limitText(input.city || user.city, 40)
+  const evidenceUrl = sanitizeEvidenceUrl(input.evidenceUrl)
 
   if (realName.length < 2) {
     throw new HttpError(400, 'invalid_real_name', '请填写真实姓名或主体名称。')
@@ -835,8 +841,12 @@ export function submitVerification(input) {
     userId: user.id,
     realName,
     role: input.role || user.role,
+    verificationType,
     idNumberLast4,
     contactEmail,
+    schoolOrCompany,
+    city,
+    evidenceUrl,
     status: 'pending',
     reviewerNote: '',
     createdAt,
@@ -868,6 +878,7 @@ export function reviewVerification(id, input) {
 
   request.status = input.status
   request.reviewerNote = String(input.reviewerNote || '').trim()
+  request.reviewedAt = nowIso()
   request.updatedAt = nowIso()
 
   const user = state.users.find((item) => item.id === request.userId)
@@ -1071,11 +1082,33 @@ function sanitizeVerificationRequest(request) {
     userId: request.userId,
     realName: request.realName,
     role: request.role,
+    verificationType: request.verificationType || 'individual',
     idNumberLast4: request.idNumberLast4,
     contactEmail: request.contactEmail,
+    schoolOrCompany: request.schoolOrCompany || '',
+    city: request.city || '',
+    evidenceUrl: request.evidenceUrl || '',
     status: request.status,
     reviewerNote: request.reviewerNote,
+    reviewedAt: request.reviewedAt || null,
     createdAt: request.createdAt,
     updatedAt: request.updatedAt,
   }
+}
+
+function normalizeVerificationType(value) {
+  const text = String(value || '').trim()
+  return ['individual', 'studio', 'company'].includes(text) ? text : 'individual'
+}
+
+function limitText(value, maxLength) {
+  const text = String(value || '').trim()
+  return text.length > maxLength ? text.slice(0, maxLength) : text
+}
+
+function sanitizeEvidenceUrl(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  if (/^https:\/\/[^\s"'<>]+$/i.test(text)) return text.slice(0, 500)
+  throw new HttpError(400, 'invalid_evidence_url', '辅助证明链接必须是 HTTPS 地址。')
 }

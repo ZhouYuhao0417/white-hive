@@ -10,6 +10,7 @@ import {
   hasSessionToken,
   requestPasswordReset as requestPasswordResetRequest,
   requestEmailVerification as requestEmailVerificationRequest,
+  uploadAvatar as uploadAvatarRequest,
 } from './api.js'
 
 const AuthContext = createContext(null)
@@ -52,6 +53,25 @@ export function AuthProvider({ children }) {
   const signup = useCallback(async (payload) => {
     const data = await createSession({ ...payload, action: 'signup' })
     if (data?.user) setUser(data.user)
+
+    if (payload?.avatarUrl?.startsWith?.('data:image/')) {
+      try {
+        const uploaded = await uploadAvatarRequest({
+          dataUrl: payload.avatarUrl,
+          fileName: 'avatar.jpg',
+          contentType: 'image/jpeg',
+        })
+        if (uploaded?.user) setUser(uploaded.user)
+        return {
+          ...data,
+          user: uploaded?.user || data?.user,
+          avatarUpload: uploaded?.upload || null,
+        }
+      } catch {
+        // Blob may not be configured yet; keep the compressed data URL profile for the MVP.
+      }
+    }
+
     return data
   }, [])
 
