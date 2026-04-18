@@ -245,6 +245,117 @@ const payload = renderNotification({
 支持 14 个事件（见 `notificationEvents`），每个事件按 `recipientRole` 产出不同措辞。
 `renderNotificationBatch({ recipients: [{role,id}, ...] })` 一次 fan-out 给多个收件人。
 
+### `api/_lib/order-machine.js`
+
+订单状态机 —— 和 `dispute.js` 同构, 覆盖 7 个状态 + 4 个 actor 角色。
+
+```js
+import {
+  canTransition, assertTransition, applyTransition,
+  availableActions, orderStatuses, orderProgressPercent,
+} from './order-machine.js'
+
+assertTransition(order.status, 'accepted', 'seller')          // 抛 409 if illegal
+const next = applyTransition(order, {
+  toStatus: 'accepted', actorRole: 'seller', actorId: 'usr_2', note: 'ok',
+})
+// next = { ...order, status: 'accepted', acceptedAt, statusHistory: [...] }
+availableActions(order, 'buyer')  // → 合法的 next state 列表, 给 UI 画按钮
+```
+
+`actorRole ∈ 'buyer' | 'seller' | 'admin' | 'system'`（`system` 给定时任务用, 例如
+交付 7 天买家没反应就 `applyTransition(order, { toStatus: 'completed', actorRole: 'system' })`）。
+
+### `api/_lib/deadline.js`
+
+订单 / 托管 / SLA / 评价 的时间计算, 全部是 pure function + 显式 `now` 参数。
+
+```js
+import {
+  orderDeadline, timeUntil, isOverdue, autoReleaseAt,
+  reviewEditDeadline, nextSlaMilestone, humanizeRelative,
+} from './deadline.js'
+
+orderDeadline({ createdAt, deliveryDays: 3 })     // ISO
+nextSlaMilestone(order, Date.now())               // { kind, deadline, hoursRemaining, overdue }
+humanizeRelative('2026-01-10T09:00:00Z', now)     // "3 小时前"
+```
+
+Dashboard "还有 12 小时自动放款" 这类提示都用 `nextSlaMilestone`。
+
+### `api/_lib/message-shape.js`
+
+订单消息的对外投影 + 敏感信息遮罩。不做真正的内容审核（那是 `ai-moderation.js`）,
+只是让 API 响应不要意外 leak 手机号 / 邮箱 / 卡号。
+
+```js
+import {
+  publicMessageShape, buildMessageTimeline, lastMessagePreview,
+  redactSensitive, threadKey,
+} from './message-shape.js'
+
+const tl = buildMessageTimeline(messages, { viewerRole: 'buyer', hideFlagged: true })
+// [{ id, body, bodyRedacted, senderRole, flagged, moderation, ... }]
+redactSensitive('加我 13812345678')  // "加我 ***-****-*678"
+```
+
+`publicMessageShape` 对非 admin 隐藏 `adminNotes` 与 `rawModeration`, 同时给一份
+`bodyRedacted` —— 前端可以选择显示遮罩版、真正的 body 只给双方订单参与者看。
+
+### `api/_lib/profile-shape.js`
+
+用户信息的对外投影 + 信任分（0-100）+ 徽章。
+
+```js
+import {
+  selfUserShape, publicUserShape, sellerCard, adminUserShape,
+  profileTrustScore, computeBadges,
+} from './profile-shape.js'
+
+selfUserShape(user)          // 给 "我自己" —— 去掉 passwordHash, 保留邮箱 / 手机
+publicUserShape(user)        // 给陌生人 —— 只保留公开字段 + trustScore + badges
+sellerCard(user, stats)      // 列表页 / 匹配结果的轻量卡片
+adminUserShape(user)         // admin 看到的 mask 过的 email / phone
+profileTrustScore(user, stats) // 0-100 分
+```
+
+信任分规则写在注释里, 纯函数——前端也可以 import 来算 preview。
+
+### `api/_lib/payment-cascade.js`
+
+订单状态变化 → 托管该做什么。很薄的 orchestration 层, 不碰 store, 只把 `escrow.js`
+的 `applyAction` 包一层。
+
+```js
+import { cascadeOnOrderTransition, canAutoComplete } from './payment-cascade.js'
+
+const { paymentPatch, released, refunded, skipped, reason } = cascadeOnOrderTransition({
+  fromStatus: 'delivered', toStatus: 'completed',
+  actorRole: 'buyer', payment,
+})
+if (paymentPatch) await store.updatePayment(payment.id, paymentPatch)
+```
+
+Codex 的 `updateOrder()` 在完成状态机转移后, 直接把这个 helper 的结果合并进事务即可。
+
+### `api/_lib/webhook-signature.js`
+
+HMAC-SHA256 签名 / 验签 (Web Crypto subtle, Edge/Node 通用)。Stripe 风格
+`t=<ts>,v1=<hex>` header。
+
+```js
+import {
+  signPayload, verifyPayload, parseSignatureHeader,
+  generateWebhookSecret,
+} from './webhook-signature.js'
+
+const header = await signPayload({ body: JSON.stringify(payload), secret, now: Date.now() })
+const { valid, reason } = await verifyPayload({ body, secret, header, toleranceSec: 300 })
+const newSecret = generateWebhookSecret()  // 'whsec_...' 32 bytes hex
+```
+
+5 分钟 replay 窗口 + 常数时间比较, `reason ∈ bad_header|expired|signature_mismatch|bad_input`。
+
 ### `api/_lib/validate.js`
 
 ```js
