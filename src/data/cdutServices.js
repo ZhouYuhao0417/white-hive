@@ -1,0 +1,237 @@
+// CDUT · 成都理工大学服务专区 mock data
+// 独立于 /local 本地服务，仅面向成都理工大学在校同学提供的线下微服务。
+// 所有数据只用于前端展示原型；真实接入时会走 /api/services?campus=cdut 这类端点。
+
+export const cdutCampus = {
+  slug: 'cdut',
+  name: '成都理工大学',
+  nameEn: 'CDUT',
+  tagline: '本校同学, 线下见面, 平台托管。',
+  desc: '专门给成都理工大学在校同学做的小额线下服务撮合。跑腿、代拍、代取都走 WhiteHive 托管, 见面核销即结款, 不加微信、不走私聊。',
+  // 可选的校区 tag，让同学知道服务者离自己近不近
+  zones: ['东区 · 宿舍', '北区 · 图书馆', '西区 · 体育场', '砚湖 / 食堂', '校外 3km 内'],
+  metrics: [
+    { label: '在校服务者', value: '86+' },
+    { label: '本月接单', value: '412' },
+    { label: '平均响应', value: '< 12 分钟' },
+    { label: '完成率', value: '98.7%' },
+  ],
+}
+
+export const cdutCategories = [
+  {
+    key: 'parcel',
+    icon: 'route',
+    label: '快递代取',
+    color: '#7FD3FF',
+    priceFrom: 3,
+    priceUnit: '单',
+    desc: '宿舍 / 图书馆 / 实验楼, 顺手带到你手上。',
+    meta: '承诺 30 分钟内取件',
+    scenes: ['菜鸟驿站', '快递柜', '校内丰巢', '顺丰 / 京东自营'],
+  },
+  {
+    key: 'food',
+    icon: 'spark',
+    label: '外卖代取',
+    color: '#A5B4FC',
+    priceFrom: 4,
+    priceUnit: '单',
+    desc: '下课不赶趟? 校外取餐 / 食堂打包都行。',
+    meta: '午晚高峰也能抢到单',
+    scenes: ['食堂打包', '校外外卖柜', '瑞幸 / 星巴克', '茶饮店'],
+  },
+  {
+    key: 'photo',
+    icon: 'palette',
+    label: '校园约拍',
+    color: '#5EEAD4',
+    priceFrom: 80,
+    priceUnit: '场',
+    desc: '毕业照 · 社团活动 · 情侣照 · 证件照上门。',
+    meta: '在校摄影爱好者, 比外面便宜一半',
+    scenes: ['毕业季', '社团活动', '情侣 / 闺蜜', '证件照'],
+  },
+]
+
+export const cdutListings = [
+  // ——— 快递代取 ———
+  {
+    id: 'cdut_parcel_01',
+    categoryKey: 'parcel',
+    title: '菜鸟驿站 · 宿舍区代取件',
+    desc: '东苑 / 北苑 / 西苑宿舍区, 15 分钟内送到楼下，大件 / 多件不加价。',
+    priceFrom: 3,
+    priceUnit: '单',
+    seller: {
+      name: '何同学',
+      level: '本校 · 资源工程',
+      grade: '大三',
+      rating: 4.98,
+      orders: 186,
+    },
+    zone: '东区 · 宿舍',
+    tags: ['菜鸟驿站', '工作日', '大件友好'],
+  },
+  {
+    id: 'cdut_parcel_02',
+    categoryKey: 'parcel',
+    title: '丰巢 / 快递柜 · 代拿',
+    desc: '周末常驻校门口, 代取后直接送到图书馆或指定教学楼。',
+    priceFrom: 3,
+    priceUnit: '单',
+    seller: {
+      name: '林同学',
+      level: '本校 · 旅游与城乡规划',
+      grade: '大二',
+      rating: 4.95,
+      orders: 122,
+    },
+    zone: '北区 · 图书馆',
+    tags: ['周末', '丰巢', '送到教学楼'],
+  },
+  {
+    id: 'cdut_parcel_03',
+    categoryKey: 'parcel',
+    title: '生鲜 / 冷链 · 优先代取',
+    desc: '不让你的生鲜在驿站里化 2 小时，优先跑生鲜单。',
+    priceFrom: 5,
+    priceUnit: '单',
+    seller: {
+      name: '苏同学',
+      level: '本校 · 材料科学',
+      grade: '研一',
+      rating: 5.0,
+      orders: 64,
+    },
+    zone: '砚湖 / 食堂',
+    tags: ['生鲜', '加急', '保温'],
+  },
+
+  // ——— 外卖代取 ———
+  {
+    id: 'cdut_food_01',
+    categoryKey: 'food',
+    title: '食堂打包代跑',
+    desc: '一食堂 / 二食堂 / 三食堂都能跑, 上课没时间吃饭的救星。',
+    priceFrom: 4,
+    priceUnit: '单',
+    seller: {
+      name: '周同学',
+      level: '本校 · 土木工程',
+      grade: '大四',
+      rating: 4.93,
+      orders: 248,
+    },
+    zone: '砚湖 / 食堂',
+    tags: ['午高峰', '打包', '堂食转外带'],
+  },
+  {
+    id: 'cdut_food_02',
+    categoryKey: 'food',
+    title: '校外奶茶咖啡 · 代买',
+    desc: '瑞幸 / 星巴克 / 茉酸奶 / 霸王茶姬, 顺路的就顺手带。',
+    priceFrom: 5,
+    priceUnit: '单',
+    seller: {
+      name: '易同学',
+      level: '本校 · 商学院',
+      grade: '大二',
+      rating: 4.97,
+      orders: 331,
+    },
+    zone: '校外 3km 内',
+    tags: ['奶茶', '咖啡', '下课时段'],
+  },
+  {
+    id: 'cdut_food_03',
+    categoryKey: 'food',
+    title: '外卖柜代取 + 送到教学楼',
+    desc: '外卖员放柜里不送进校? 我帮你取, 再送到你上课的教学楼。',
+    priceFrom: 4,
+    priceUnit: '单',
+    seller: {
+      name: '齐同学',
+      level: '本校 · 地球物理',
+      grade: '大三',
+      rating: 4.96,
+      orders: 198,
+    },
+    zone: '校外 3km 内',
+    tags: ['外卖柜', '送到教学楼', '高峰保障'],
+  },
+
+  // ——— 校园约拍 ———
+  {
+    id: 'cdut_photo_01',
+    categoryKey: 'photo',
+    title: '毕业季 · 砚湖学士照拍摄',
+    desc: '砚湖、图书馆、主楼三处经典机位, 含 15 张精修、当日交付原片。',
+    priceFrom: 188,
+    priceUnit: '场',
+    seller: {
+      name: '陈同学',
+      level: '本校 · 摄影社社长',
+      grade: '研二',
+      rating: 4.99,
+      orders: 73,
+    },
+    zone: '砚湖 / 食堂',
+    tags: ['毕业照', '精修 15 张', '当日交付'],
+  },
+  {
+    id: 'cdut_photo_02',
+    categoryKey: 'photo',
+    title: '社团活动 / 晚会跟拍',
+    desc: '含 2 小时跟拍 + 30 张精修 + 延时合集小视频。',
+    priceFrom: 260,
+    priceUnit: '场',
+    seller: {
+      name: '罗同学',
+      level: '本校 · 传媒方向',
+      grade: '大四',
+      rating: 4.94,
+      orders: 41,
+    },
+    zone: '北区 · 图书馆',
+    tags: ['社团', '跟拍', '延时合集'],
+  },
+  {
+    id: 'cdut_photo_03',
+    categoryKey: 'photo',
+    title: '情侣 / 闺蜜校园写真',
+    desc: '小清新 / 港风 / 学院风任选, 砚湖加银杏大道双机位。',
+    priceFrom: 168,
+    priceUnit: '场',
+    seller: {
+      name: '姚同学',
+      level: '本校 · 艺术设计',
+      grade: '大三',
+      rating: 4.98,
+      orders: 58,
+    },
+    zone: '西区 · 体育场',
+    tags: ['情侣', '闺蜜', '小清新'],
+  },
+]
+
+export const cdutTrustPoints = [
+  {
+    icon: 'shield',
+    title: '学生身份核验（CDUT 在校生）',
+    desc: '所有服务者都通过 .edu 邮箱 + 一卡通验证, 确认是成都理工在校生, 不是随便来的。',
+    color: '#7FD3FF',
+  },
+  {
+    icon: 'vault',
+    title: '平台托管结款',
+    desc: '下单即托管, 见面核销 / 扫码确认收到服务, 钱才到服务者账上; 没见到就秒退。',
+    color: '#A5B4FC',
+  },
+  {
+    icon: 'route',
+    title: '同校就近接单',
+    desc: '按校区 + 楼栋就近派单, 同一栋楼的优先。服务者位置走校内坐标, 不暴露宿舍门牌。',
+    color: '#5EEAD4',
+  },
+]

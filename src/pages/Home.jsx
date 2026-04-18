@@ -167,10 +167,10 @@ function CampusCDUT() {
                 </p>
               </div>
               <Link
-                to="/local"
+                to="/cdut"
                 className="btn-ghost text-xs sm:text-sm shrink-0"
               >
-                查看全部校园服务 <Icon name="arrow" size={14} />
+                进入 CDUT 专区 <Icon name="arrow" size={14} />
               </Link>
             </div>
 
@@ -179,7 +179,7 @@ function CampusCDUT() {
               {items.map((it, i) => (
                 <Reveal key={it.key} delay={i * 0.06} y={16}>
                   <Link
-                    to="/local"
+                    to="/cdut"
                     className="card card-hover block p-4 sm:p-5 h-full relative overflow-hidden group"
                   >
                     <div
