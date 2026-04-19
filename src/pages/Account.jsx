@@ -414,7 +414,7 @@ export default function Account() {
               <div className="mono-label">PHONE VERIFY</div>
               <h2 className="mt-1 text-xl font-semibold text-white">手机号验证</h2>
               <p className="mt-2 text-sm text-white/55 leading-relaxed">
-                手机号用于接单提醒、订单状态同步和交易过程中的安全联系。目前接入阿里云短信。
+                手机号用于接单提醒、订单状态同步和交易过程中的安全联系。目前接入 Spug 短信验证码。
               </p>
 
               {user.phoneVerified ? (

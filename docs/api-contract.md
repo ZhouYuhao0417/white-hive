@@ -5,7 +5,9 @@ This is the first backend contract for the buying/selling order MVP. The current
 Auth-related account endpoints:
 
 - `POST /api/auth/session`: sign up or sign in with email/password.
-- `POST /api/auth/provider`: sign in with the MVP provider bridge for phone, WeChat, QQ or GitHub.
+- `POST /api/auth/phone-login`: send a 6-digit SMS code for phone login/register.
+- `POST /api/auth/phone-login/confirm`: confirm the SMS code, then sign in or create a verified phone account.
+- `POST /api/auth/provider`: sign in with the MVP provider bridge for WeChat, QQ or GitHub.
 - `GET /api/auth/oauth/:provider/start`: start live OAuth for GitHub, WeChat or QQ when credentials are configured.
 - `GET /api/auth/oauth/:provider/callback`: complete the live OAuth callback and create a WhiteHive session.
 - `GET /api/auth/providers`: inspect which provider logins are live vs demo.
@@ -87,11 +89,10 @@ For login, send:
 
 ### `POST /api/auth/provider`
 
-Creates a session through the MVP provider bridge. This makes every UI entry point usable for demos today. Phone registration now has a separate SMS verification flow; WeChat/QQ/GitHub still use demo identities until platform app credentials are available.
+Creates a session through the MVP provider bridge. WeChat/QQ/GitHub use demo identities until platform app credentials are available. Phone login no longer uses this bridge; it has its own SMS-code flow under `/api/auth/phone-login`.
 
 Supported `provider` values:
 
-- `phone`
 - `wechat`
 - `qq`
 - `github`
@@ -136,7 +137,38 @@ Completes the provider callback, exchanges the OAuth code for a provider identit
 
 ### `GET /api/auth/providers`
 
-Returns a safe configuration summary for password, phone, GitHub, WeChat and QQ login. It never returns secrets. Phone reports `live` when Aliyun SMS variables are configured, `mock` when `WHITEHIVE_SMS_MOCK=1`, and `demo` otherwise. OAuth providers remain in `demo` mode until app credentials are configured.
+Returns a safe configuration summary for password, phone, GitHub, WeChat and QQ login. It never returns secrets. Phone reports `live` when the active SMS transport is configured, `mock` when `WHITEHIVE_SMS_MOCK=1`, and `demo` otherwise. OAuth providers remain in `demo` mode until app credentials are configured.
+
+### `POST /api/auth/phone-login`
+
+Creates a short-lived hashed SMS code for anonymous phone login/register. Production delivery now prefers Spug Push with a copied template URL:
+
+```text
+WHITEHIVE_SMS_PROVIDER=spug
+SPUG_SMS_URL=https://push.spug.cc/send/your-template-id
+SPUG_SMS_APP_NAME=WhiteHive
+WHITEHIVE_SMS_MOCK=0
+```
+
+```json
+{
+  "phone": "13800000000"
+}
+```
+
+The backend rate-limits requests by IP and phone number. The response does not include the code; Spug only receives `name`, `code` and `targets`.
+
+### `POST /api/auth/phone-login/confirm`
+
+Confirms the 6-digit SMS code. If the phone already belongs to a verified account, the backend signs in that account. If it is a new phone, the backend creates a basic phone-auth account, marks `phoneVerifiedAt`, and returns a bearer session token.
+
+```json
+{
+  "phone": "13800000000",
+  "code": "123456",
+  "role": "buyer"
+}
+```
 
 ### `GET /api/auth/profile`
 
@@ -172,7 +204,7 @@ Confirms the 6-digit email code. Send/confirm endpoints are rate-limited by IP a
 
 ### `POST /api/auth/phone-verification`
 
-Creates a short-lived hashed SMS code for the logged-in user. Production delivery uses Aliyun Dysmsapi and requires `ALIYUN_SMS_ACCESS_KEY_ID`, `ALIYUN_SMS_ACCESS_KEY_SECRET`, `ALIYUN_SMS_SIGN_NAME` and `ALIYUN_SMS_TEMPLATE_CODE`. Local demos can use `WHITEHIVE_SMS_MOCK=1`; the API still keeps the verification code server-side.
+Creates a short-lived hashed SMS code for the logged-in user to bind or verify a profile phone number. Production delivery uses the same active SMS transport as phone login. Current recommended transport is Spug (`WHITEHIVE_SMS_PROVIDER=spug` + `SPUG_SMS_URL`). Local demos can use `WHITEHIVE_SMS_MOCK=1`; the API still keeps the verification code server-side.
 
 ```json
 {

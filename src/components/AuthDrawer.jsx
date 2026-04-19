@@ -81,6 +81,8 @@ export default function AuthDrawer({ open, onClose }) {
     signup,
     loginWithProvider,
     getProviderStatus,
+    requestPhoneLogin,
+    confirmPhoneLogin,
     requestEmailVerification,
     confirmEmailVerification,
     requestPhoneVerification,
@@ -95,14 +97,19 @@ export default function AuthDrawer({ open, onClose }) {
   const [isProcessingAvatar, setIsProcessingAvatar] = useState(false)
   const [isSendingVerification, setIsSendingVerification] = useState(false)
   const [isConfirmingVerification, setIsConfirmingVerification] = useState(false)
+  const [isSendingPhoneLogin, setIsSendingPhoneLogin] = useState(false)
+  const [isConfirmingPhoneLogin, setIsConfirmingPhoneLogin] = useState(false)
   const [isSendingPhoneVerification, setIsSendingPhoneVerification] = useState(false)
   const [isConfirmingPhoneVerification, setIsConfirmingPhoneVerification] = useState(false)
   const [isSendingPasswordReset, setIsSendingPasswordReset] = useState(false)
   const [isConfirmingPasswordReset, setIsConfirmingPasswordReset] = useState(false)
   const [emailChallenge, setEmailChallenge] = useState(null)
+  const [phoneAuthChallenge, setPhoneAuthChallenge] = useState(null)
   const [phoneChallenge, setPhoneChallenge] = useState(null)
   const [passwordResetChallenge, setPasswordResetChallenge] = useState(null)
   const [verificationCode, setVerificationCode] = useState('')
+  const [phoneAuthPhone, setPhoneAuthPhone] = useState('')
+  const [phoneAuthCode, setPhoneAuthCode] = useState('')
   const [phoneVerificationCode, setPhoneVerificationCode] = useState('')
   const [passwordResetCode, setPasswordResetCode] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -136,9 +143,12 @@ export default function AuthDrawer({ open, onClose }) {
 
   const resetTransientAuthState = () => {
     setEmailChallenge(null)
+    setPhoneAuthChallenge(null)
     setPhoneChallenge(null)
     setPasswordResetChallenge(null)
     setVerificationCode('')
+    setPhoneAuthPhone('')
+    setPhoneAuthCode('')
     setPhoneVerificationCode('')
     setPasswordResetCode('')
     setNewPassword('')
@@ -290,7 +300,83 @@ export default function AuthDrawer({ open, onClose }) {
     }
   }
 
+  const startPhoneAuth = () => {
+    setEmailChallenge(null)
+    setPhoneChallenge(null)
+    setPasswordResetChallenge(null)
+    setPhoneAuthChallenge({ status: 'collect' })
+    setPhoneAuthPhone((phoneAuthPhone || form.phone).replace(/[^\d]/g, '').slice(0, 11))
+    setPhoneAuthCode('')
+    setNotice('')
+    setError('')
+  }
+
+  const sendPhoneLoginCode = async () => {
+    const phone = (phoneAuthPhone || phoneAuthChallenge?.phone || '').replace(/[^\d]/g, '')
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      setError('请填写可接收短信验证码的 11 位中国大陆手机号。')
+      return
+    }
+
+    setIsSendingPhoneLogin(true)
+    setNotice('')
+    setError('')
+    try {
+      const result = await requestPhoneLogin(phone)
+      const challenge = result?.phoneLogin || null
+      if (challenge?.status === 'pending') {
+        setPhoneAuthChallenge(challenge)
+        setPhoneAuthCode('')
+        setNotice(challenge.delivery?.message || '短信验证码已发送。')
+        return
+      }
+      setPhoneAuthChallenge({ status: 'collect' })
+      setError(challenge?.delivery?.message || '短信服务暂时不可用，请稍后再试。')
+    } catch (err) {
+      setError(err.message || '短信验证码发送失败，请稍后再试。')
+    } finally {
+      setIsSendingPhoneLogin(false)
+    }
+  }
+
+  const finishPhoneLogin = async () => {
+    const phone = (phoneAuthChallenge?.phone || phoneAuthPhone).replace(/[^\d]/g, '')
+    setIsConfirmingPhoneLogin(true)
+    setNotice('')
+    setError('')
+    try {
+      const result = await confirmPhoneLogin({
+        phone,
+        code: phoneAuthCode,
+        role: form.role,
+        displayName: form.displayName,
+      })
+      const name = result?.user?.displayName || 'WhiteHive 用户'
+      setPhoneAuthChallenge(null)
+      setPhoneAuthPhone('')
+      setPhoneAuthCode('')
+      setNotice(`手机号登录成功：${name}`)
+      setTimeout(() => {
+        onClose()
+        setForm(initialForm)
+        resetTransientAuthState()
+        setNotice('')
+        setError('')
+        setMode('signin')
+      }, 800)
+    } catch (err) {
+      setError(err.message || '短信验证码校验失败，请重新输入。')
+    } finally {
+      setIsConfirmingPhoneLogin(false)
+    }
+  }
+
   const handleSocialLogin = async (method) => {
+    if (method.key === 'phone') {
+      startPhoneAuth()
+      return
+    }
+
     setSocialBusy(method.key)
     setNotice('')
     setError('')
@@ -950,6 +1036,96 @@ export default function AuthDrawer({ open, onClose }) {
                   </button>
                 ))}
               </div>
+
+              {phoneAuthChallenge && (
+                <div className="mt-4 rounded-2xl border border-[#A5B4FC]/25 bg-[#A5B4FC]/[0.07] p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="mono-label text-[#DDE4FF]">PHONE SIGN IN</div>
+                      <div className="mt-1 text-sm font-medium text-white">手机号登录 / 注册</div>
+                    </div>
+                    {phoneAuthChallenge.status === 'pending' && (
+                      <span className="rounded-full border border-[#A5B4FC]/30 bg-[#A5B4FC]/10 px-2 py-1 text-[10px] text-[#DDE4FF]">
+                        {phoneAuthChallenge.delivery?.delivered ? '已发送' : '待发送'}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs leading-relaxed text-white/55">
+                    输入手机号后，我们会发送 6 位验证码。已绑定手机号的账号会直接登录；新手机号会创建一个基础账号。
+                  </p>
+                  <div className="grid grid-cols-1 gap-2">
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={11}
+                      disabled={phoneAuthChallenge.status === 'pending'}
+                      value={phoneAuthPhone || phoneAuthChallenge.phone || ''}
+                      onChange={(event) => setPhoneAuthPhone(event.target.value.replace(/[^\d]/g, '').slice(0, 11))}
+                      placeholder="11 位中国大陆手机号"
+                      className="h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 disabled:text-white/45 disabled:bg-white/[0.02] focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+                    />
+                    {phoneAuthChallenge.status === 'pending' && (
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={phoneAuthCode}
+                        onChange={(event) => setPhoneAuthCode(event.target.value.replace(/[^\d]/g, '').slice(0, 6))}
+                        placeholder="6 位短信验证码"
+                        className="h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+                      />
+                    )}
+                  </div>
+                  {phoneAuthChallenge.delivery?.message && (
+                    <div className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
+                      {phoneAuthChallenge.delivery.message}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    {phoneAuthChallenge.status === 'pending' ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={isConfirmingPhoneLogin || phoneAuthCode.length !== 6}
+                          onClick={finishPhoneLogin}
+                          className="btn-primary flex-1 justify-center !px-4"
+                        >
+                          {isConfirmingPhoneLogin ? '校验中...' : '验证并登录'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isSendingPhoneLogin}
+                          onClick={sendPhoneLoginCode}
+                          className="rounded-xl border border-white/10 px-4 text-xs text-white/55 hover:text-white hover:bg-white/5"
+                        >
+                          {isSendingPhoneLogin ? '发送中...' : '重发'}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={isSendingPhoneLogin}
+                        onClick={sendPhoneLoginCode}
+                        className="btn-primary flex-1 justify-center !px-4"
+                      >
+                        {isSendingPhoneLogin ? '发送中...' : '发送验证码'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPhoneAuthChallenge(null)
+                        setPhoneAuthPhone('')
+                        setPhoneAuthCode('')
+                      }}
+                      className="rounded-xl border border-white/10 px-4 text-xs text-white/55 hover:text-white hover:bg-white/5"
+                    >
+                      取消
+                    </button>
+                  </div>
+                  <div className="text-[11px] text-white/35">验证码 5 分钟内有效。</div>
+                </div>
+              )}
 
               {/* 底部辅助提示 (顶部已有 tab, 这里只做辅助) */}
               <div className="mt-8 text-sm text-white/45 text-center">

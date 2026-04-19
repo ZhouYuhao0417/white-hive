@@ -86,6 +86,26 @@ export function getSession() {
   return request('/auth/session')
 }
 
+export function requestPhoneLogin(phone) {
+  return request('/auth/phone-login', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
+  })
+}
+
+export async function confirmPhoneLogin(payload) {
+  const data = await request('/auth/phone-login/confirm', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+
+  if (data?.session?.token) {
+    saveSessionToken(data.session.token)
+  }
+
+  return data
+}
+
 export function requestEmailVerification() {
   return request('/auth/email-verification', {
     method: 'POST',

@@ -304,6 +304,18 @@ async function migrateAndSeed() {
   `
 
   await db`
+    create table if not exists phone_login_tokens (
+      id text primary key,
+      phone text not null,
+      code_hash text not null,
+      created_at timestamptz not null default now(),
+      expires_at timestamptz not null,
+      used_at timestamptz,
+      attempts int not null default 0
+    )
+  `
+
+  await db`
     create table if not exists password_reset_tokens (
       id text primary key,
       user_id text not null references users(id) on delete cascade,
@@ -334,9 +346,15 @@ async function migrateAndSeed() {
   await db`create index if not exists verification_requests_user_idx on verification_requests(user_id, created_at)`
   await db`create index if not exists email_verification_tokens_user_idx on email_verification_tokens(user_id, expires_at)`
   await db`create index if not exists phone_verification_tokens_user_idx on phone_verification_tokens(user_id, expires_at)`
+  await db`create index if not exists phone_login_tokens_phone_idx on phone_login_tokens(phone, expires_at)`
   await db`create index if not exists password_reset_tokens_email_idx on password_reset_tokens(email, expires_at)`
   await db`
     create index if not exists users_verified_phone_lookup_idx
+    on users(phone)
+    where phone <> '' and phone_verified_at is not null
+  `
+  await db`
+    create unique index if not exists users_verified_phone_unique_idx
     on users(phone)
     where phone <> '' and phone_verified_at is not null
   `
@@ -437,6 +455,7 @@ export async function storeInfo() {
       'sessions',
       'email_verification',
       'phone_verification',
+      'phone_login',
       'password_reset',
       'resend_email_ready',
       'blob_avatar_ready',
@@ -603,6 +622,185 @@ export async function upsertProviderSession(input = {}) {
         provider_user_id = ${profile.providerUserId},
         email_verified_at = coalesce(email_verified_at, ${updatedAt}),
         updated_at = ${updatedAt}
+      where id = ${user.id}
+      returning *
+    `
+    user = updated[0]
+  }
+
+  return createSessionForUser(userFromRow(user))
+}
+
+export async function requestPhoneLogin(input = {}) {
+  const phone = validatePhone(input.phone)
+  const nowMs = Date.now()
+
+  await query`
+    delete from phone_login_tokens
+    where created_at < now() - interval '24 hours'
+  `
+
+  const recent = await query`
+    select * from phone_login_tokens
+    where phone = ${phone}
+      and created_at >= now() - interval '24 hours'
+    order by created_at desc
+  `
+
+  const last = recent[0]
+  if (last) {
+    const elapsed = nowMs - new Date(last.created_at).getTime()
+    if (elapsed < PHONE_RESEND_COOLDOWN_MS) {
+      const retryAfterSec = Math.ceil((PHONE_RESEND_COOLDOWN_MS - elapsed) / 1000)
+      throw new HttpError(
+        429,
+        'phone_login_throttled',
+        `请求太快了, 请 ${retryAfterSec} 秒后再试。`,
+        { retryAfterSec },
+      )
+    }
+  }
+
+  if (recent.length >= PHONE_DAILY_QUOTA) {
+    throw new HttpError(
+      429,
+      'phone_login_quota_exceeded',
+      '今天发送的短信验证码已达上限, 请明天再试。',
+    )
+  }
+
+  const code = createPhoneVerificationCode()
+  const createdAt = nowIso()
+  const expiresAt = phoneVerificationExpiresAt()
+  const delivery = await sendSmsVerification({ to: phone, code })
+
+  if (!delivery?.delivered && !delivery?.mock) {
+    return {
+      phoneLogin: {
+        status: 'unavailable',
+        phone,
+        delivery,
+      },
+    }
+  }
+
+  await query`
+    insert into phone_login_tokens (id, phone, code_hash, created_at, expires_at, attempts)
+    values (${createId('plt')}, ${phone}, ${hashToken(code)}, ${createdAt}, ${expiresAt}, 0)
+  `
+
+  if (delivery?.mock) {
+    console.warn(`[whitehive-sms] mock phone login code for ${phone}: ${code}`)
+  }
+
+  return {
+    phoneLogin: {
+      status: 'pending',
+      phone,
+      expiresAt,
+      delivery,
+    },
+  }
+}
+
+export async function confirmPhoneLogin(input = {}) {
+  const phone = validatePhone(input.phone)
+  const code = validatePhoneVerificationCode(input.code)
+
+  const rows = await query`
+    select * from phone_login_tokens
+    where phone = ${phone}
+      and used_at is null
+      and expires_at > now()
+    order by created_at desc
+    limit 1
+  `
+
+  const challenge = rows[0]
+  if (!challenge) {
+    throw new HttpError(400, 'invalid_phone_code', '验证码不正确或已过期, 请重新发送。')
+  }
+
+  if (challenge.attempts >= PHONE_MAX_ATTEMPTS) {
+    throw new HttpError(
+      400,
+      'phone_login_too_many_attempts',
+      '输入错误次数过多, 请重新发送验证码。',
+    )
+  }
+
+  if (challenge.code_hash !== hashToken(code)) {
+    const nextAttempts = challenge.attempts + 1
+    await query`
+      update phone_login_tokens
+      set attempts = ${nextAttempts}
+      where id = ${challenge.id}
+    `
+    throw new HttpError(400, 'invalid_phone_code', '验证码不正确, 请重新输入。', {
+      attemptsLeft: Math.max(0, PHONE_MAX_ATTEMPTS - nextAttempts),
+    })
+  }
+
+  const verifiedAt = nowIso()
+  await query`
+    update phone_login_tokens
+    set used_at = ${verifiedAt}
+    where id = ${challenge.id}
+  `
+
+  const profile = sanitizeProviderAuthInput({
+    provider: 'phone',
+    providerUserId: phone,
+    role: input.role,
+    phone,
+    displayName: input.displayName || `手机尾号${phone.slice(-4)}用户`,
+  })
+  const email = providerEmail('phone', phone)
+  const existing = await query`
+    select * from users
+    where (phone = ${phone} and phone_verified_at is not null)
+      or (auth_provider = 'phone' and provider_user_id = ${phone})
+      or email = ${email}
+    order by
+      case when phone = ${phone} and phone_verified_at is not null then 0 else 1 end,
+      created_at asc
+    limit 1
+  `
+  let user = existing[0]
+
+  if (!user) {
+    const inserted = await query`
+      insert into users (
+        id, email, display_name, role, verification_status, password_hash,
+        phone, school_or_company, city, bio, avatar_url, auth_provider, provider_user_id,
+        email_verified_at, phone_verified_at, created_at, updated_at
+      )
+      values (
+        ${createId('usr')}, ${email}, ${profile.displayName}, ${profile.role}, 'unverified', null,
+        ${phone}, ${profile.schoolOrCompany}, ${profile.city}, ${profile.bio}, ${profile.avatarUrl},
+        'phone', ${phone}, ${verifiedAt}, ${verifiedAt}, ${verifiedAt}, ${verifiedAt}
+      )
+      returning *
+    `
+    user = inserted[0]
+  } else {
+    const updated = await query`
+      update users
+      set
+        phone = ${phone},
+        phone_verified_at = coalesce(phone_verified_at, ${verifiedAt}),
+        email_verified_at = case
+          when auth_provider = 'phone' then coalesce(email_verified_at, ${verifiedAt})
+          else email_verified_at
+        end,
+        auth_provider = coalesce(nullif(auth_provider, ''), 'phone'),
+        provider_user_id = case
+          when coalesce(provider_user_id, '') = ''
+            and coalesce(auth_provider, '') in ('', 'phone') then ${phone}
+          else provider_user_id
+        end,
+        display_name = coalesce(nullif(display_name, ''), ${profile.displayName}),
+        updated_at = ${verifiedAt}
       where id = ${user.id}
       returning *
     `

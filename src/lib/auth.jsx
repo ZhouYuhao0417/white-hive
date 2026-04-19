@@ -2,8 +2,9 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import {
   acceptSessionToken as acceptSessionTokenRequest,
   clearSession,
-  confirmPasswordReset as confirmPasswordResetRequest,
   confirmEmailVerification as confirmEmailVerificationRequest,
+  confirmPasswordReset as confirmPasswordResetRequest,
+  confirmPhoneLogin as confirmPhoneLoginRequest,
   confirmPhoneVerification as confirmPhoneVerificationRequest,
   createProviderSession,
   createSession,
@@ -11,8 +12,9 @@ import {
   getAuthProviders,
   getSession,
   hasSessionToken,
-  requestPasswordReset as requestPasswordResetRequest,
   requestEmailVerification as requestEmailVerificationRequest,
+  requestPasswordReset as requestPasswordResetRequest,
+  requestPhoneLogin as requestPhoneLoginRequest,
   requestPhoneVerification as requestPhoneVerificationRequest,
   uploadAvatar as uploadAvatarRequest,
 } from './api.js'
@@ -98,6 +100,16 @@ export function AuthProvider({ children }) {
     return getAuthProviders()
   }, [])
 
+  const requestPhoneLogin = useCallback(async (phone) => {
+    return requestPhoneLoginRequest(phone)
+  }, [])
+
+  const confirmPhoneLogin = useCallback(async (payload) => {
+    const data = await confirmPhoneLoginRequest(payload)
+    if (data?.user) setUser(data.user)
+    return data
+  }, [])
+
   const logout = useCallback(() => {
     clearSession()
     setUser(null)
@@ -171,6 +183,8 @@ export function AuthProvider({ children }) {
         refreshUser,
         requestEmailVerification,
         confirmEmailVerification,
+        requestPhoneLogin,
+        confirmPhoneLogin,
         requestPhoneVerification,
         confirmPhoneVerification,
         requestPasswordReset,

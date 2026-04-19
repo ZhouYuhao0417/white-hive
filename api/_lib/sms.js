@@ -1,14 +1,21 @@
-// SMS transport · 阿里云短信服务 (Dysmsapi 2017-05-25)
+// SMS transport · 手机短信验证码
 //
-// 配置:
+// 推荐配置（Spug 推送助手）:
+//   WHITEHIVE_SMS_PROVIDER=spug
+//   SPUG_SMS_URL           — 在 Spug 模板里复制的完整 URL, 例如 https://push.spug.cc/send/xxxx
+//   SPUG_SMS_APP_NAME      — 可选, 默认 WhiteHive
+//
+// 兼容配置（阿里云 Dysmsapi 2017-05-25）:
+//   WHITEHIVE_SMS_PROVIDER=aliyun_sms
 //   ALIYUN_SMS_ACCESS_KEY_ID
 //   ALIYUN_SMS_ACCESS_KEY_SECRET
 //   ALIYUN_SMS_SIGN_NAME     — 已在阿里云审核通过的短信签名, 例如 "白蜂网"
 //   ALIYUN_SMS_TEMPLATE_CODE — 已审核通过的模板 ID, 例如 "SMS_123456789"
 //   ALIYUN_SMS_REGION        — 可选, 默认 cn-hangzhou
+//
 //   WHITEHIVE_SMS_MOCK=1     — 本地调试时跳过真实下发, verify 仍生效
 //
-// 模板内容约定: 必须有且只有 ${code} 占位:
+// 模板内容约定: 必须有验证码 code 变量:
 //   "您的白蜂网验证码是 ${code}, 5 分钟内有效, 请勿告知他人。"
 //
 // 返回形状与 email.js 对齐:
@@ -16,22 +23,21 @@
 
 import { createHash, createHmac, randomUUID } from 'node:crypto'
 
-const API_HOST = 'https://dysmsapi.aliyuncs.com/'
+const ALIYUN_API_HOST = 'https://dysmsapi.aliyuncs.com/'
+const SPUG_DEFAULT_ENDPOINT = 'https://push.spug.cc/send'
 
 export function smsStatus() {
-  const missing = []
-  if (!process.env.ALIYUN_SMS_ACCESS_KEY_ID) missing.push('ALIYUN_SMS_ACCESS_KEY_ID')
-  if (!process.env.ALIYUN_SMS_ACCESS_KEY_SECRET) missing.push('ALIYUN_SMS_ACCESS_KEY_SECRET')
-  if (!process.env.ALIYUN_SMS_SIGN_NAME) missing.push('ALIYUN_SMS_SIGN_NAME')
-  if (!process.env.ALIYUN_SMS_TEMPLATE_CODE) missing.push('ALIYUN_SMS_TEMPLATE_CODE')
+  const provider = selectedSmsProvider()
+  const spug = spugStatus()
+  const aliyun = aliyunStatus()
+  const active = provider === 'aliyun_sms' ? aliyun : spug
   return {
-    provider: 'aliyun_sms',
-    configured: missing.length === 0,
+    provider,
+    configured: active.configured,
     mockEnabled: process.env.WHITEHIVE_SMS_MOCK === '1',
-    signName: process.env.ALIYUN_SMS_SIGN_NAME || '',
-    templateCode: process.env.ALIYUN_SMS_TEMPLATE_CODE || '',
-    region: process.env.ALIYUN_SMS_REGION || 'cn-hangzhou',
-    missing,
+    missing: active.missing,
+    spug,
+    aliyun,
   }
 }
 
@@ -42,29 +48,24 @@ export function smsStatus() {
  * 返回 { provider, delivered, mock, message, requestId?, bizId? }
  */
 export async function sendSmsVerification({ to, code }) {
-  const accessKeyId = process.env.ALIYUN_SMS_ACCESS_KEY_ID
-  const accessKeySecret = process.env.ALIYUN_SMS_ACCESS_KEY_SECRET
-  const signName = process.env.ALIYUN_SMS_SIGN_NAME
-  const templateCode = process.env.ALIYUN_SMS_TEMPLATE_CODE
-  const allowMock = process.env.WHITEHIVE_SMS_MOCK === '1'
-
+  const status = smsStatus()
   const phone = normalizeCnPhone(to)
   if (!phone) {
     return {
-      provider: 'aliyun_sms',
+      provider: status.provider,
       delivered: false,
       mock: false,
       message: '手机号格式不正确, 仅支持中国大陆 11 位手机号。',
     }
   }
 
-  if (!accessKeyId || !accessKeySecret || !signName || !templateCode) {
-    if (!allowMock) {
+  if (!status.configured) {
+    if (!status.mockEnabled) {
       return {
         provider: 'not_configured',
         delivered: false,
         mock: false,
-        message: '短信服务尚未配置, 请在 Vercel 添加 ALIYUN_SMS_* 环境变量。',
+        message: missingSmsMessage(status),
       }
     }
     return {
@@ -75,6 +76,82 @@ export async function sendSmsVerification({ to, code }) {
     }
   }
 
+  if (status.provider === 'spug') {
+    return sendSpugSms({ phone, code })
+  }
+
+  return sendAliyunSms({ phone, code })
+}
+
+async function sendSpugSms({ phone, code }) {
+  const config = spugConfig()
+  const appName = process.env.SPUG_SMS_APP_NAME || 'WhiteHive'
+  const payload = {
+    name: appName,
+    code,
+    targets: phone,
+  }
+  const method = String(process.env.SPUG_SMS_METHOD || 'POST').trim().toUpperCase()
+  const url = new URL(config.url)
+  let request
+
+  if (method === 'GET') {
+    url.searchParams.set('name', appName)
+    url.searchParams.set('code', code)
+    url.searchParams.set('targets', phone)
+    request = {
+      method: 'GET',
+      headers: { accept: 'application/json' },
+    }
+  } else {
+    request = {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    }
+  }
+
+  let response
+  try {
+    response = await fetch(url, request)
+  } catch (err) {
+    return {
+      provider: 'spug',
+      delivered: false,
+      mock: false,
+      message: `网络错误: ${err.message || '无法连接 Spug 推送助手。'}`,
+    }
+  }
+
+  const payloadResult = await readResponsePayload(response)
+  if (!spugResponseOk(response, payloadResult)) {
+    return {
+      provider: 'spug',
+      delivered: false,
+      mock: false,
+      message: spugResponseMessage(payloadResult, `短信下发失败 (${response.status})。请稍后重试。`),
+      requestId: payloadResult?.data?.id || payloadResult?.id || payloadResult?.requestId,
+      code: payloadResult?.code,
+    }
+  }
+
+  return {
+    provider: 'spug',
+    delivered: true,
+    mock: false,
+    message: '短信验证码已发送。',
+    requestId: payloadResult?.data?.id || payloadResult?.id || payloadResult?.requestId,
+  }
+}
+
+async function sendAliyunSms({ phone, code }) {
+  const accessKeyId = process.env.ALIYUN_SMS_ACCESS_KEY_ID
+  const accessKeySecret = process.env.ALIYUN_SMS_ACCESS_KEY_SECRET
+  const signName = process.env.ALIYUN_SMS_SIGN_NAME
+  const templateCode = process.env.ALIYUN_SMS_TEMPLATE_CODE
   const params = {
     // 公共参数
     AccessKeyId: accessKeyId,
@@ -98,7 +175,7 @@ export async function sendSmsVerification({ to, code }) {
 
   let response
   try {
-    response = await fetch(API_HOST, {
+    response = await fetch(ALIYUN_API_HOST, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body,
@@ -135,6 +212,95 @@ export async function sendSmsVerification({ to, code }) {
     requestId: payload.RequestId,
     bizId: payload.BizId,
   }
+}
+
+function selectedSmsProvider() {
+  const configured = String(process.env.WHITEHIVE_SMS_PROVIDER || '').trim().toLowerCase()
+  if (configured === 'aliyun' || configured === 'aliyun_sms') return 'aliyun_sms'
+  if (configured === 'spug') return 'spug'
+
+  const spug = spugConfig()
+  const aliyun = aliyunStatus()
+  if (spug.hasAny) return 'spug'
+  if (aliyun.hasAny) return 'aliyun_sms'
+  return 'spug'
+}
+
+function spugStatus() {
+  const config = spugConfig()
+  const missing = config.url ? [] : ['SPUG_SMS_URL or SPUG_SMS_TEMPLATE_ID']
+  return {
+    provider: 'spug',
+    configured: missing.length === 0,
+    missing,
+    appName: process.env.SPUG_SMS_APP_NAME || 'WhiteHive',
+    urlConfigured: Boolean(process.env.SPUG_SMS_URL),
+    templateIdConfigured: Boolean(process.env.SPUG_SMS_TEMPLATE_ID),
+  }
+}
+
+function spugConfig() {
+  const explicitUrl = String(process.env.SPUG_SMS_URL || '').trim()
+  const templateId = String(process.env.SPUG_SMS_TEMPLATE_ID || '').trim()
+  const endpoint = String(process.env.SPUG_SMS_ENDPOINT || SPUG_DEFAULT_ENDPOINT).trim()
+  return {
+    url: explicitUrl || (templateId ? `${endpoint.replace(/\/+$/g, '')}/${encodeURIComponent(templateId)}` : ''),
+    hasAny: Boolean(explicitUrl || templateId || process.env.SPUG_SMS_ENDPOINT || process.env.SPUG_SMS_APP_NAME),
+  }
+}
+
+function aliyunStatus() {
+  const missing = []
+  if (!process.env.ALIYUN_SMS_ACCESS_KEY_ID) missing.push('ALIYUN_SMS_ACCESS_KEY_ID')
+  if (!process.env.ALIYUN_SMS_ACCESS_KEY_SECRET) missing.push('ALIYUN_SMS_ACCESS_KEY_SECRET')
+  if (!process.env.ALIYUN_SMS_SIGN_NAME) missing.push('ALIYUN_SMS_SIGN_NAME')
+  if (!process.env.ALIYUN_SMS_TEMPLATE_CODE) missing.push('ALIYUN_SMS_TEMPLATE_CODE')
+  return {
+    provider: 'aliyun_sms',
+    configured: missing.length === 0,
+    missing,
+    signName: process.env.ALIYUN_SMS_SIGN_NAME || '',
+    templateCode: process.env.ALIYUN_SMS_TEMPLATE_CODE || '',
+    region: process.env.ALIYUN_SMS_REGION || 'cn-hangzhou',
+    hasAny: Boolean(
+      process.env.ALIYUN_SMS_ACCESS_KEY_ID ||
+        process.env.ALIYUN_SMS_ACCESS_KEY_SECRET ||
+        process.env.ALIYUN_SMS_SIGN_NAME ||
+        process.env.ALIYUN_SMS_TEMPLATE_CODE ||
+        process.env.ALIYUN_SMS_REGION,
+    ),
+  }
+}
+
+function missingSmsMessage(status) {
+  if (status.provider === 'spug') {
+    return '短信服务尚未配置, 请在 Vercel 添加 SPUG_SMS_URL, 或添加 SPUG_SMS_TEMPLATE_ID。'
+  }
+  return '短信服务尚未配置, 请在 Vercel 添加 ALIYUN_SMS_* 环境变量。'
+}
+
+async function readResponsePayload(response) {
+  const text = await response.text().catch(() => '')
+  if (!text) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { message: text }
+  }
+}
+
+function spugResponseOk(response, payload) {
+  if (!response.ok) return false
+  if (!payload || typeof payload !== 'object') return true
+  if (payload.success === true || payload.ok === true) return true
+  if (payload.success === false || payload.ok === false) return false
+  if (payload.code === undefined && payload.status === undefined && payload.errcode === undefined) return true
+  const code = payload.code ?? payload.status ?? payload.errcode
+  return code === 0 || code === 200 || code === '0' || code === '200' || code === 'OK'
+}
+
+function spugResponseMessage(payload, fallback) {
+  return payload?.message || payload?.msg || payload?.error || fallback
 }
 
 /**

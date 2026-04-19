@@ -62,6 +62,14 @@ export function upsertProviderSession(input) {
   return callStore('upsertProviderSession', [input])
 }
 
+export function requestPhoneLogin(input) {
+  return callStore('requestPhoneLogin', [input])
+}
+
+export function confirmPhoneLogin(input) {
+  return callStore('confirmPhoneLogin', [input])
+}
+
 export function requestPasswordReset(input) {
   return callStore('requestPasswordReset', [input])
 }

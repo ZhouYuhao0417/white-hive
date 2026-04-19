@@ -13,6 +13,12 @@ export function clearProductionEnv() {
   delete process.env.POSTGRES_URL
   delete process.env.STORAGES_URL
   delete process.env.WHITEHIVE_REQUIRE_DATABASE
+  delete process.env.WHITEHIVE_SMS_PROVIDER
+  delete process.env.SPUG_SMS_URL
+  delete process.env.SPUG_SMS_TEMPLATE_ID
+  delete process.env.SPUG_SMS_ENDPOINT
+  delete process.env.SPUG_SMS_APP_NAME
+  delete process.env.SPUG_SMS_METHOD
   delete process.env.ALIYUN_SMS_ACCESS_KEY_ID
   delete process.env.ALIYUN_SMS_ACCESS_KEY_SECRET
   delete process.env.ALIYUN_SMS_SIGN_NAME

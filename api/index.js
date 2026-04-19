@@ -24,6 +24,7 @@ import {
   checkRateLimit,
   confirmEmailVerification,
   confirmPasswordReset,
+  confirmPhoneLogin,
   confirmPhoneVerification,
   confirmWechatPayment,
   confirmWechatRefund,
@@ -41,6 +42,7 @@ import {
   listServices,
   listVerificationRequests,
   requestEmailVerification,
+  requestPhoneLogin,
   requestPasswordReset,
   requestPhoneVerification,
   reviewVerification,
@@ -81,6 +83,10 @@ function clientIp(request) {
 
 function rateLimitEmail(email) {
   return String(email || '').trim().toLowerCase() || 'unknown-email'
+}
+
+function rateLimitPhone(phone) {
+  return String(phone || '').replace(/[^\d]/g, '') || 'unknown-phone'
 }
 
 function rateLimitSessionIdentifier(request, token = bearerToken(request)) {
@@ -171,6 +177,40 @@ async function enforcePhoneVerificationConfirmRateLimit(request, token) {
     limit: 8,
     windowSeconds: 10 * 60,
     message: '短信验证码尝试次数过多，请稍后重新发送。',
+  })
+}
+
+async function enforcePhoneLoginSendRateLimit(request, body = {}) {
+  await checkRateLimit({
+    bucket: 'phone_login_send_ip',
+    identifier: clientIp(request),
+    limit: 20,
+    windowSeconds: 10 * 60,
+    message: '手机号验证码发送太频繁，请稍后再试。',
+  })
+  await checkRateLimit({
+    bucket: 'phone_login_send_phone',
+    identifier: rateLimitPhone(body.phone),
+    limit: 4,
+    windowSeconds: 15 * 60,
+    message: '这个手机号的验证码发送太频繁，请稍后再试。',
+  })
+}
+
+async function enforcePhoneLoginConfirmRateLimit(request, body = {}) {
+  await checkRateLimit({
+    bucket: 'phone_login_confirm_ip',
+    identifier: clientIp(request),
+    limit: 40,
+    windowSeconds: 10 * 60,
+    message: '手机号验证码校验太频繁，请稍后再试。',
+  })
+  await checkRateLimit({
+    bucket: 'phone_login_confirm_phone',
+    identifier: rateLimitPhone(body.phone),
+    limit: 10,
+    windowSeconds: 10 * 60,
+    message: '验证码尝试次数过多，请重新发送。',
   })
 }
 
@@ -429,6 +469,26 @@ export default {
           const body = await readBody(request)
           await enforceProviderAuthRateLimit(request, body)
           return ok(await upsertProviderSession(body))
+        }
+
+        return methodNotAllowed(request.method, ['POST'])
+      }
+
+      if (path === 'auth/phone-login') {
+        if (request.method === 'POST') {
+          const body = await readBody(request)
+          await enforcePhoneLoginSendRateLimit(request, body)
+          return ok(await requestPhoneLogin(body))
+        }
+
+        return methodNotAllowed(request.method, ['POST'])
+      }
+
+      if (path === 'auth/phone-login/confirm') {
+        if (request.method === 'POST') {
+          const body = await readBody(request)
+          await enforcePhoneLoginConfirmRateLimit(request, body)
+          return ok(await confirmPhoneLogin(body))
         }
 
         return methodNotAllowed(request.method, ['POST'])

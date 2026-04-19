@@ -8,6 +8,8 @@ import { test, expect, describe, beforeEach, afterEach } from 'bun:test'
 import {
   upsertDemoSession,
   getSessionByToken,
+  requestPhoneLogin,
+  confirmPhoneLogin,
   requestPhoneVerification,
   createService,
   listServices,
@@ -23,6 +25,7 @@ import {
   reviewVerification,
   submitVerification,
 } from '../api/_lib/store.js'
+import { hashToken } from '../api/_lib/auth.js'
 import { HttpError } from '../api/_lib/http.js'
 import { resetMemoryStore, clearProductionEnv, uniqueEmail } from './helpers.js'
 
@@ -152,6 +155,30 @@ describe('store · auth → service → order → message → payment flow', () 
     expect(result.phoneVerification.status).toBe('unavailable')
     expect(result.phoneVerification.delivery.provider).toBe('not_configured')
     expect(globalThis.__whitehiveMvpStore.phoneVerificationTokens).toHaveLength(0)
+  })
+
+  test('phone login creates a verified phone account after SMS code confirmation', async () => {
+    process.env.WHITEHIVE_SMS_MOCK = '1'
+    const phone = '13712345678'
+
+    const requested = await requestPhoneLogin({ phone, role: 'seller' })
+
+    expect(requested.phoneLogin.status).toBe('pending')
+    expect(requested.phoneLogin.delivery.provider).toBe('mock')
+    const state = globalThis.__whitehiveMvpStore
+    expect(state.phoneLoginTokens).toHaveLength(1)
+    state.phoneLoginTokens[0].codeHash = hashToken('123456')
+
+    const session = await confirmPhoneLogin({ phone, code: '123456', role: 'seller' })
+
+    expect(session.user.phone).toBe(phone)
+    expect(session.user.phoneVerified).toBe(true)
+    expect(session.user.authProvider).toBe('phone')
+    expect(session.user.role).toBe('seller')
+    expect(session.session.token).toBeTruthy()
+
+    const restored = await getSessionByToken(session.session.token)
+    expect(restored.user.id).toBe(session.user.id)
   })
 
   test('admin review queue lists campus verification requests and updates status', async () => {

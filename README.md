@@ -149,7 +149,7 @@ WHITEHIVE_SITE_URL=https://www.whitehive.cn
 1. 订单详情、付款、聊天只允许订单买家、卖家或管理员访问。
 2. 服务发布要求登录且账号身份为创作者。
 3. 实名认证审核需要管理员邮箱白名单或 `WHITEHIVE_ADMIN_REVIEW_TOKEN`。
-4. 手机号、微信、QQ、GitHub 当前仍是 provider demo；要变成真实登录，需要各平台应用密钥和短信服务商。
+4. 手机号已走短信验证码登录/注册；微信、QQ、GitHub 在平台应用密钥配置前仍会降级到临时桥接登录。
 
 ## 环境变量
 
@@ -160,6 +160,10 @@ WHITEHIVE_SITE_URL=https://www.whitehive.cn
 | `DEEPSEEK_API_KEY` | 生产推荐 | 启用 DeepSeek 真实 LLM 调用（AI 匹配 / brief 审稿 / 定价建议 / listing 润色 / 纠纷摘要 / 消息审核）。未配置时全部降级到规则兜底，不崩。 |
 | `DEEPSEEK_MODEL` | 否 | 默认 `deepseek-chat`，想 A/B 其他模型时覆盖。 |
 | `WHITEHIVE_REQUIRE_DATABASE` | 否 | 设为 `1` 时关闭"Postgres 失败回退到内存"的行为，适合生产。 |
+| `WHITEHIVE_SMS_PROVIDER` | 生产推荐 | 当前推荐填 `spug`。 |
+| `SPUG_SMS_URL` | 生产推荐 | Spug 推送助手短信验证码模板复制出来的完整 URL。 |
+| `SPUG_SMS_APP_NAME` | 否 | 发送到 Spug 的应用名，默认 `WhiteHive`。 |
+| `WHITEHIVE_SMS_MOCK` | 否 | 本地调试可设为 `1`，线上应为 `0`。 |
 
 AI 模块详细说明见 [`docs/ai-backend.md`](./docs/ai-backend.md)。
 

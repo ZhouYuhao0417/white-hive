@@ -24,6 +24,8 @@ Public endpoints:
 - `GET /api/health`
 - `GET /api/auth/session`
 - `POST /api/auth/session`
+- `POST /api/auth/phone-login`
+- `POST /api/auth/phone-login/confirm`
 - `POST /api/auth/provider`
 - `GET /api/auth/providers`
 - `GET /api/auth/profile`
@@ -75,9 +77,10 @@ Current storage:
 - `api/_lib/memory-store.js` keeps the safe demo fallback.
 - `api/_lib/postgres-store.js` uses Neon/Postgres when a supported database URL exists.
 - Registration now stores a hashed password, personal profile fields, and a server-side session token hash.
-- Phone registration now sends and confirms 6-digit SMS codes through Aliyun Dysmsapi when configured, with `WHITEHIVE_SMS_MOCK=1` available for local demos.
+- Phone login/register now sends and confirms 6-digit SMS codes through Spug Push when configured. The backend generates and hashes the code; Spug only receives the code and target phone number. `WHITEHIVE_SMS_MOCK=1` remains available for local demos.
+- Logged-in users can also verify or bind profile phone numbers through the same SMS transport. Aliyun Dysmsapi remains as an optional fallback, but Spug is the recommended path while the project does not have enterprise SMS qualifications.
 - If SMS is not configured, registration no longer blocks on an impossible code. The phone is saved as an unverified contact method and can be verified later after SMS credentials or a manual review path exists.
-- WeChat, QQ and GitHub buttons still create provider-backed MVP sessions through `POST /api/auth/provider`, so every advertised login/register entry point is usable in demos while final OAuth credentials are pending.
+- WeChat, QQ and GitHub buttons still create provider-backed MVP sessions through `POST /api/auth/provider`, so those advertised login/register entry points remain usable while final OAuth credentials are pending. The phone button now uses the real SMS-code flow.
 - GitHub, WeChat and QQ also have live OAuth start/callback endpoints. When platform credentials are configured, the frontend sends users through real provider authorization; otherwise it keeps the demo bridge.
 - Registration/login, email verification and phone verification now have simple IP/session/email/phone rate limits backed by the active store.
 - Profile data now supports an optional compressed avatar image for higher-trust accounts.
@@ -131,7 +134,7 @@ Verification statuses:
 
 ## Next Backend Steps
 
-1. Configure Aliyun SMS in Vercel with `ALIYUN_SMS_ACCESS_KEY_ID`, `ALIYUN_SMS_ACCESS_KEY_SECRET`, `ALIYUN_SMS_SIGN_NAME`, `ALIYUN_SMS_TEMPLATE_CODE`, `ALIYUN_SMS_REGION=cn-hangzhou` and `WHITEHIVE_SMS_MOCK=0`; then verify phone registration on production.
+1. Configure Spug SMS in Vercel with `WHITEHIVE_SMS_PROVIDER=spug`, `SPUG_SMS_URL`, `SPUG_SMS_APP_NAME=WhiteHive` and `WHITEHIVE_SMS_MOCK=0`; then verify phone login/register on production.
 2. Keep `BLOB_READ_WRITE_TOKEN`, `WHITEHIVE_ADMIN_EMAILS` and optionally `WHITEHIVE_ADMIN_REVIEW_TOKEN` configured; restore `RESEND_API_KEY` and `EMAIL_FROM` only after the Resend account is usable again.
 3. Register OAuth apps for GitHub, WeChat and QQ, set the corresponding client ID/secret variables, and verify the callback URLs under `/api/auth/oauth/:provider/callback`.
 4. Replace the MVP password auth with Clerk/Auth0 or email magic-link auth when the product leaves demo mode.
