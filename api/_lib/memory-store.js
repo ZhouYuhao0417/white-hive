@@ -993,6 +993,27 @@ export function getVerificationProfile(userId = 'usr_demo_seller') {
   })
 }
 
+export function listVerificationRequests({ status = 'pending', limit = 50 } = {}) {
+  if (status && status !== 'all' && !verificationRequestStatuses.includes(status)) {
+    throw new HttpError(400, 'invalid_verification_status', '实名认证审核状态不合法。', {
+      allowed: ['all', ...verificationRequestStatuses],
+    })
+  }
+
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 100))
+  const requests = getState().verificationRequests
+    .filter((request) => status === 'all' || !status || request.status === status)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, safeLimit)
+
+  return clone(
+    requests.map((request) => ({
+      ...sanitizeVerificationRequest(request),
+      user: publicUser(getState().users.find((user) => user.id === request.userId)),
+    })),
+  )
+}
+
 export function submitVerification(input) {
   const state = getState()
   const user = ensureUser(input.userId || 'usr_demo_seller')
@@ -1281,7 +1302,7 @@ function sanitizeVerificationRequest(request) {
 
 function normalizeVerificationType(value) {
   const text = String(value || '').trim()
-  return ['individual', 'studio', 'company'].includes(text) ? text : 'individual'
+  return ['individual', 'campus', 'studio', 'company'].includes(text) ? text : 'individual'
 }
 
 function limitText(value, maxLength) {

@@ -19,6 +19,9 @@ import {
   createMessage,
   listMessages,
   createPayment,
+  listVerificationRequests,
+  reviewVerification,
+  submitVerification,
 } from '../api/_lib/store.js'
 import { HttpError } from '../api/_lib/http.js'
 import { resetMemoryStore, clearProductionEnv, uniqueEmail } from './helpers.js'
@@ -143,6 +146,42 @@ describe('store · auth → service → order → message → payment flow', () 
     expect(result.phoneVerification.status).toBe('unavailable')
     expect(result.phoneVerification.delivery.provider).toBe('not_configured')
     expect(globalThis.__whitehiveMvpStore.phoneVerificationTokens).toHaveLength(0)
+  })
+
+  test('admin review queue lists campus verification requests and updates status', async () => {
+    const session = await upsertDemoSession({
+      action: 'signup',
+      email: uniqueEmail('cdut-verify'),
+      password: 'testpass123',
+      displayName: 'CDUT 用户',
+      role: 'seller',
+    })
+
+    const submitted = await submitVerification({
+      userId: session.user.id,
+      realName: '成都理工同学',
+      role: '成都理工在校生',
+      verificationType: 'campus',
+      idNumberLast4: '2026',
+      contactEmail: session.user.email,
+      schoolOrCompany: '成都理工大学',
+      city: '成都',
+      evidenceUrl: 'https://www.whitehive.cn/cdut',
+    })
+
+    const pending = await listVerificationRequests({ status: 'pending' })
+    const found = pending.find((item) => item.id === submitted.request.id)
+    expect(found).toBeTruthy()
+    expect(found.verificationType).toBe('campus')
+    expect(found.user.email).toBe(session.user.email)
+
+    const reviewed = await reviewVerification(submitted.request.id, {
+      status: 'approved',
+      reviewerNote: 'CDUT 校园认证人工审核通过。',
+    })
+
+    expect(reviewed.request.status).toBe('approved')
+    expect(reviewed.user.verificationStatus).toBe('verified')
   })
 
   test('seller can create a published service and it shows up in listServices', async () => {

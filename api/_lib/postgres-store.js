@@ -1320,6 +1320,70 @@ export async function getVerificationProfile(userId = 'usr_demo_seller') {
   }
 }
 
+export async function listVerificationRequests({ status = 'pending', limit = 50 } = {}) {
+  if (status && status !== 'all' && !verificationRequestStatuses.includes(status)) {
+    throw new HttpError(400, 'invalid_verification_status', '实名认证审核状态不合法。', {
+      allowed: ['all', ...verificationRequestStatuses],
+    })
+  }
+
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 100))
+  const rows =
+    status && status !== 'all'
+      ? await query`
+          select
+            vr.*,
+            u.email as user_email,
+            u.display_name as user_display_name,
+            u.role as user_role,
+            u.phone as user_phone,
+            u.school_or_company as user_school_or_company,
+            u.city as user_city,
+            u.bio as user_bio,
+            u.avatar_url as user_avatar_url,
+            u.auth_provider as user_auth_provider,
+            u.provider_user_id as user_provider_user_id,
+            u.verification_status as user_verification_status,
+            u.email_verified_at as user_email_verified_at,
+            u.phone_verified_at as user_phone_verified_at,
+            u.created_at as user_created_at,
+            u.updated_at as user_updated_at
+          from verification_requests vr
+          left join users u on u.id = vr.user_id
+          where vr.status = ${status}
+          order by vr.created_at desc
+          limit ${safeLimit}
+        `
+      : await query`
+          select
+            vr.*,
+            u.email as user_email,
+            u.display_name as user_display_name,
+            u.role as user_role,
+            u.phone as user_phone,
+            u.school_or_company as user_school_or_company,
+            u.city as user_city,
+            u.bio as user_bio,
+            u.avatar_url as user_avatar_url,
+            u.auth_provider as user_auth_provider,
+            u.provider_user_id as user_provider_user_id,
+            u.verification_status as user_verification_status,
+            u.email_verified_at as user_email_verified_at,
+            u.phone_verified_at as user_phone_verified_at,
+            u.created_at as user_created_at,
+            u.updated_at as user_updated_at
+          from verification_requests vr
+          left join users u on u.id = vr.user_id
+          order by vr.created_at desc
+          limit ${safeLimit}
+        `
+
+  return rows.map((row) => ({
+    ...sanitizeVerificationRequest(verificationRequestFromRow(row)),
+    user: publicUser(userFromVerificationJoinRow(row)),
+  }))
+}
+
 export async function submitVerification(input) {
   const user = await ensureUser(input.userId || 'usr_demo_seller')
   const realName = String(input.realName || '').trim()
@@ -1628,7 +1692,7 @@ function sanitizeVerificationRequest(request) {
 
 function normalizeVerificationType(value) {
   const text = String(value || '').trim()
-  return ['individual', 'studio', 'company'].includes(text) ? text : 'individual'
+  return ['individual', 'campus', 'studio', 'company'].includes(text) ? text : 'individual'
 }
 
 function limitText(value, maxLength) {
@@ -1661,6 +1725,28 @@ function userFromRow(row) {
     phoneVerifiedAt: toIso(row.phone_verified_at),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at) || toIso(row.created_at),
+  }
+}
+
+function userFromVerificationJoinRow(row) {
+  if (!row?.user_id || !row.user_email) return null
+  return {
+    id: row.user_id,
+    email: row.user_email,
+    displayName: row.user_display_name,
+    role: row.user_role,
+    phone: row.user_phone || '',
+    schoolOrCompany: row.user_school_or_company || '',
+    city: row.user_city || '',
+    bio: row.user_bio || '',
+    avatarUrl: row.user_avatar_url || '',
+    authProvider: row.user_auth_provider || 'password',
+    providerUserId: row.user_provider_user_id || '',
+    verificationStatus: row.user_verification_status,
+    emailVerifiedAt: toIso(row.user_email_verified_at),
+    phoneVerifiedAt: toIso(row.user_phone_verified_at),
+    createdAt: toIso(row.user_created_at),
+    updatedAt: toIso(row.user_updated_at) || toIso(row.user_created_at),
   }
 }
 

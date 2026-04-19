@@ -145,6 +145,15 @@ function UserMenu({ user, onLogout }) {
               <Icon name="shield" size={15} />
               账号与认证
             </button>
+            {user.role === 'admin' && (
+              <button
+                onClick={() => { setOpen(false); navigate('/admin/verifications') }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/75 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                <Icon name="document" size={15} />
+                实名审核
+              </button>
+            )}
             <button
               onClick={() => { setOpen(false); navigate('/sell') }}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/75 hover:text-white hover:bg-white/5 transition-colors"
@@ -311,6 +320,14 @@ export default function Navbar() {
                   >
                     退出登录
                   </button>
+                  {user.role === 'admin' && (
+                    <button
+                      onClick={() => { setMobileOpen(false); navigate('/admin/verifications') }}
+                      className="px-3 py-2 rounded-lg text-sm text-white/70 hover:bg-white/5 text-left transition-colors"
+                    >
+                      实名审核
+                    </button>
+                  )}
                 </>
               ) : (
                 <button

@@ -29,6 +29,7 @@ import {
   listOrders,
   listPayments,
   listServices,
+  listVerificationRequests,
   requestEmailVerification,
   requestPasswordReset,
   requestPhoneVerification,
@@ -715,6 +716,16 @@ export default {
       if (path === 'verification') {
         if (request.method === 'GET') {
           const user = await requireSessionUser(request)
+          if (query.get('scope') === 'admin') {
+            await requireAdminReviewer(request)
+            return ok(
+              await listVerificationRequests({
+                status: query.get('status') || 'pending',
+                limit: query.get('limit') || undefined,
+              }),
+            )
+          }
+
           const requestedUserId = query.get('userId') || user.id
           if (requestedUserId !== user.id) {
             await requireAdminReviewer(request)

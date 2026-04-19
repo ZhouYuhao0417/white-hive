@@ -27,6 +27,7 @@ const requestStatusLabels = {
 
 const verificationTypeLabels = {
   individual: '个人',
+  campus: '校园学生',
   studio: '团队 / 工作室',
   company: '企业主体',
 }
@@ -455,6 +456,7 @@ export default function Account() {
                   className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-ink-900"
                 >
                   <option value="individual">个人</option>
+                  <option value="campus">校园学生 / CDUT</option>
                   <option value="studio">团队 / 工作室</option>
                   <option value="company">企业主体</option>
                 </select>
@@ -478,6 +480,8 @@ export default function Account() {
                   className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-ink-900"
                 >
                   <option value="个人创作者">个人创作者</option>
+                  <option value="成都理工在校生">成都理工在校生</option>
+                  <option value="校园服务者">校园服务者</option>
                   <option value="买家个人">买家个人</option>
                   <option value="团队 / 工作室">团队 / 工作室</option>
                   <option value="企业主体">企业主体</option>

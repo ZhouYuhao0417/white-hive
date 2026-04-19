@@ -223,6 +223,11 @@ export function getVerificationProfile(userId = 'usr_demo_seller') {
   return request(`/verification?userId=${encodeURIComponent(userId)}`)
 }
 
+export function listVerificationRequests(params = {}) {
+  const search = new URLSearchParams({ scope: 'admin', ...params })
+  return request(`/verification?${search.toString()}`)
+}
+
 export function submitVerification(payload) {
   return request('/verification', {
     method: 'POST',

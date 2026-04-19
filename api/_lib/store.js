@@ -154,6 +154,10 @@ export function getVerificationProfile(userId) {
   return callStore('getVerificationProfile', [userId])
 }
 
+export function listVerificationRequests(input) {
+  return callStore('listVerificationRequests', [input])
+}
+
 export function submitVerification(input) {
   return callStore('submitVerification', [input])
 }

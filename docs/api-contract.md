@@ -431,6 +431,10 @@ Verification is also a mock workflow for now. It gives the product a stable trus
 
 Returns the user verification profile plus the latest request. A user can read their own profile; reading another user's profile requires admin permission.
 
+### `GET /api/verification?scope=admin&status=pending`
+
+Lists verification requests for the manual admin review queue. `status` may be `pending`, `approved`, `rejected` or `all`; `limit` defaults to 50 and is capped at 100. Requires either `WHITEHIVE_ADMIN_EMAILS` to include the logged-in user's email or a valid `x-whitehive-admin-token` matching `WHITEHIVE_ADMIN_REVIEW_TOKEN`.
+
 ### `POST /api/verification`
 
 Creates a pending verification request.
@@ -442,7 +446,7 @@ Creates a pending verification request.
   "idNumberLast4": "2026",
   "contactEmail": "seller@whitehive.cn",
   "role": "seller",
-  "verificationType": "studio",
+  "verificationType": "campus",
   "schoolOrCompany": "成都理工大学",
   "city": "成都",
   "evidenceUrl": "https://www.whitehive.cn"
@@ -450,6 +454,7 @@ Creates a pending verification request.
 ```
 
 When logged in, the verification request is attached to the current bearer-token user.
+`verificationType` supports `individual`, `campus`, `studio` and `company`. The `campus` type is the MVP path for 成都理工校园认证: users submit school identity evidence first, and admins manually approve it from `/admin/verifications`.
 
 ### `PATCH /api/verification?id=ver_xxx`
 
