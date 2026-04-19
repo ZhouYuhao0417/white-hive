@@ -187,11 +187,26 @@ export default function AuthDrawer({ open, onClose }) {
           return
         }
 
-        setPhoneChallenge(phoneVerification)
-        setPhoneVerificationCode('')
+        if (phoneVerification?.status === 'pending') {
+          setPhoneChallenge(phoneVerification)
+          setPhoneVerificationCode('')
+          setNotice(
+            `账户已创建：${name}。${phoneVerification?.delivery?.message || '请完成手机号验证。'}`,
+          )
+          return
+        }
+
         setNotice(
-          `账户已创建：${name}。${phoneVerification?.delivery?.message || '请完成手机号验证。'}`,
+          `账户已创建：${name}。${phoneVerification?.delivery?.message || '手机号已登记，短信认证稍后开放。'}`,
         )
+        setTimeout(() => {
+          onClose()
+          setForm(initialForm)
+          resetTransientAuthState()
+          setNotice('')
+          setError('')
+          setMode('signin')
+        }, 1200)
         return
       }
 

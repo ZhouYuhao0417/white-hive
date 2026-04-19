@@ -127,6 +127,24 @@ describe('store · auth → service → order → message → payment flow', () 
     ).rejects.toThrow(HttpError)
   })
 
+  test('phone verification is non-blocking when sms transport is not configured', async () => {
+    const phone = '13912345678'
+    const session = await upsertDemoSession({
+      action: 'signup',
+      email: uniqueEmail('phone-unavailable'),
+      password: 'testpass123',
+      displayName: '短信待开通用户',
+      role: 'buyer',
+      phone,
+    })
+
+    const result = await requestPhoneVerification(session.session.token, { phone })
+
+    expect(result.phoneVerification.status).toBe('unavailable')
+    expect(result.phoneVerification.delivery.provider).toBe('not_configured')
+    expect(globalThis.__whitehiveMvpStore.phoneVerificationTokens).toHaveLength(0)
+  })
+
   test('seller can create a published service and it shows up in listServices', async () => {
     const service = await createService({
       title: '测试服务 · 官网',

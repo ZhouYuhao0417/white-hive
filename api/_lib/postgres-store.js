@@ -861,6 +861,17 @@ export async function requestPhoneVerification(token, input = {}) {
   const expiresAt = phoneVerificationExpiresAt()
   const delivery = await sendSmsVerification({ to: phone, code })
 
+  if (!delivery?.delivered && !delivery?.mock) {
+    return {
+      user: publicUser(user),
+      phoneVerification: {
+        status: 'unavailable',
+        phone,
+        delivery,
+      },
+    }
+  }
+
   await query`
     insert into phone_verification_tokens (id, user_id, phone, code_hash, created_at, expires_at, attempts)
     values (${createId('pvt')}, ${user.id}, ${phone}, ${hashToken(code)}, ${createdAt}, ${expiresAt}, 0)

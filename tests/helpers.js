@@ -13,6 +13,12 @@ export function clearProductionEnv() {
   delete process.env.POSTGRES_URL
   delete process.env.STORAGES_URL
   delete process.env.WHITEHIVE_REQUIRE_DATABASE
+  delete process.env.ALIYUN_SMS_ACCESS_KEY_ID
+  delete process.env.ALIYUN_SMS_ACCESS_KEY_SECRET
+  delete process.env.ALIYUN_SMS_SIGN_NAME
+  delete process.env.ALIYUN_SMS_TEMPLATE_CODE
+  delete process.env.ALIYUN_SMS_REGION
+  delete process.env.WHITEHIVE_SMS_MOCK
 }
 
 export function withoutDeepSeek(fn) {

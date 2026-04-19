@@ -534,6 +534,17 @@ export async function requestPhoneVerification(token, input = {}) {
   const expiresAt = phoneVerificationExpiresAt()
   const delivery = await sendSmsVerification({ to: phone, code })
 
+  if (!delivery?.delivered && !delivery?.mock) {
+    return clone({
+      user: publicUser(user),
+      phoneVerification: {
+        status: 'unavailable',
+        phone,
+        delivery,
+      },
+    })
+  }
+
   state.phoneVerificationTokens.unshift({
     id: createId('pvt'),
     userId: user.id,

@@ -150,7 +150,7 @@ Creates a short-lived hashed SMS code for the logged-in user. Production deliver
 }
 ```
 
-The backend rate-limits requests by IP, session and phone number. A verified phone number cannot be claimed by a different account.
+The backend rate-limits requests by IP, session and phone number. A verified phone number cannot be claimed by a different account. If SMS delivery is not configured or unavailable, the endpoint returns `status: "unavailable"` and does not create a hidden code; registration can continue with the phone saved as an unverified contact method.
 
 ### `POST /api/auth/phone-verification/confirm`
 

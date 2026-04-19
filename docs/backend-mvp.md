@@ -76,6 +76,7 @@ Current storage:
 - `api/_lib/postgres-store.js` uses Neon/Postgres when a supported database URL exists.
 - Registration now stores a hashed password, personal profile fields, and a server-side session token hash.
 - Phone registration now sends and confirms 6-digit SMS codes through Aliyun Dysmsapi when configured, with `WHITEHIVE_SMS_MOCK=1` available for local demos.
+- If SMS is not configured, registration no longer blocks on an impossible code. The phone is saved as an unverified contact method and can be verified later after SMS credentials or a manual review path exists.
 - WeChat, QQ and GitHub buttons still create provider-backed MVP sessions through `POST /api/auth/provider`, so every advertised login/register entry point is usable in demos while final OAuth credentials are pending.
 - Registration/login, email verification and phone verification now have simple IP/session/email/phone rate limits backed by the active store.
 - Profile data now supports an optional compressed avatar image for higher-trust accounts.
