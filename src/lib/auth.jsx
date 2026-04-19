@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import {
+  acceptSessionToken as acceptSessionTokenRequest,
   clearSession,
   confirmPasswordReset as confirmPasswordResetRequest,
   confirmEmailVerification as confirmEmailVerificationRequest,
@@ -7,6 +8,7 @@ import {
   createProviderSession,
   createSession,
   deleteAccount as deleteAccountRequest,
+  getAuthProviders,
   getSession,
   hasSessionToken,
   requestPasswordReset as requestPasswordResetRequest,
@@ -83,6 +85,19 @@ export function AuthProvider({ children }) {
     return data
   }, [])
 
+  const acceptSessionToken = useCallback(async (token) => {
+    acceptSessionTokenRequest(token)
+    const data = await getSession()
+    if (data?.user && data.user.email !== 'guest@whitehive.cn') {
+      setUser(data.user)
+    }
+    return data
+  }, [])
+
+  const getProviderStatus = useCallback(async () => {
+    return getAuthProviders()
+  }, [])
+
   const logout = useCallback(() => {
     clearSession()
     setUser(null)
@@ -149,6 +164,8 @@ export function AuthProvider({ children }) {
         login,
         signup,
         loginWithProvider,
+        acceptSessionToken,
+        getProviderStatus,
         logout,
         deleteAccount,
         refreshUser,

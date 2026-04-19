@@ -19,6 +19,13 @@ export function clearProductionEnv() {
   delete process.env.ALIYUN_SMS_TEMPLATE_CODE
   delete process.env.ALIYUN_SMS_REGION
   delete process.env.WHITEHIVE_SMS_MOCK
+  delete process.env.GITHUB_CLIENT_ID
+  delete process.env.GITHUB_CLIENT_SECRET
+  delete process.env.WECHAT_CLIENT_ID
+  delete process.env.WECHAT_CLIENT_SECRET
+  delete process.env.QQ_CLIENT_ID
+  delete process.env.QQ_CLIENT_SECRET
+  delete process.env.WHITEHIVE_OAUTH_STATE_SECRET
 }
 
 export function withoutDeepSeek(fn) {

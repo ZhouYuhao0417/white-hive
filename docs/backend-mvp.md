@@ -78,6 +78,7 @@ Current storage:
 - Phone registration now sends and confirms 6-digit SMS codes through Aliyun Dysmsapi when configured, with `WHITEHIVE_SMS_MOCK=1` available for local demos.
 - If SMS is not configured, registration no longer blocks on an impossible code. The phone is saved as an unverified contact method and can be verified later after SMS credentials or a manual review path exists.
 - WeChat, QQ and GitHub buttons still create provider-backed MVP sessions through `POST /api/auth/provider`, so every advertised login/register entry point is usable in demos while final OAuth credentials are pending.
+- GitHub, WeChat and QQ also have live OAuth start/callback endpoints. When platform credentials are configured, the frontend sends users through real provider authorization; otherwise it keeps the demo bridge.
 - Registration/login, email verification and phone verification now have simple IP/session/email/phone rate limits backed by the active store.
 - Profile data now supports an optional compressed avatar image for higher-trust accounts.
 - Avatar upload now has a Vercel Blob endpoint. When `BLOB_READ_WRITE_TOKEN` is configured, newly uploaded profile photos can move out of the database payload and into object storage.
@@ -126,7 +127,7 @@ Verification statuses:
 
 1. Configure Aliyun SMS in Vercel with `ALIYUN_SMS_ACCESS_KEY_ID`, `ALIYUN_SMS_ACCESS_KEY_SECRET`, `ALIYUN_SMS_SIGN_NAME`, `ALIYUN_SMS_TEMPLATE_CODE`, `ALIYUN_SMS_REGION=cn-hangzhou` and `WHITEHIVE_SMS_MOCK=0`; then verify phone registration on production.
 2. Keep `BLOB_READ_WRITE_TOKEN`, `WHITEHIVE_ADMIN_EMAILS` and optionally `WHITEHIVE_ADMIN_REVIEW_TOKEN` configured; restore `RESEND_API_KEY` and `EMAIL_FROM` only after the Resend account is usable again.
-3. Replace the WeChat, QQ and GitHub provider bridges with real OAuth credentials.
+3. Register OAuth apps for GitHub, WeChat and QQ, set the corresponding client ID/secret variables, and verify the callback URLs under `/api/auth/oauth/:provider/callback`.
 4. Replace the MVP password auth with Clerk/Auth0 or email magic-link auth when the product leaves demo mode.
 5. Replace browser cache fallback with Postgres-backed user data everywhere.
 6. Add an admin review page for pending real-name verification requests.

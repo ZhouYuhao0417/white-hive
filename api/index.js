@@ -4,6 +4,12 @@ import { blobStatus, uploadAvatarToBlob } from './_lib/blob.js'
 import { emailStatus } from './_lib/email.js'
 import { smsStatus } from './_lib/sms.js'
 import {
+  buildOAuthStartUrl,
+  oauthProviderStatus,
+  resolveOAuthProfile,
+  verifyOAuthState,
+} from './_lib/oauth.js'
+import {
   createMessage,
   createOrder,
   createPayment,
@@ -291,27 +297,25 @@ function authProviderStatus() {
       missing: sms.missing,
     },
     github: {
-      mode: process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET ? 'live' : 'demo',
-      configured: Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
-      missing: process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
-        ? []
-        : ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET'],
+      ...oauthProviderStatus('github'),
     },
     wechat: {
-      mode: process.env.WECHAT_CLIENT_ID && process.env.WECHAT_CLIENT_SECRET ? 'live' : 'demo',
-      configured: Boolean(process.env.WECHAT_CLIENT_ID && process.env.WECHAT_CLIENT_SECRET),
-      missing: process.env.WECHAT_CLIENT_ID && process.env.WECHAT_CLIENT_SECRET
-        ? []
-        : ['WECHAT_CLIENT_ID', 'WECHAT_CLIENT_SECRET'],
+      ...oauthProviderStatus('wechat'),
     },
     qq: {
-      mode: process.env.QQ_CLIENT_ID && process.env.QQ_CLIENT_SECRET ? 'live' : 'demo',
-      configured: Boolean(process.env.QQ_CLIENT_ID && process.env.QQ_CLIENT_SECRET),
-      missing: process.env.QQ_CLIENT_ID && process.env.QQ_CLIENT_SECRET
-        ? []
-        : ['QQ_CLIENT_ID', 'QQ_CLIENT_SECRET'],
+      ...oauthProviderStatus('qq'),
     },
   }
+}
+
+function redirect(location, status = 302) {
+  return new Response(null, {
+    status,
+    headers: {
+      location,
+      'cache-control': 'no-store',
+    },
+  })
 }
 
 export default {
@@ -369,6 +373,38 @@ export default {
         }
 
         return methodNotAllowed(request.method, ['POST'])
+      }
+
+      const oauthMatch = path.match(/^auth\/oauth\/([^/]+)\/(start|callback)$/)
+      if (oauthMatch) {
+        const [, provider, action] = oauthMatch
+        if (request.method !== 'GET') return methodNotAllowed(request.method, ['GET'])
+
+        if (action === 'start') {
+          const url = buildOAuthStartUrl(request, provider, {
+            role: query.get('role'),
+            returnTo: query.get('returnTo'),
+          })
+          return redirect(url)
+        }
+
+        const error = query.get('error')
+        if (error) {
+          return redirect(`/auth/callback?provider=${encodeURIComponent(provider)}&error=${encodeURIComponent(error)}`)
+        }
+
+        const state = verifyOAuthState(query.get('state'), provider)
+        const profile = await resolveOAuthProfile(provider, query.get('code'), request)
+        const session = await upsertProviderSession({
+          ...profile,
+          role: state.role,
+        })
+        const hash = new URLSearchParams({
+          token: session.session.token,
+          provider,
+          returnTo: state.returnTo,
+        }).toString()
+        return redirect(`/auth/callback#${hash}`)
       }
 
       if (path === 'auth/providers') {

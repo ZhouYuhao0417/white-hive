@@ -15,6 +15,10 @@ function saveSessionToken(token) {
   window.localStorage.setItem(SESSION_TOKEN_KEY, token)
 }
 
+export function acceptSessionToken(token) {
+  saveSessionToken(token)
+}
+
 export function clearSession() {
   if (typeof window === 'undefined') return
   window.localStorage.removeItem(SESSION_TOKEN_KEY)
@@ -65,6 +69,17 @@ export async function createProviderSession(provider, payload = {}) {
   }
 
   return data
+}
+
+export function oauthStartUrl(provider, params = {}) {
+  const search = new URLSearchParams()
+  if (params.role) search.set('role', params.role)
+  if (params.returnTo) search.set('returnTo', params.returnTo)
+  return `${API_BASE}/auth/oauth/${encodeURIComponent(provider)}/start${search.size ? `?${search.toString()}` : ''}`
+}
+
+export function getAuthProviders() {
+  return request('/auth/providers')
 }
 
 export function getSession() {

@@ -6,6 +6,8 @@ Auth-related account endpoints:
 
 - `POST /api/auth/session`: sign up or sign in with email/password.
 - `POST /api/auth/provider`: sign in with the MVP provider bridge for phone, WeChat, QQ or GitHub.
+- `GET /api/auth/oauth/:provider/start`: start live OAuth for GitHub, WeChat or QQ when credentials are configured.
+- `GET /api/auth/oauth/:provider/callback`: complete the live OAuth callback and create a WhiteHive session.
 - `GET /api/auth/providers`: inspect which provider logins are live vs demo.
 - `GET /api/auth/session`: restore the current bearer-token session.
 - `PATCH /api/auth/profile`: update profile fields for the logged-in user.
@@ -103,6 +105,34 @@ Supported `provider` values:
 ```
 
 The response shape matches `POST /api/auth/session` and returns a bearer session token.
+
+### `GET /api/auth/oauth/:provider/start`
+
+Starts a live OAuth flow for `github`, `wechat` or `qq`. The endpoint redirects to the provider authorize page only when the corresponding client ID/secret variables are configured. Otherwise the frontend keeps using the MVP provider bridge.
+
+Required callback URLs to register with each platform:
+
+- GitHub: `https://www.whitehive.cn/api/auth/oauth/github/callback`
+- WeChat: `https://www.whitehive.cn/api/auth/oauth/wechat/callback`
+- QQ: `https://www.whitehive.cn/api/auth/oauth/qq/callback`
+
+Environment variables:
+
+```text
+GITHUB_CLIENT_ID
+GITHUB_CLIENT_SECRET
+WECHAT_CLIENT_ID
+WECHAT_CLIENT_SECRET
+QQ_CLIENT_ID
+QQ_CLIENT_SECRET
+WHITEHIVE_OAUTH_STATE_SECRET
+```
+
+`WHITEHIVE_OAUTH_STATE_SECRET` is recommended for signed OAuth state. If it is absent, the backend falls back to existing server-side secrets.
+
+### `GET /api/auth/oauth/:provider/callback`
+
+Completes the provider callback, exchanges the OAuth code for a provider identity, upserts a WhiteHive user, and redirects to `/auth/callback` with a short frontend handoff. The React page stores the returned session token and then navigates into the app.
 
 ### `GET /api/auth/providers`
 

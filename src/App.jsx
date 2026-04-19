@@ -18,6 +18,7 @@ import Trust from './pages/Trust.jsx'
 import HowItWorks from './pages/HowItWorks.jsx'
 import About from './pages/About.jsx'
 import Legal from './pages/Legal.jsx'
+import AuthCallback from './pages/AuthCallback.jsx'
 
 const titles = {
   '/': 'WhiteHive · 可信数字服务交易平台',
@@ -28,6 +29,7 @@ const titles = {
   '/cdut': '成都理工大学服务专区 · WhiteHive',
   '/dashboard': '工作台 · WhiteHive',
   '/account': '账号与认证 · WhiteHive',
+  '/auth/callback': '登录处理中 · WhiteHive',
   '/orders': '订单详情 · WhiteHive',
   '/trust': '可信机制 · WhiteHive',
   '/how-it-works': '交易流程 · WhiteHive',
@@ -71,6 +73,7 @@ export default function App() {
           <Route path="/cdut" element={<CDUT />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/account" element={<Account />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/orders/:id" element={<OrderDetail />} />
           <Route path="/trust" element={<Trust />} />
           <Route path="/how-it-works" element={<HowItWorks />} />

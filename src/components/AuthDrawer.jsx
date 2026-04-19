@@ -80,6 +80,7 @@ export default function AuthDrawer({ open, onClose }) {
     login,
     signup,
     loginWithProvider,
+    getProviderStatus,
     requestEmailVerification,
     confirmEmailVerification,
     requestPhoneVerification,
@@ -106,6 +107,7 @@ export default function AuthDrawer({ open, onClose }) {
   const [passwordResetCode, setPasswordResetCode] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [providerStatus, setProviderStatus] = useState(null)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
 
@@ -117,6 +119,20 @@ export default function AuthDrawer({ open, onClose }) {
     setNotice('')
     setError('')
   }
+
+  useEffect(() => {
+    if (!open) return undefined
+    let cancelled = false
+    ;(async () => {
+      try {
+        const status = await getProviderStatus()
+        if (!cancelled) setProviderStatus(status)
+      } catch {
+        if (!cancelled) setProviderStatus(null)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [getProviderStatus, open])
 
   const resetTransientAuthState = () => {
     setEmailChallenge(null)
@@ -281,6 +297,18 @@ export default function AuthDrawer({ open, onClose }) {
     resetTransientAuthState()
 
     try {
+      let status = providerStatus
+      if (!status && ['wechat', 'qq', 'github'].includes(method.key)) {
+        status = await getProviderStatus()
+        setProviderStatus(status)
+      }
+      const liveProvider = ['wechat', 'qq', 'github'].includes(method.key)
+        && status?.[method.key]?.configured
+      if (liveProvider) {
+        window.location.href = `/api/auth/oauth/${method.key}/start?role=${encodeURIComponent(form.role)}&returnTo=/dashboard`
+        return
+      }
+
       const result = await loginWithProvider(method.key, {
         role: form.role,
         displayName: `${method.label}用户`,
