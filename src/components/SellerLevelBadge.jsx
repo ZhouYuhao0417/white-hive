@@ -23,13 +23,12 @@ export function SellerLevelBadge({ stats, level: precomputed, size = 'sm', showP
         background: `${lv.color}14`,
         color: lv.color,
       }}
-      title={`Lv.${lv.tier} · ${lv.label} · ${lv.orders} 单${lv.rating != null ? ` · ★ ${lv.rating.toFixed(1)}` : ''}`}
+      title={`Lv.${lv.tier} · ${lv.orders} 单${lv.rating != null ? ` · ★ ${lv.rating.toFixed(1)}` : ''}`}
     >
-      <span className="tracking-wider opacity-80">L{lv.tier}</span>
-      <span>{lv.label}</span>
+      <span className="tracking-wider">Lv.{lv.tier}</span>
       {showProgress && lv.next && (
         <span className="ml-1 opacity-70">
-          · 距{lv.next.label}还差{lv.progress.ordersNeeded} 单
+          · 距 Lv.{lv.next.tier} 还差 {lv.progress.ordersNeeded} 单
         </span>
       )}
     </span>

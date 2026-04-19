@@ -343,7 +343,7 @@ export default function Account() {
                     {lv.next ? (
                       <div className="mt-3">
                         <div className="flex items-center justify-between text-[11px] text-white/55">
-                          <span>升到 {lv.next.label} 还差 {lv.progress.ordersNeeded} 单{lv.progress.ratingNeeded > 0 ? ` · 评分再涨 ${lv.progress.ratingNeeded}` : ''}</span>
+                          <span>升到 Lv.{lv.next.tier} 还差 {lv.progress.ordersNeeded} 单{lv.progress.ratingNeeded > 0 ? ` · 评分再涨 ${lv.progress.ratingNeeded}` : ''}</span>
                           <span>{Math.round(lv.progress.ordersPct * 100)}%</span>
                         </div>
                         <div className="mt-1.5 h-1.5 w-full rounded-full bg-white/8 overflow-hidden">
@@ -354,7 +354,7 @@ export default function Account() {
                         </div>
                       </div>
                     ) : (
-                      <p className="mt-3 text-[11px] text-white/55">已封顶，欢迎加入殿堂。</p>
+                      <p className="mt-3 text-[11px] text-white/55">已封顶。</p>
                     )}
                   </div>
                 )

@@ -96,11 +96,11 @@ export function computeSellerLevel(stats = {}) {
 }
 
 /**
- * 简写描述: "金牌 · 28 单 · ★ 4.5"
+ * 简写描述: "Lv.2 · 28 单 · ★ 4.5"
  */
 export function describeSellerLevel(stats) {
   const lv = computeSellerLevel(stats)
-  const parts = [lv.label, `${lv.orders} 单`]
+  const parts = [`Lv.${lv.tier}`, `${lv.orders} 单`]
   if (lv.rating != null) parts.push(`★ ${lv.rating.toFixed(1)}`)
   return parts.join(' · ')
 }
