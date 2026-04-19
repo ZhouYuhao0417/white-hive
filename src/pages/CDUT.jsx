@@ -401,19 +401,19 @@ function CDUTHowItWorks() {
     {
       k: '01',
       title: '选分类 + 发单',
-      desc: '选"快递代取 / 外卖代取 / 校园约拍", 30 秒填完单子。金额自动走平台托管。',
+      desc: '选"快递代取 / 外卖代取 / 校园约拍", 30 秒填完单子, 系统推送给附近同学。',
       color: '#7FD3FF',
     },
     {
       k: '02',
       title: '同校同学接单',
-      desc: '系统按校区 + 楼栋就近派单, 同一栋楼优先。微信不加, 站内聊天就够用。',
+      desc: '系统按校区 + 楼栋就近派单, 同一栋楼优先。站内聊天先对齐细节和金额。',
       color: '#A5B4FC',
     },
     {
       k: '03',
-      title: '见面核销 · 结款',
-      desc: '见面扫一下服务码 / 确认收到, 托管的钱才到服务者。没见到? 一键秒退。',
+      title: '见面完成 · 自行结款',
+      desc: '校园专区不走平台托管, 金额和支付方式由双方自行协商; 沟通记录全部留在站内。',
       color: '#5EEAD4',
     },
   ]
@@ -524,8 +524,8 @@ export default function CDUT() {
       <Section>
         <SectionHeader
           eyebrow="HOW IT WORKS · 三步走完"
-          title="从发单到结款, 一张图讲清。"
-          desc="全程走平台, 不加微信, 不私下转账。"
+          title="从发单到见面, 一张图讲清。"
+          desc="站内沟通 + 就近派单, 金额由双方自行协商, 平台不介入资金。"
         />
         <div className="mt-8 sm:mt-10">
           <CDUTHowItWorks />
@@ -537,7 +537,7 @@ export default function CDUT() {
         <SectionHeader
           eyebrow="TRUST · 凭什么放心"
           title="校园场景, 三件事托住。"
-          desc="身份核验、资金托管、就近派单 —— 每一件都是可验证的机制, 不是口号。"
+          desc="身份核验、站内留痕、就近派单 —— 每一件都是可验证的机制, 不是口号。校园专区金额由双方自行协商, 平台不做资金托管。"
         />
         <div className="mt-8 sm:mt-10">
           <CDUTTrustRow />
