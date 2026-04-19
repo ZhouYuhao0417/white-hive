@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Section, SectionHeader, Reveal } from '../components/Section.jsx'
@@ -9,6 +9,7 @@ import {
   routeCards,
 } from '../data/localServices.js'
 import { useBackendListings } from '../lib/useBackendListings.js'
+import { formatUserLocation, useUserLocation } from '../lib/userLocation.js'
 
 /* 后端 normalizeBackendService → Local ListingCard 需要的字段 */
 function mapToLocalShape(item) {
@@ -374,6 +375,105 @@ function ListingCard({ item }) {
   )
 }
 
+function UserLocationPicker() {
+  const [loc, setLoc] = useUserLocation()
+  const [open, setOpen] = useState(false)
+  const [city, setCity] = useState(loc?.city || '')
+  const [district, setDistrict] = useState(loc?.district || '')
+
+  useEffect(() => {
+    setCity(loc?.city || '')
+    setDistrict(loc?.district || '')
+  }, [loc?.city, loc?.district])
+
+  const label = loc ? formatUserLocation(loc) : '未设置位置'
+
+  const save = (e) => {
+    e.preventDefault()
+    setLoc({ city, district })
+    setOpen(false)
+  }
+
+  const clear = () => {
+    setLoc({ city: '', district: '' })
+    setOpen(false)
+  }
+
+  return (
+    <div className="relative pb-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 text-xs text-white/60 hover:text-white border border-white/10 hover:border-[#7FD3FF]/40 rounded-lg px-2.5 py-1.5 transition-colors"
+      >
+        <span
+          className="h-2 w-2 rounded-full"
+          style={{ background: loc ? '#5EEAD4' : 'rgba(255,255,255,0.35)' }}
+        />
+        {loc ? '我的位置：' : ''}{label}
+        <span className="text-white/35">{loc ? '修改' : '设置'}</span>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-2 w-72 rounded-xl bg-ink-800 border border-white/10 shadow-xl shadow-black/40 p-4 z-40">
+          <form onSubmit={save} className="space-y-3">
+            <label className="block">
+              <span className="mono-label">城市</span>
+              <input
+                type="text"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="例如：成都"
+                required
+                className="mt-1.5 w-full h-10 px-3 rounded-lg bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55"
+              />
+            </label>
+            <label className="block">
+              <span className="mono-label">辖区 / 区县</span>
+              <input
+                type="text"
+                value={district}
+                onChange={(e) => setDistrict(e.target.value)}
+                placeholder="例如：高新区"
+                className="mt-1.5 w-full h-10 px-3 rounded-lg bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55"
+              />
+            </label>
+            <p className="text-[11px] text-white/45 leading-relaxed">
+              只保存在你这台设备。位置仅用于前端排序和自动填入本地需求表, 不会上报服务器。
+            </p>
+            <div className="flex items-center justify-between gap-2">
+              {loc ? (
+                <button
+                  type="button"
+                  onClick={clear}
+                  className="text-xs text-white/45 hover:text-red-200"
+                >
+                  清除
+                </button>
+              ) : <span />}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="text-xs text-white/55 hover:text-white px-3 py-1.5 rounded-lg border border-white/10"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  className="text-xs text-[#BEE6FF] px-3 py-1.5 rounded-lg border border-[#7FD3FF]/40 bg-[#7FD3FF]/10 hover:bg-[#7FD3FF]/15"
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function NearbyList({ activeKey }) {
   const { listings: backend, loading, error } = useBackendListings('local')
   const list = useMemo(() => {
@@ -390,10 +490,7 @@ function NearbyList({ activeKey }) {
           title="按距离排序，优先为您匹配附近买卖家"
           desc="位置仅展示到区 / 校园，具体见面点由双方在订单里确认。"
         />
-        <div className="flex items-center gap-2 text-xs text-white/45 pb-2">
-          <span className="h-2 w-2 rounded-full bg-[#5EEAD4]" />
-          基于模拟定位 · 成都
-        </div>
+        <UserLocationPicker />
       </div>
 
       {loading ? (
@@ -451,17 +548,28 @@ function TrustTips() {
 
 /* ------------------------------ 发布本地需求 ------------------------------ */
 function PostNeedForm() {
+  const [userLoc] = useUserLocation()
   const [form, setForm] = useState({
-    city: '',
+    city: formatUserLocation(userLoc),
     service: '',
     meetMode: 'offline',
     budget: '',
     time: '',
     needIdentity: true,
   })
+  const [cityEdited, setCityEdited] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
-  const update = (k, v) => setForm((p) => ({ ...p, [k]: v }))
+  // 用户在头部的 UserLocationPicker 改了位置 → 同步到表单(除非用户手动改过表单里的城市)
+  useEffect(() => {
+    if (cityEdited) return
+    setForm((p) => ({ ...p, city: formatUserLocation(userLoc) }))
+  }, [userLoc?.city, userLoc?.district, cityEdited])
+
+  const update = (k, v) => {
+    if (k === 'city') setCityEdited(true)
+    setForm((p) => ({ ...p, [k]: v }))
+  }
 
   const submit = (e) => {
     e.preventDefault()
