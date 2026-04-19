@@ -633,11 +633,11 @@ export default function Local() {
       <LocalHero />
       {/* 商品直接前置 */}
       <NearbyList activeKey={activeCategory} />
-      {/* 以下为说明性内容：分类说明 / 两条路线 / 安全提示 / 发布需求 */}
+      {/* 分类说明 / AI 匹配发布 / 两条路线 / 安全提示 */}
       <CategoryGrid activeKey={activeCategory} onPick={setActiveCategory} />
+      <PostNeedForm />
       <RouteCards />
       <TrustTips />
-      <PostNeedForm />
     </>
   )
 }
