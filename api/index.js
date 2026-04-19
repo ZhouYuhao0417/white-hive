@@ -14,6 +14,7 @@ import {
   createMessage,
   createOrder,
   createPayment,
+  createReview,
   createService,
   checkRateLimit,
   confirmEmailVerification,
@@ -29,6 +30,7 @@ import {
   listMessages,
   listOrders,
   listPayments,
+  listReviews,
   listServices,
   listVerificationRequests,
   requestEmailVerification,
@@ -38,6 +40,7 @@ import {
   storeInfo,
   submitVerification,
   updateOrder,
+  updateReview,
   updateUserProfile,
   upsertDemoSession,
   upsertProviderSession,
@@ -751,6 +754,63 @@ export default {
           await requireAdminReviewer(request)
           const body = await readBody(request)
           return ok(await reviewVerification(query.get('id'), body))
+        }
+
+        return methodNotAllowed(request.method, ['GET', 'POST', 'PATCH'])
+      }
+
+      if (path === 'reviews') {
+        if (request.method === 'GET') {
+          const orderId = query.get('orderId') || undefined
+          const sellerId = query.get('sellerId') || undefined
+          const buyerId = query.get('buyerId') || undefined
+
+          // 订单内评价需要校验是当事人, 公开的 sellerId/buyerId 查询不需要登录
+          if (orderId && !sellerId && !buyerId) {
+            const user = await requireSessionUser(request)
+            const order = await getOrder(orderId)
+            ensureOrderParticipant(user, order)
+          }
+
+          return ok(
+            await listReviews({
+              orderId,
+              sellerId,
+              buyerId,
+              limit: query.get('limit') || undefined,
+            }),
+          )
+        }
+
+        if (request.method === 'POST') {
+          const body = await readBody(request)
+          const user = await requireSessionUser(request)
+          const order = await getOrder(body.orderId)
+          ensureOrderParticipant(user, order)
+          await checkRateLimit({
+            bucket: 'reviews_create_user',
+            identifier: user.id,
+            limit: 10,
+            windowSeconds: 60 * 60,
+            message: '评价提交太频繁, 请稍后再试。',
+          })
+          return ok(
+            await createReview({
+              ...body,
+              reviewerId: user.id,
+            }),
+          )
+        }
+
+        if (request.method === 'PATCH') {
+          const body = await readBody(request)
+          const user = await requireSessionUser(request)
+          return ok(
+            await updateReview(query.get('id'), {
+              ...body,
+              reviewerId: user.id,
+            }),
+          )
         }
 
         return methodNotAllowed(request.method, ['GET', 'POST', 'PATCH'])

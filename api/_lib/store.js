@@ -9,7 +9,7 @@ function shouldUsePostgres() {
 }
 
 async function callStore(name, args) {
-  if (!shouldUsePostgres()) {
+  if (!shouldUsePostgres() || typeof postgres[name] !== 'function') {
     return memory[name](...args)
   }
 
@@ -142,6 +142,10 @@ export function createPayment(input) {
   return callStore('createPayment', [input])
 }
 
+export function confirmWechatPayment(input) {
+  return callStore('confirmWechatPayment', [input])
+}
+
 export function listMessages(orderId) {
   return callStore('listMessages', [orderId])
 }
@@ -164,4 +168,16 @@ export function submitVerification(input) {
 
 export function reviewVerification(id, input) {
   return callStore('reviewVerification', [id, input])
+}
+
+export function createReview(input) {
+  return callStore('createReview', [input])
+}
+
+export function listReviews(input) {
+  return callStore('listReviews', [input])
+}
+
+export function updateReview(id, input) {
+  return callStore('updateReview', [id, input])
 }

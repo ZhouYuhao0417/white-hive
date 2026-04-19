@@ -20,18 +20,27 @@ import {
   verifyPassword,
 } from './auth.js'
 import { sendEmailVerification, sendPasswordReset } from './email.js'
-import { assertEscrowPaymentCanBeRecorded } from './payment-gateway.js'
+import { assertEscrowPaymentCanBeRecorded, createWechatPayTransaction } from './payment-gateway.js'
 import { directSettlementMessage, paymentStatusForService } from './payment-policy.js'
 import { sendSmsVerification } from './sms.js'
 import {
+  defaultUserStats,
   seedMessages,
   seedOrders,
   seedPayments,
+  seedReviews,
   seedServices,
   seedUsers,
   seedVerificationRequests,
 } from './seed.js'
 import { HttpError } from './http.js'
+import {
+  applyEdit as applyReviewEdit,
+  hasExistingReview,
+  normalizeReview,
+  publicReviewShape,
+} from './reviews.js'
+import { sellerLevelFor } from './profile-shape.js'
 
 // Fallback adapter for local demos and deployments without DATABASE_URL.
 
@@ -44,6 +53,11 @@ const paymentStatuses = [
   'mock_refunded',
   'mock_failed',
   'direct_settlement',
+  'payment_pending',
+  'payment_held',
+  'payment_released',
+  'payment_refunded',
+  'payment_failed',
 ]
 const verificationStatuses = ['unverified', 'pending', 'verified', 'rejected']
 const verificationRequestStatuses = ['pending', 'approved', 'rejected']
@@ -83,8 +97,24 @@ function createMemoryState() {
     passwordResetTokens: [],
     rateLimitEvents: [],
     messages: clone(seedMessages),
+    reviews: clone(seedReviews),
     sessions: [],
   }
+}
+
+function freshUserStats() {
+  return { ...defaultUserStats }
+}
+
+function ensureUserStats(user) {
+  if (!user) return null
+  if (!user.stats || typeof user.stats !== 'object') {
+    user.stats = freshUserStats()
+  } else {
+    // 补齐缺失字段, 避免后续 undefined 干扰算术
+    user.stats = { ...freshUserStats(), ...user.stats }
+  }
+  return user.stats
 }
 
 function getState() {
@@ -209,6 +239,7 @@ export function upsertDemoSession(input = {}) {
       passwordHash: hashPassword(password),
       authProvider: 'password',
       providerUserId: '',
+      stats: freshUserStats(),
       createdAt: nowIso(),
       updatedAt: nowIso(),
     }
@@ -256,6 +287,7 @@ export function upsertProviderSession(input = {}) {
       passwordHash: null,
       authProvider: profile.provider,
       providerUserId: profile.providerUserId,
+      stats: freshUserStats(),
       createdAt,
       updatedAt: createdAt,
     }
@@ -865,10 +897,12 @@ export function updateOrder(id, input) {
 
       if (order.status === 'completed') {
         releaseEscrowForOrder(order)
+        bumpSellerStat(order.sellerId, 'ordersCompleted')
       }
 
       if (order.status === 'cancelled') {
         refundEscrowForOrder(order)
+        bumpSellerStat(order.sellerId, 'ordersCancelled')
       }
     }
   }
@@ -901,7 +935,7 @@ export function getPayment(id) {
   return clone(withPaymentRelations(payment))
 }
 
-export function createPayment(input) {
+export async function createPayment(input) {
   const state = getState()
   const order = findOrder(input.orderId)
 
@@ -923,16 +957,52 @@ export function createPayment(input) {
     return clone(withPaymentRelations(existing))
   }
 
-  assertEscrowPaymentCanBeRecorded()
-
   const amountCents = Number(input.amountCents || order.budgetCents)
   if (!Number.isFinite(amountCents) || amountCents <= 0) {
     throw new HttpError(400, 'invalid_amount', '付款金额必须大于 0。')
   }
 
   const createdAt = nowIso()
+  const gateway = assertEscrowPaymentCanBeRecorded()
+  const paymentId = createId('pay')
+
+  if (gateway.checkoutEnabled && gateway.provider === 'wechatpay') {
+    const transaction = await createWechatPayTransaction({
+      outTradeNo: paymentId,
+      amountCents,
+      currency: input.currency || order.currency || 'CNY',
+      description: order.title,
+      method: input.method,
+      clientIp: input.clientIp,
+    })
+    const payment = {
+      id: paymentId,
+      orderId: order.id,
+      buyerId: order.buyerId,
+      sellerId: order.sellerId,
+      amountCents,
+      currency: input.currency || order.currency || 'CNY',
+      provider: 'wechatpay',
+      method: transaction.method,
+      status: 'pending',
+      escrowStatus: 'none',
+      checkoutUrl: transaction.checkoutUrl,
+      providerPaymentId: '',
+      createdAt,
+      updatedAt: createdAt,
+      confirmedAt: null,
+      releasedAt: null,
+      refundedAt: null,
+    }
+    state.payments.unshift(payment)
+    order.paymentStatus = 'payment_pending'
+    order.updatedAt = createdAt
+    appendSystemMessage(order.id, '买家已发起微信支付，等待微信支付成功回调后进入平台托管。')
+    return clone(withPaymentRelations(payment))
+  }
+
   const payment = {
-    id: createId('pay'),
+    id: paymentId,
     orderId: order.id,
     buyerId: order.buyerId,
     sellerId: order.sellerId,
@@ -942,6 +1012,8 @@ export function createPayment(input) {
     method: input.method || 'alipay_mock',
     status: 'succeeded',
     escrowStatus: 'held',
+    checkoutUrl: '',
+    providerPaymentId: '',
     createdAt,
     updatedAt: createdAt,
     confirmedAt: createdAt,
@@ -953,6 +1025,36 @@ export function createPayment(input) {
   order.paymentStatus = 'mock_paid'
   order.updatedAt = createdAt
   appendSystemMessage(order.id, '买家已完成模拟付款，资金进入 WhiteHive 托管。')
+
+  return clone(withPaymentRelations(payment))
+}
+
+export function confirmWechatPayment(input = {}) {
+  const state = getState()
+  const outTradeNo = String(input.outTradeNo || '').trim()
+  if (!outTradeNo) {
+    throw new HttpError(400, 'missing_out_trade_no', '缺少微信支付商户订单号。')
+  }
+
+  const payment = state.payments.find((item) => item.id === outTradeNo && item.provider === 'wechatpay')
+  if (!payment) {
+    throw new HttpError(404, 'payment_not_found', '没有找到这笔微信支付付款。')
+  }
+
+  const order = findOrder(payment.orderId)
+  if (!order) {
+    throw new HttpError(404, 'order_not_found', '没有找到这笔付款对应的订单。')
+  }
+
+  const paidAt = input.successTime || nowIso()
+  payment.status = 'succeeded'
+  payment.escrowStatus = 'held'
+  payment.providerPaymentId = input.transactionId || payment.providerPaymentId || ''
+  payment.confirmedAt = paidAt
+  payment.updatedAt = paidAt
+  order.paymentStatus = 'payment_held'
+  order.updatedAt = paidAt
+  appendSystemMessage(order.id, '微信支付已确认，资金进入 WhiteHive 托管。')
 
   return clone(withPaymentRelations(payment))
 }
@@ -1146,6 +1248,9 @@ function ensureUser(id) {
 
 function publicUser(user) {
   if (!user) return null
+  const stats = ensureUserStats(user)
+  const ordersCompleted = Number.isFinite(stats.ordersCompleted) ? stats.ordersCompleted : 0
+  const avgRating = Number.isFinite(stats.avgRating) ? stats.avgRating : null
   return {
     id: user.id,
     email: user.email,
@@ -1164,9 +1269,45 @@ function publicUser(user) {
     emailVerifiedAt: user.emailVerifiedAt || null,
     phoneVerified: Boolean(user.phoneVerifiedAt),
     phoneVerifiedAt: user.phoneVerifiedAt || null,
+    stats: {
+      ordersCompleted,
+      ordersCancelled: Number.isFinite(stats.ordersCancelled) ? stats.ordersCancelled : 0,
+      avgRating,
+    },
+    level: sellerLevelFor({ ordersCompleted, avgRating }),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt || user.createdAt,
   }
+}
+
+function bumpSellerStat(sellerId, key) {
+  const user = getState().users.find((item) => item.id === sellerId)
+  if (!user) return
+  const stats = ensureUserStats(user)
+  stats[key] = (Number.isFinite(stats[key]) ? stats[key] : 0) + 1
+  user.updatedAt = nowIso()
+}
+
+function recomputeSellerAvgRating(sellerId) {
+  const state = getState()
+  const sellerOrderIds = new Set(
+    state.orders.filter((o) => o.sellerId === sellerId).map((o) => o.id),
+  )
+  const ratings = state.reviews
+    .filter((r) => !r.hidden && r.role === 'buyer' && sellerOrderIds.has(r.orderId))
+    .map((r) => r.rating)
+    .filter((n) => Number.isFinite(n))
+
+  const user = state.users.find((item) => item.id === sellerId)
+  if (!user) return
+  const stats = ensureUserStats(user)
+  if (ratings.length === 0) {
+    stats.avgRating = null
+  } else {
+    const sum = ratings.reduce((a, b) => a + b, 0)
+    stats.avgRating = Math.round((sum / ratings.length) * 100) / 100
+  }
+  user.updatedAt = nowIso()
 }
 
 function createSessionForUser(user) {
@@ -1222,7 +1363,13 @@ function releaseEscrowForOrder(order) {
   payment.updatedAt = releasedAt
   payment.releasedAt = releasedAt
   order.paymentStatus = 'mock_released'
-  appendSystemMessage(order.id, '买家已确认验收，模拟托管款已释放给卖家。')
+  if (payment.provider === 'wechatpay') {
+    payment.status = 'succeeded'
+    order.paymentStatus = 'payment_released'
+    appendSystemMessage(order.id, '买家已确认验收，托管款等待平台按微信支付商户结算流程处理。')
+  } else {
+    appendSystemMessage(order.id, '买家已确认验收，模拟托管款已释放给卖家。')
+  }
 }
 
 function refundEscrowForOrder(order) {
@@ -1234,22 +1381,36 @@ function refundEscrowForOrder(order) {
   payment.updatedAt = refundedAt
   payment.refundedAt = refundedAt
   order.paymentStatus = 'mock_refunded'
-  appendSystemMessage(order.id, '订单已取消，模拟托管款已退回买家。')
+  if (payment.provider === 'wechatpay') {
+    payment.status = 'refunded'
+    order.paymentStatus = 'payment_refunded'
+    appendSystemMessage(order.id, '订单已取消，托管款进入微信支付退款处理流程。')
+  } else {
+    appendSystemMessage(order.id, '订单已取消，模拟托管款已退回买家。')
+  }
 }
 
 function withSeller(service) {
   const seller = getState().users.find((user) => user.id === service.sellerId)
+  if (!seller) {
+    return { ...service, seller: null }
+  }
+  const stats = ensureUserStats(seller)
+  const ordersCompleted = Number.isFinite(stats.ordersCompleted) ? stats.ordersCompleted : 0
+  const avgRating = Number.isFinite(stats.avgRating) ? stats.avgRating : null
   return {
     ...service,
-    seller: seller
-      ? {
-          id: seller.id,
-          displayName: seller.displayName,
-          avatarUrl: seller.avatarUrl || '',
-          role: seller.role,
-          verificationStatus: seller.verificationStatus,
-        }
-      : null,
+    seller: {
+      id: seller.id,
+      displayName: seller.displayName,
+      avatarUrl: seller.avatarUrl || '',
+      role: seller.role,
+      verificationStatus: seller.verificationStatus,
+      verified: seller.verificationStatus === 'verified',
+      ordersCompleted,
+      avgRating,
+      level: sellerLevelFor({ ordersCompleted, avgRating }),
+    },
   }
 }
 
@@ -1295,6 +1456,8 @@ function summarizePayment(payment) {
     method: payment.method,
     status: payment.status,
     escrowStatus: payment.escrowStatus,
+    checkoutUrl: payment.checkoutUrl || '',
+    providerPaymentId: payment.providerPaymentId || '',
     createdAt: payment.createdAt,
     confirmedAt: payment.confirmedAt,
     releasedAt: payment.releasedAt,
@@ -1371,4 +1534,111 @@ function sanitizeEvidenceUrl(value) {
   if (!text) return ''
   if (/^https:\/\/[^\s"'<>]+$/i.test(text)) return text.slice(0, 500)
   throw new HttpError(400, 'invalid_evidence_url', '辅助证明链接必须是 HTTPS 地址。')
+}
+
+/* ============================================================
+   Reviews · 订单完成后的评价
+   ============================================================ */
+
+export function createReview(input = {}) {
+  const state = getState()
+  const order = findOrder(input.orderId)
+  if (!order) {
+    throw new HttpError(404, 'order_not_found', '没有找到这个订单。')
+  }
+  if (order.status !== 'completed') {
+    throw new HttpError(409, 'order_not_completed', '只有已完成的订单才能留评价。')
+  }
+
+  const reviewerId = input.reviewerId
+  if (!reviewerId) {
+    throw new HttpError(401, 'missing_reviewer', '请先登录后再评价。')
+  }
+
+  let role = input.role
+  if (!role) {
+    if (reviewerId === order.buyerId) role = 'buyer'
+    else if (reviewerId === order.sellerId) role = 'seller'
+  }
+  if (role !== 'buyer' && role !== 'seller') {
+    throw new HttpError(403, 'not_order_participant', '你不是这个订单的参与方。')
+  }
+  if (
+    (role === 'buyer' && reviewerId !== order.buyerId) ||
+    (role === 'seller' && reviewerId !== order.sellerId)
+  ) {
+    throw new HttpError(403, 'review_role_mismatch', '评价身份和订单参与方不一致。')
+  }
+
+  if (hasExistingReview(state.reviews, { orderId: order.id, role })) {
+    throw new HttpError(409, 'review_exists', '你已经评价过这个订单了, 每个订单每方只能留一条。')
+  }
+
+  const normalized = normalizeReview({
+    orderId: order.id,
+    role,
+    reviewerId,
+    rating: input.rating,
+    body: input.body,
+    tags: input.tags,
+    attachments: input.attachments,
+  })
+
+  const stored = { id: createId('rev'), ...normalized }
+  state.reviews.unshift(stored)
+
+  // 只用买家给卖家的评价去更新 avgRating —— 卖家给买家的评价单独记录
+  if (role === 'buyer') {
+    recomputeSellerAvgRating(order.sellerId)
+  }
+
+  return clone({ ...stored, ...publicReviewShape(stored) })
+}
+
+export function listReviews({ orderId, sellerId, buyerId, limit = 50 } = {}) {
+  const state = getState()
+  let rows = state.reviews.filter((r) => r && !r.hidden)
+
+  if (orderId) {
+    rows = rows.filter((r) => r.orderId === orderId)
+  }
+  if (sellerId) {
+    const sellerOrderIds = new Set(
+      state.orders.filter((o) => o.sellerId === sellerId).map((o) => o.id),
+    )
+    rows = rows.filter((r) => sellerOrderIds.has(r.orderId) && r.role === 'buyer')
+  }
+  if (buyerId) {
+    const buyerOrderIds = new Set(
+      state.orders.filter((o) => o.buyerId === buyerId).map((o) => o.id),
+    )
+    rows = rows.filter((r) => buyerOrderIds.has(r.orderId) && r.role === 'seller')
+  }
+
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 100))
+  rows = rows
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, safeLimit)
+
+  return clone(rows.map((r) => ({ id: r.id, ...publicReviewShape(r) })).filter(Boolean))
+}
+
+export function updateReview(id, input = {}) {
+  const state = getState()
+  const review = state.reviews.find((r) => r.id === id)
+  if (!review) {
+    throw new HttpError(404, 'review_not_found', '评价不存在。')
+  }
+  if (input.reviewerId && input.reviewerId !== review.reviewerId) {
+    throw new HttpError(403, 'review_owner_only', '只有评价作者可以修改这条评价。')
+  }
+  const patched = applyReviewEdit(review, input)
+  Object.assign(review, patched)
+
+  const order = findOrder(review.orderId)
+  if (order && review.role === 'buyer') {
+    recomputeSellerAvgRating(order.sellerId)
+  }
+
+  return clone({ id: review.id, ...publicReviewShape(review) })
 }

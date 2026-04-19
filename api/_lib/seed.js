@@ -2,6 +2,16 @@ import { nowIso } from './ids.js'
 
 const createdAt = '2026-04-16T00:00:00.000Z'
 
+// 所有用户共享的 stats 默认值 —— 卖家等级、信任分、评分统计都会读这里。
+// 订单完成 / 取消 / 收到评价时由 memory-store 增量维护。
+export const defaultUserStats = Object.freeze({
+  ordersCompleted: 0,
+  ordersCancelled: 0,
+  disputesOpened: 0,
+  disputesLost: 0,
+  avgRating: null,
+})
+
 export const seedUsers = [
   {
     id: 'usr_system',
@@ -10,6 +20,7 @@ export const seedUsers = [
     role: 'admin',
     verificationStatus: 'verified',
     createdAt,
+    stats: { ...defaultUserStats },
   },
   {
     id: 'usr_demo_buyer',
@@ -18,6 +29,7 @@ export const seedUsers = [
     role: 'buyer',
     verificationStatus: 'unverified',
     createdAt,
+    stats: { ...defaultUserStats },
   },
   {
     id: 'usr_demo_seller',
@@ -26,6 +38,8 @@ export const seedUsers = [
     role: 'seller',
     verificationStatus: 'pending',
     createdAt,
+    // 给演示卖家一点初始数据, 这样首页 / 服务卡可以看到真实的等级徽章。
+    stats: { ...defaultUserStats, ordersCompleted: 12, avgRating: 4.6 },
   },
 ]
 
@@ -94,6 +108,8 @@ export const seedVerificationRequests = [
     updatedAt: createdAt,
   },
 ]
+
+export const seedReviews = []
 
 export const seedMessages = [
   {

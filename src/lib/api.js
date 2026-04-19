@@ -189,6 +189,25 @@ export function updateOrder(id, changes) {
   })
 }
 
+export function listReviews(params = {}) {
+  const search = new URLSearchParams(params)
+  return request(`/reviews${search.size ? `?${search.toString()}` : ''}`)
+}
+
+export function createReview(review) {
+  return request('/reviews', {
+    method: 'POST',
+    body: JSON.stringify(review),
+  })
+}
+
+export function updateReview(id, changes) {
+  return request(`/reviews?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(changes),
+  })
+}
+
 export function matchServices(input) {
   return request('/matches', {
     method: 'POST',
