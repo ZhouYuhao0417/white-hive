@@ -1,13 +1,26 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Section, SectionHeader, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
 import { services } from '../data/services.js'
 import { categoryDetails } from '../data/listings.js'
+import { cdutCategories } from '../data/cdutServices.js'
+import { localCategories } from '../data/localServices.js'
 import { createBackendService } from '../lib/api.js'
 import { cacheService, readCachedServices } from '../lib/serviceCache.js'
 import { useBackendListings } from '../lib/useBackendListings.js'
+
+/* 根据 scope 给出分类下拉选项。'cdut' -> cdut/*、'local' -> local/*、默认使用站内通用服务 */
+function getCategoryOptionsForScope(scope) {
+  if (scope === 'cdut') {
+    return cdutCategories.map((c) => ({ value: `cdut/${c.key}`, label: `校园 · ${c.label}` }))
+  }
+  if (scope === 'local') {
+    return localCategories.map((c) => ({ value: `local/${c.key}`, label: `同城 · ${c.label}` }))
+  }
+  return services.map((s) => ({ value: s.slug, label: s.title }))
+}
 
 /* 取后端的真实服务, 按分类挑前几张, 作为"同行怎么上架的"示例 */
 function pickFeaturedFromBackend(backend) {
@@ -272,9 +285,10 @@ function splitTags(value) {
     .slice(0, 8)
 }
 
-function ListingForm() {
+function ListingForm({ scope = 'general' }) {
+  const categoryOptions = useMemo(() => getCategoryOptionsForScope(scope), [scope])
   const [form, setForm] = useState({
-    category: 'web',
+    category: categoryOptions[0]?.value || 'web',
     title: '',
     summary: '',
     price: '',
@@ -286,10 +300,20 @@ function ListingForm() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const activeCategory = useMemo(
-    () => services.find((item) => item.slug === form.category) || services[0],
-    [form.category],
-  )
+  const activeCategory = useMemo(() => {
+    const value = form.category || ''
+    if (value.startsWith('cdut/')) {
+      const key = value.slice(5)
+      const c = cdutCategories.find((item) => item.key === key) || cdutCategories[0]
+      return { slug: value, title: `校园 · ${c.label}`, color: c.color, icon: c.icon }
+    }
+    if (value.startsWith('local/')) {
+      const key = value.slice(6)
+      const c = localCategories.find((item) => item.key === key) || localCategories[0]
+      return { slug: value, title: `同城 · ${c.label}`, color: c.color || '#7FD3FF', icon: c.icon || 'cube' }
+    }
+    return services.find((item) => item.slug === value) || services[0]
+  }, [form.category])
 
   const update = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }))
@@ -350,9 +374,9 @@ function ListingForm() {
               onChange={(event) => update('category', event.target.value)}
               className="mt-2 w-full h-12 px-4 rounded-xl bg-ink-800 border border-white/10 text-sm text-white focus:outline-none focus:border-[#7FD3FF]/55"
             >
-              {services.map((service) => (
-                <option key={service.slug} value={service.slug}>
-                  {service.title}
+              {categoryOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>
@@ -562,6 +586,30 @@ function AIMatchFallback() {
 }
 
 export default function Sell() {
+  const [searchParams] = useSearchParams()
+  const scope = searchParams.get('scope') || 'general'
+  const scopeCopy = {
+    cdut: {
+      eyebrow: 'CREATE LISTING · 校园服务发布',
+      title: '把你的校园技能上架到 CDUT 专区。',
+      desc: '发布后会出现在 /cdut 校园服务专区，面向成都理工在校同学接单。',
+    },
+    local: {
+      eyebrow: 'CREATE LISTING · 同城服务发布',
+      title: '发布一张同城上门的服务卡。',
+      desc: '发布后会进入 /local 同城服务专区，按距离就近派单。',
+    },
+    general: {
+      eyebrow: 'CREATE LISTING · 真实发布',
+      title: '现在，把你的服务写进后端。',
+      desc: '先用 MVP 接口保存服务卡，后续接数据库后它会进入真实的服务市场。',
+    },
+  }[scope] || {
+    eyebrow: 'CREATE LISTING · 真实发布',
+    title: '现在，把你的服务写进后端。',
+    desc: '先用 MVP 接口保存服务卡，后续接数据库后它会进入真实的服务市场。',
+  }
+
   return (
     <>
       <Section className="pt-28 md:pt-32">
@@ -594,12 +642,12 @@ export default function Sell() {
 
       <Section>
         <SectionHeader
-          eyebrow="CREATE LISTING · 真实发布"
-          title="现在，把你的服务写进后端。"
-          desc="先用 MVP 接口保存服务卡，后续接数据库后它会进入真实的服务市场。"
+          eyebrow={scopeCopy.eyebrow}
+          title={scopeCopy.title}
+          desc={scopeCopy.desc}
         />
         <div className="mt-10">
-          <ListingForm />
+          <ListingForm scope={scope} />
         </div>
       </Section>
 

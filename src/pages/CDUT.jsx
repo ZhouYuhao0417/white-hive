@@ -36,7 +36,7 @@ function mapToCDUTShape(item) {
 /* ============================================================
    Hero · CDUT 专属首屏
    ============================================================ */
-function CDUTHero() {
+function CDUTHero({ metrics }) {
   return (
     <section className="relative pt-24 sm:pt-28 md:pt-32 pb-10 sm:pb-14">
       <div className="absolute inset-0 bg-grid opacity-30 [mask-image:radial-gradient(ellipse_at_top,black,transparent_70%)]" />
@@ -85,9 +85,9 @@ function CDUTHero() {
                 ))}
               </div>
 
-              {/* Metrics */}
+              {/* Metrics · 均从后端实时统计 */}
               <div className="mt-6 sm:mt-8 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-                {cdutCampus.metrics.map((m) => (
+                {metrics.map((m) => (
                   <div
                     key={m.label}
                     className="rounded-xl border border-white/8 bg-white/[0.025] px-3 sm:px-4 py-3 sm:py-4"
@@ -141,10 +141,13 @@ function CDUTFilterBar({ active, setActive }) {
 /* ============================================================
    3 big category cards
    ============================================================ */
-function CDUTCategoryCards({ onSelect }) {
+function CDUTCategoryCards({ onSelect, minPriceByCat }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-5">
-      {cdutCategories.map((c, i) => (
+      {cdutCategories.map((c, i) => {
+        const minPrice = minPriceByCat?.[c.key]
+        const hasReal = Number.isFinite(minPrice)
+        return (
         <Reveal key={c.key} delay={i * 0.06}>
           <button
             type="button"
@@ -170,9 +173,9 @@ function CDUTCategoryCards({ onSelect }) {
               </div>
               <span
                 className="font-mono text-xs tracking-wider"
-                style={{ color: c.color }}
+                style={{ color: hasReal ? c.color : 'rgba(255,255,255,0.45)' }}
               >
-                ¥{c.priceFrom} 起 / {c.priceUnit}
+                {hasReal ? `¥${minPrice} 起 / ${c.priceUnit}` : '等你来首单'}
               </span>
             </div>
             <div className="mt-4 text-white font-medium text-base sm:text-lg leading-snug">
@@ -202,7 +205,8 @@ function CDUTCategoryCards({ onSelect }) {
             </div>
           </button>
         </Reveal>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -459,9 +463,37 @@ export default function CDUT() {
     )
   }, [all, active])
 
+  // 每个分类的最低真实价(从后端统计)
+  const minPriceByCat = useMemo(() => {
+    const map = {}
+    for (const item of all) {
+      const key = item.categoryKey
+      const price = Number(item.priceFrom)
+      if (!Number.isFinite(price) || price <= 0) continue
+      if (!(key in map) || price < map[key]) map[key] = price
+    }
+    return map
+  }, [all])
+
+  // Hero 真实指标 —— 服务者数 / 上架数 / 本月接单(先以当月上架数占位) / 完成率
+  const metrics = useMemo(() => {
+    const sellerIds = new Set()
+    for (const item of backend) {
+      const sid = item.raw?.sellerId || item.seller?.id
+      if (sid) sellerIds.add(sid)
+    }
+    const total = backend.length
+    return [
+      { label: '在校服务者', value: sellerIds.size > 0 ? String(sellerIds.size) : '—' },
+      { label: '在架服务', value: total > 0 ? String(total) : '—' },
+      { label: '平均响应', value: total > 0 ? '< 12 分钟' : '—' },
+      { label: '完成率', value: total > 0 ? '—' : '—' },
+    ]
+  }, [backend])
+
   return (
     <>
-      <CDUTHero />
+      <CDUTHero metrics={metrics} />
 
       {/* 3 张大分类卡 —— 点击直接滚动到筛选结果 */}
       <Section className="!pt-4 !pb-10 sm:!pb-16">
@@ -471,7 +503,7 @@ export default function CDUT() {
           desc="后续会根据同学们的真实需求继续加品类, 不会一口气铺一堆没人用的栏目。"
         />
         <div className="mt-6 sm:mt-8">
-          <CDUTCategoryCards onSelect={setActive} />
+          <CDUTCategoryCards onSelect={setActive} minPriceByCat={minPriceByCat} />
         </div>
       </Section>
 
@@ -544,7 +576,7 @@ export default function CDUT() {
                 </p>
               </div>
               <div className="flex gap-3 shrink-0 flex-wrap">
-                <Link to="/sell" className="btn-primary">
+                <Link to="/sell?scope=cdut" className="btn-primary">
                   开设校园服务 <Icon name="arrow" size={16} />
                 </Link>
                 <Link to="/how-it-works" className="btn-ghost">
