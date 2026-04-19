@@ -7,15 +7,21 @@ import { services } from '../data/services.js'
 import { categoryDetails } from '../data/listings.js'
 import { createBackendService } from '../lib/api.js'
 import { cacheService, readCachedServices } from '../lib/serviceCache.js'
+import { useBackendListings } from '../lib/useBackendListings.js'
 
-/* ============ 从每个分类抽 1 张高分卡作为"同行是怎么上架的"示例 ============ */
-function pickFeatured() {
+/* 取后端的真实服务, 按分类挑前几张, 作为"同行怎么上架的"示例 */
+function pickFeaturedFromBackend(backend) {
+  const seenCat = new Set()
   const out = []
-  Object.values(categoryDetails).forEach((cat) => {
-    const top = cat.listings[0]
-    if (top) out.push({ cat, item: top })
-  })
-  return out.slice(0, 6)
+  for (const item of backend) {
+    const catSlug = (item.raw?.category || '').split('/')[0]
+    const cat = categoryDetails[catSlug]
+    if (!cat || seenCat.has(catSlug)) continue
+    seenCat.add(catSlug)
+    out.push({ cat, item })
+    if (out.length >= 6) break
+  }
+  return out
 }
 
 /* ============ Hero ============ */
@@ -79,7 +85,24 @@ function SellHero() {
 
 /* ============ Featured 同行商品 ============ */
 function FeaturedListings() {
-  const featured = pickFeatured()
+  const { listings: backend, loading } = useBackendListings()
+  const featured = pickFeaturedFromBackend(backend)
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-8 text-center text-sm text-white/50">
+        正在加载已上架服务...
+      </div>
+    )
+  }
+  if (featured.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-8 text-center text-sm text-white/50">
+        平台刚开放创作者入驻, 还没有公开的服务卡片。你可以率先发布一个, 抢占首批流量。
+      </div>
+    )
+  }
+
   return (
     <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-5">
       {featured.map(({ cat, item }, i) => (

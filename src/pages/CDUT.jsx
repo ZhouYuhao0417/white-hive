@@ -6,9 +6,32 @@ import { Icon } from '../components/Icons.jsx'
 import {
   cdutCampus,
   cdutCategories,
-  cdutListings,
   cdutTrustPoints,
 } from '../data/cdutServices.js'
+import { useBackendListings } from '../lib/useBackendListings.js'
+
+/* 把后端 normalizeBackendService 的输出补齐成 CDUT listing 需要的字段 */
+function mapToCDUTShape(item) {
+  const raw = item.raw || {}
+  const catKey = (raw.category || '').replace(/^cdut\//, '') || 'parcel'
+  return {
+    id: item.id,
+    categoryKey: catKey,
+    zone: raw.zone || raw.location || '校内',
+    title: item.title,
+    desc: item.desc,
+    priceFrom: item.price,
+    priceUnit: item.priceUnit || '单',
+    tags: item.tags || [],
+    seller: {
+      name: item.seller?.name || '同学',
+      rating: item.rating ?? 5.0,
+      level: item.seller?.verified ? '已核验' : '新人',
+      grade: raw.sellerGrade || '',
+      orders: raw.sellerOrders ?? 0,
+    },
+  }
+}
 
 /* ============================================================
    Hero · CDUT 专属首屏
@@ -284,12 +307,15 @@ function CDUTListings({ listings }) {
                   <div className="text-[11px] sm:text-xs text-white/70 truncate">
                     {item.seller.name}
                     <span className="text-white/40">
-                      {' '}· {item.seller.level} · {item.seller.grade}
+                      {' '}· {item.seller.level}
+                      {item.seller.grade ? ` · ${item.seller.grade}` : ''}
                     </span>
                   </div>
-                  <span className="text-[10px] sm:text-[11px] text-white/40 whitespace-nowrap">
-                    已接 {item.seller.orders} 单
-                  </span>
+                  {item.seller.orders > 0 && (
+                    <span className="text-[10px] sm:text-[11px] text-white/40 whitespace-nowrap">
+                      已接 {item.seller.orders} 单
+                    </span>
+                  )}
                 </div>
 
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -422,11 +448,16 @@ function CDUTHowItWorks() {
    ============================================================ */
 export default function CDUT() {
   const [active, setActive] = useState('all')
+  // CDUT 校园服务统一用 category 前缀 "cdut/*" —— 当后端有上架时自动出现
+  const { listings: backend, loading, error } = useBackendListings('cdut')
 
+  const all = useMemo(() => backend.map(mapToCDUTShape), [backend])
   const filtered = useMemo(() => {
-    if (active === 'all') return cdutListings
-    return cdutListings.filter((l) => l.categoryKey === active)
-  }, [active])
+    if (active === 'all') return all
+    return all.filter(
+      (l) => l.categoryKey === active || (Array.isArray(l.tags) && l.tags.includes(active)),
+    )
+  }, [all, active])
 
   return (
     <>

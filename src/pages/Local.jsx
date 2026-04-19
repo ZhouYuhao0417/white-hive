@@ -5,10 +5,32 @@ import { Section, SectionHeader, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
 import {
   localCategories,
-  nearbyListings,
   trustTips,
   routeCards,
 } from '../data/localServices.js'
+import { useBackendListings } from '../lib/useBackendListings.js'
+
+/* 后端 normalizeBackendService → Local ListingCard 需要的字段 */
+function mapToLocalShape(item) {
+  const raw = item.raw || {}
+  const category = (raw.category || '').replace(/^local\//, '') || null
+  const name = item.seller?.name || '服务者'
+  return {
+    id: item.id,
+    category,
+    title: item.title,
+    displayName: name,
+    avatarLetter: name.slice(0, 1),
+    org: raw.sellerOrg || item.seller?.bio || '',
+    accent: '#7FD3FF',
+    canMeet: raw.canMeet !== false,
+    distanceKm: raw.distanceKm ?? '—',
+    region: raw.region || '同城',
+    badges: item.tags || [],
+    priceFrom: item.price,
+    priceUnit: item.priceUnit || '起',
+  }
+}
 
 /* ------------------------------ Hero ------------------------------ */
 function LocalHero() {
@@ -353,10 +375,12 @@ function ListingCard({ item }) {
 }
 
 function NearbyList({ activeKey }) {
+  const { listings: backend, loading, error } = useBackendListings('local')
   const list = useMemo(() => {
-    if (!activeKey) return nearbyListings
-    return nearbyListings.filter((n) => n.category === activeKey)
-  }, [activeKey])
+    const mapped = backend.map(mapToLocalShape)
+    if (!activeKey) return mapped
+    return mapped.filter((n) => n.category === activeKey)
+  }, [backend, activeKey])
 
   return (
     <Section id="nearby">
@@ -372,17 +396,25 @@ function NearbyList({ activeKey }) {
         </div>
       </div>
 
-      <div className="mt-8 sm:mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5">
-        {list.map((item, idx) => (
-          <Reveal key={item.id} delay={idx * 0.04}>
-            <ListingCard item={item} />
-          </Reveal>
-        ))}
-      </div>
-
-      {list.length === 0 && (
+      {loading ? (
+        <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.02] p-8 text-center text-sm text-white/50">
+          正在加载附近的服务...
+        </div>
+      ) : error ? (
+        <div className="mt-8 rounded-2xl border border-red-400/25 bg-red-400/5 p-8 text-center text-sm text-red-100/80">
+          加载失败：{error.message || '网络不稳, 稍后再试。'}
+        </div>
+      ) : list.length === 0 ? (
         <div className="mt-8 rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-8 text-center text-sm text-white/50">
-          当前分类附近暂无可见的服务者。
+          {activeKey ? '当前分类附近暂无可见的服务者。' : '平台刚开放, 还没有本地服务者入驻。你可以直接发布需求, 我们会推送给附近符合条件的服务者。'}
+        </div>
+      ) : (
+        <div className="mt-8 sm:mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5">
+          {list.map((item, idx) => (
+            <Reveal key={item.id} delay={idx * 0.04}>
+              <ListingCard item={item} />
+            </Reveal>
+          ))}
         </div>
       )}
     </Section>

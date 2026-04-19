@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { Section, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
 import { categoryDetails } from '../data/listings.js'
+import { useBackendListings } from '../lib/useBackendListings.js'
 
 /* ---------------- 顶部区:分类头 + 指标 + 筛选 ---------------- */
 function CategoryHero({ cat }) {
@@ -572,20 +573,109 @@ const layoutMap = {
   list: ListView,
 }
 
+/* ============ 空态 / 加载态 / 错误态 ============ */
+function ListingsSkeleton() {
+  return (
+    <div className="mt-8 grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-5">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div
+          key={i}
+          className="card p-4 sm:p-6 h-48 animate-pulse"
+          style={{ opacity: 0.5 - i * 0.05 }}
+        >
+          <div className="h-3 w-16 rounded bg-white/10" />
+          <div className="mt-4 h-4 w-3/4 rounded bg-white/10" />
+          <div className="mt-2 h-3 w-full rounded bg-white/8" />
+          <div className="mt-2 h-3 w-2/3 rounded bg-white/8" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ListingsError({ error }) {
+  return (
+    <div className="mt-8 card p-8 sm:p-10 text-center">
+      <div className="mono-label mb-2 text-[#FCA5A5]">LOAD FAILED</div>
+      <div className="text-white text-lg font-medium">暂时无法加载上架服务</div>
+      <p className="mt-2 text-sm text-white/60 max-w-md mx-auto">
+        {error?.message || '网络不太稳, 稍后再试一下。'}
+      </p>
+    </div>
+  )
+}
+
+function EmptyListings({ cat, totalInCategory, activeFilter }) {
+  const filtering = activeFilter && activeFilter !== '全部' && totalInCategory > 0
+  return (
+    <div className="mt-8 card p-8 sm:p-12 text-center relative overflow-hidden">
+      <div
+        aria-hidden
+        className="absolute inset-0 opacity-40 pointer-events-none"
+        style={{
+          background: `radial-gradient(50% 60% at 50% 0%, ${cat.color}22, transparent 60%)`,
+        }}
+      />
+      <div className="relative">
+        <div
+          className="mx-auto h-14 w-14 rounded-2xl flex items-center justify-center"
+          style={{
+            background: `${cat.color}18`,
+            border: `1px solid ${cat.color}55`,
+            color: cat.color,
+          }}
+        >
+          <Icon name="spark" size={26} />
+        </div>
+        <div className="mt-4 text-white text-lg sm:text-xl font-semibold">
+          {filtering ? '这个筛选下还没有作品' : '这个分类还没有上架的服务'}
+        </div>
+        <p className="mt-2 text-sm text-white/60 max-w-lg mx-auto leading-relaxed">
+          {filtering
+            ? '试着看看"全部", 或者用 AI 匹配直接发布需求——系统会在有新创作者入驻时通知你。'
+            : '平台刚开始邀请创作者入驻。你可以用 AI 匹配发布需求, 我们会在 48 小时内帮你找到合适的人, 或等这个分类有新服务上架。'}
+        </p>
+        <div className="mt-5 flex flex-wrap gap-2 justify-center">
+          <Link
+            to={`/ai-match?category=${encodeURIComponent(cat.slug)}`}
+            className="btn-primary"
+          >
+            发布一个需求 <Icon name="arrow" size={16} />
+          </Link>
+          <Link to="/sell" className="btn-ghost">
+            我来入驻这个分类
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ============ 页面 ============ */
 export default function ServiceDetail() {
   const { slug } = useParams()
   const cat = categoryDetails[slug]
   const [active, setActive] = useState('全部')
+  const { listings: backendListings, loading, error } = useBackendListings(slug)
 
   if (!cat) return <Navigate to="/services" replace />
 
+  const allListings = backendListings
   const filtered = useMemo(() => {
-    if (active === '全部') return cat.listings
-    return cat.listings.filter(
-      (l) => l.kind === active || l.tags.includes(active)
+    if (active === '全部') return allListings
+    return allListings.filter(
+      (l) => l.kind === active || (Array.isArray(l.tags) && l.tags.includes(active)),
     )
-  }, [cat, active])
+  }, [allListings, active])
+
+  // 用真实数据刷新 metrics (替换掉 mock 的"在售作品 142")
+  const liveMetrics = useMemo(() => {
+    const base = cat.metrics ? [...cat.metrics] : []
+    if (base.length > 0) {
+      base[0] = { label: base[0].label, value: String(allListings.length) }
+    }
+    return base
+  }, [cat.metrics, allListings.length])
 
   const LayoutView = layoutMap[cat.layout] || GalleryView
 
@@ -593,7 +683,7 @@ export default function ServiceDetail() {
     <>
       <Section className="pt-28 md:pt-32">
         <Reveal>
-          <CategoryHero cat={cat} />
+          <CategoryHero cat={{ ...cat, metrics: liveMetrics }} />
         </Reveal>
         <AIMatchStrip color={cat.color} />
         <FilterBar
@@ -602,7 +692,15 @@ export default function ServiceDetail() {
           setActive={setActive}
           color={cat.color}
         />
-        <LayoutView cat={cat} listings={filtered} />
+        {loading ? (
+          <ListingsSkeleton />
+        ) : error ? (
+          <ListingsError error={error} />
+        ) : filtered.length === 0 ? (
+          <EmptyListings cat={cat} totalInCategory={allListings.length} activeFilter={active} />
+        ) : (
+          <LayoutView cat={cat} listings={filtered} />
+        )}
       </Section>
 
       <Section>
