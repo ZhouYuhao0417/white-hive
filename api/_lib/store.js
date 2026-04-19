@@ -146,6 +146,10 @@ export function confirmWechatPayment(input) {
   return callStore('confirmWechatPayment', [input])
 }
 
+export function confirmWechatRefund(input) {
+  return callStore('confirmWechatRefund', [input])
+}
+
 export function listMessages(orderId) {
   return callStore('listMessages', [orderId])
 }

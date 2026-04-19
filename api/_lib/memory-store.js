@@ -57,6 +57,7 @@ const paymentStatuses = [
   'payment_held',
   'payment_released',
   'payment_refunded',
+  'payment_refund_pending',
   'payment_failed',
 ]
 const verificationStatuses = ['unverified', 'pending', 'verified', 'rejected']
@@ -145,6 +146,7 @@ export function storeInfo() {
       'messages',
       'mock_payments',
       'payment_policy',
+      'wechatpay_checkout',
       'verification_requests',
     ],
   }
@@ -956,6 +958,9 @@ export async function createPayment(input) {
   if (existing && ['held', 'released'].includes(existing.escrowStatus)) {
     return clone(withPaymentRelations(existing))
   }
+  if (existing?.provider === 'wechatpay' && existing.status === 'pending' && existing.checkoutUrl) {
+    return clone(withPaymentRelations(existing))
+  }
 
   const amountCents = Number(input.amountCents || order.budgetCents)
   if (!Number.isFinite(amountCents) || amountCents <= 0) {
@@ -1040,6 +1045,9 @@ export function confirmWechatPayment(input = {}) {
   if (!payment) {
     throw new HttpError(404, 'payment_not_found', '没有找到这笔微信支付付款。')
   }
+  if (input.amountCents !== undefined && Number(input.amountCents) !== payment.amountCents) {
+    throw new HttpError(409, 'payment_amount_mismatch', '微信支付回调金额与订单金额不一致。')
+  }
 
   const order = findOrder(payment.orderId)
   if (!order) {
@@ -1055,6 +1063,35 @@ export function confirmWechatPayment(input = {}) {
   order.paymentStatus = 'payment_held'
   order.updatedAt = paidAt
   appendSystemMessage(order.id, '微信支付已确认，资金进入 WhiteHive 托管。')
+
+  return clone(withPaymentRelations(payment))
+}
+
+export function confirmWechatRefund(input = {}) {
+  const state = getState()
+  const outTradeNo = String(input.outTradeNo || '').trim()
+  if (!outTradeNo) {
+    throw new HttpError(400, 'missing_out_trade_no', '缺少微信支付商户订单号。')
+  }
+
+  const payment = state.payments.find((item) => item.id === outTradeNo && item.provider === 'wechatpay')
+  if (!payment) {
+    throw new HttpError(404, 'payment_not_found', '没有找到这笔微信支付付款。')
+  }
+
+  const order = findOrder(payment.orderId)
+  if (!order) {
+    throw new HttpError(404, 'order_not_found', '没有找到这笔付款对应的订单。')
+  }
+
+  const refundedAt = input.successTime || nowIso()
+  payment.status = 'refunded'
+  payment.escrowStatus = 'refunded'
+  payment.refundedAt = refundedAt
+  payment.updatedAt = refundedAt
+  order.paymentStatus = 'payment_refunded'
+  order.updatedAt = refundedAt
+  appendSystemMessage(order.id, '微信支付退款已完成。')
 
   return clone(withPaymentRelations(payment))
 }

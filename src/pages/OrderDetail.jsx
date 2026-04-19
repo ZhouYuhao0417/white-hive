@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import QRCode from 'qrcode'
 import { Section, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
 import OrderChat from '../components/OrderChat.jsx'
@@ -31,10 +32,25 @@ const paymentStatusText = {
   mock_released: '托管已释放',
   mock_refunded: '托管已退款',
   mock_failed: '付款失败',
+  payment_pending: '待微信支付',
+  payment_held: '资金托管中',
+  payment_released: '托管待结算',
+  payment_refunded: '托管已退款',
+  payment_refund_pending: '退款处理中',
+  payment_failed: '付款失败',
   direct_settlement: '买卖家自行协商结算',
 }
 
-const paidPaymentStatuses = ['mock_paid', 'mock_released', 'mock_refunded', 'direct_settlement']
+const paidPaymentStatuses = [
+  'mock_paid',
+  'mock_released',
+  'mock_refunded',
+  'payment_held',
+  'payment_released',
+  'payment_refunded',
+  'payment_refund_pending',
+  'direct_settlement',
+]
 
 const nextStatus = {
   submitted: { value: 'accepted', label: '卖家接单' },
@@ -170,9 +186,29 @@ export default function OrderDetail() {
   const [error, setError] = useState('')
   const [disputeOpen, setDisputeOpen] = useState(false)
   const [disputeActive, setDisputeActive] = useState(false)
+  const [checkout, setCheckout] = useState(null)
+  const [checkoutQr, setCheckoutQr] = useState('')
 
   const action = useMemo(() => (order ? nextStatus[order.status] : null), [order])
   const isDirectSettlementOrder = order?.paymentStatus === 'direct_settlement'
+  const activeCheckout = checkout || order?.payment || null
+
+  useEffect(() => {
+    let mounted = true
+    async function renderQr() {
+      if (!activeCheckout?.checkoutUrl || activeCheckout.method !== 'wechatpay_native') {
+        if (mounted) setCheckoutQr('')
+        return
+      }
+
+      const dataUrl = await QRCode.toDataURL(activeCheckout.checkoutUrl, { margin: 1, width: 240 })
+      if (mounted) setCheckoutQr(dataUrl)
+    }
+    renderQr()
+    return () => {
+      mounted = false
+    }
+  }, [activeCheckout?.checkoutUrl, activeCheckout?.method])
 
   useEffect(() => {
     let mounted = true
@@ -275,15 +311,30 @@ export default function OrderDetail() {
     }
 
     try {
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent || '')
       const payment = await createPayment({
         orderId: order.id,
-        method: 'alipay_mock',
+        method: isMobile ? 'wechatpay_h5' : 'wechatpay_native',
       })
       const updated = await listOrders({ id: order.id })
       setOrder(updated)
       cacheOrder(updated)
       await refreshMessages()
-      setNotice(`已创建托管付款记录：${payment.id}`)
+      setCheckout(payment)
+      if (payment.checkoutUrl && payment.method === 'wechatpay_native') {
+        setCheckoutQr(await QRCode.toDataURL(payment.checkoutUrl, { margin: 1, width: 240 }))
+      } else {
+        setCheckoutQr('')
+      }
+
+      if (payment.checkoutUrl && payment.method === 'wechatpay_h5') {
+        setNotice('已创建微信支付单，正在跳转到微信支付页面。支付完成后回到订单页等待状态刷新。')
+        window.location.href = payment.checkoutUrl
+      } else if (payment.checkoutUrl) {
+        setNotice('已创建微信支付单，请用微信扫码完成付款。付款成功后，系统会通过微信回调自动进入托管。')
+      } else {
+        setNotice(`已创建托管付款记录：${payment.id}`)
+      }
     } catch (err) {
       if (id !== DEMO_ID) {
         setError(err.message || '托管付款暂时不可用。')
@@ -487,6 +538,45 @@ export default function OrderDetail() {
       <Section className="!pt-4">
         <StatusTimeline status={order.status} />
       </Section>
+
+      {activeCheckout?.checkoutUrl && activeCheckout.method === 'wechatpay_native' && (
+        <Section className="!pt-4">
+          <Reveal>
+            <div className="card p-6 md:p-8">
+              <div className="mono-label">WECHAT PAY · 微信支付</div>
+              <div className="mt-4 grid md:grid-cols-[260px_1fr] gap-6 items-center">
+                <div className="rounded-2xl border border-white/10 bg-white p-4 w-fit">
+                  {checkoutQr ? (
+                    <img src={checkoutQr} alt="微信支付二维码" className="h-[240px] w-[240px]" />
+                  ) : (
+                    <div className="h-[240px] w-[240px] grid place-items-center text-sm text-black/55">
+                      正在生成二维码...
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-white">用微信扫码付款</h2>
+                  <p className="mt-2 text-sm text-white/60 leading-relaxed">
+                    付款不会立刻由前端手动确认。微信支付成功后会调用 WhiteHive 回调接口，订单才会从“待微信支付”变成“资金托管中”。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const updated = await listOrders({ id: order.id })
+                      setOrder(updated)
+                      cacheOrder(updated)
+                      await refreshMessages()
+                    }}
+                    className="btn-ghost mt-5"
+                  >
+                    刷新付款状态
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Reveal>
+        </Section>
+      )}
 
       <Section className="!pt-4">
         <div className="grid lg:grid-cols-[1fr_420px] gap-6 items-start">

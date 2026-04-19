@@ -2,7 +2,11 @@ import { fail, getQuery, HttpError, methodNotAllowed, ok, readBody, withApiError
 import { createMatch } from './_lib/matcher.js'
 import { blobStatus, uploadAvatarToBlob } from './_lib/blob.js'
 import { emailStatus } from './_lib/email.js'
-import { paymentGatewayStatus } from './_lib/payment-gateway.js'
+import {
+  decryptWechatPayResource,
+  paymentGatewayStatus,
+  verifyWechatPayNotifySignature,
+} from './_lib/payment-gateway.js'
 import { smsStatus } from './_lib/sms.js'
 import {
   buildOAuthStartUrl,
@@ -20,6 +24,8 @@ import {
   confirmEmailVerification,
   confirmPasswordReset,
   confirmPhoneVerification,
+  confirmWechatPayment,
+  confirmWechatRefund,
   deleteUserAccount,
   getDemoUser,
   getOrder,
@@ -342,6 +348,49 @@ export default {
           },
           payments: paymentGatewayStatus(),
           authProviders: authProviderStatus(),
+        })
+      }
+
+      if (path === 'payments/wechat/notify') {
+        if (request.method !== 'POST') return methodNotAllowed(request.method, ['POST'])
+
+        const rawBody = await request.text()
+        verifyWechatPayNotifySignature({ headers: request.headers, rawBody })
+        const body = JSON.parse(rawBody)
+        const resource = decryptWechatPayResource(body.resource)
+        if (resource.trade_state === 'SUCCESS') {
+          await confirmWechatPayment({
+            outTradeNo: resource.out_trade_no,
+            transactionId: resource.transaction_id,
+            successTime: resource.success_time,
+            amountCents: resource.amount?.total,
+          })
+        }
+
+        return new Response(JSON.stringify({ code: 'SUCCESS', message: '成功' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json; charset=utf-8' },
+        })
+      }
+
+      if (path === 'payments/wechat/refund-notify') {
+        if (request.method !== 'POST') return methodNotAllowed(request.method, ['POST'])
+
+        const rawBody = await request.text()
+        verifyWechatPayNotifySignature({ headers: request.headers, rawBody })
+        const body = JSON.parse(rawBody)
+        const resource = decryptWechatPayResource(body.resource)
+        if (resource.refund_status === 'SUCCESS') {
+          await confirmWechatRefund({
+            outTradeNo: resource.out_trade_no,
+            outRefundNo: resource.out_refund_no,
+            successTime: resource.success_time,
+          })
+        }
+
+        return new Response(JSON.stringify({ code: 'SUCCESS', message: '成功' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json; charset=utf-8' },
         })
       }
 
@@ -687,6 +736,7 @@ export default {
             await createPayment({
               ...body,
               buyerId: user.id,
+              clientIp: clientIp(request),
             }),
           )
         }

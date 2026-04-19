@@ -12,7 +12,7 @@ The first backend milestone is not real payments or real-name verification. It i
 6. The backend can recommend matching services before order creation.
 7. The order can move through clear states.
 8. Buyer and seller can leave messages under the order.
-9. The buyer can create a mock escrow payment in local/test mode. Production non-CDUT orders require a real payment provider adapter before escrow can be collected.
+9. The buyer can create a WeChat Pay escrow checkout for non-CDUT orders when payment credentials are configured. Local/test mode can still use mock escrow.
 10. A seller can submit a mock real-name verification request.
 
 ## Current Implementation
@@ -111,7 +111,12 @@ Order statuses:
 
 Payment statuses for MVP:
 
-- `mock_pending`: non-CDUT payment UI placeholder before escrow collection
+- `payment_pending`: non-CDUT order waiting for WeChat Pay checkout / callback
+- `payment_held`: WeChat Pay callback confirmed funds and the order is in escrow
+- `payment_released`: order completed, escrow release/settlement flow started
+- `payment_refund_pending`: WeChat Pay refund request submitted, waiting for WeChat processing result
+- `payment_refunded`: order cancelled or refunded through escrow flow
+- `mock_pending`: legacy/local mock placeholder before escrow collection
 - `mock_paid`: buyer confirmed simulated payment and funds are held in mock escrow
 - `mock_released`: completed order released mock escrow to seller
 - `direct_settlement`: CDUT order; no WhiteHive escrow, buyer and seller settle directly

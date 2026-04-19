@@ -4,6 +4,7 @@ import { HttpError } from './http.js'
 const WECHAT_PAY_API_BASE = 'https://api.mch.weixin.qq.com'
 const WECHAT_PAY_NATIVE_PATH = '/v3/pay/transactions/native'
 const WECHAT_PAY_H5_PATH = '/v3/pay/transactions/h5'
+const WECHAT_PAY_REFUND_PATH = '/v3/refund/domestic/refunds'
 
 function truthy(value) {
   return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase())
@@ -92,6 +93,13 @@ function notifyUrl(env = process.env) {
   if (explicit) return explicit
   const siteUrl = String(env.WHITEHIVE_SITE_URL || '').replace(/\/+$/g, '')
   return `${siteUrl}/api/payments/wechat/notify`
+}
+
+function refundNotifyUrl(env = process.env) {
+  const explicit = String(env.WECHAT_PAY_REFUND_NOTIFY_URL || '').trim()
+  if (explicit) return explicit
+  const siteUrl = String(env.WHITEHIVE_SITE_URL || '').replace(/\/+$/g, '')
+  return `${siteUrl}/api/payments/wechat/refund-notify`
 }
 
 function wechatPayMethod(method) {
@@ -200,6 +208,58 @@ export async function createWechatPayTransaction(input, env = process.env) {
     checkoutUrl: method === 'wechatpay_h5' ? data.h5_url : data.code_url,
     h5Url: data.h5_url || '',
     codeUrl: data.code_url || '',
+    providerPayload: data,
+  }
+}
+
+export async function createWechatPayRefund(input, env = process.env) {
+  const status = paymentGatewayStatus(env)
+  if (!status.checkoutEnabled || status.provider !== 'wechatpay') {
+    throw new HttpError(501, 'wechatpay_not_configured', '微信支付尚未配置完整，暂时不能发起退款。', {
+      missing: status.missing,
+    })
+  }
+
+  const amountCents = Number(input.amountCents)
+  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+    throw new HttpError(400, 'invalid_refund_amount', '微信支付退款金额必须是大于 0 的分。')
+  }
+
+  const payload = {
+    out_trade_no: input.outTradeNo,
+    out_refund_no: input.outRefundNo,
+    reason: cleanDescription(input.reason || 'WhiteHive 订单取消退款'),
+    notify_url: refundNotifyUrl(env),
+    amount: {
+      refund: amountCents,
+      total: amountCents,
+      currency: input.currency || 'CNY',
+    },
+  }
+  const body = JSON.stringify(payload)
+  const signed = signWechatPayRequest({ method: 'POST', urlPath: WECHAT_PAY_REFUND_PATH, body, env })
+  const response = await fetch(`${WECHAT_PAY_API_BASE}${WECHAT_PAY_REFUND_PATH}`, {
+    method: 'POST',
+    headers: {
+      authorization: signed.authorization,
+      accept: 'application/json',
+      'content-type': 'application/json',
+      'user-agent': 'WhiteHive/1.0',
+    },
+    body,
+  })
+  const data = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new HttpError(response.status, 'wechatpay_refund_failed', data.message || '微信支付退款申请失败。', {
+      code: data.code,
+    })
+  }
+
+  return {
+    refundId: data.refund_id || '',
+    outRefundNo: data.out_refund_no || input.outRefundNo,
+    status: String(data.status || 'PROCESSING').toUpperCase(),
     providerPayload: data,
   }
 }

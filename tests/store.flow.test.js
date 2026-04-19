@@ -306,7 +306,7 @@ describe('store · auth → service → order → message → payment flow', () 
 
     expect(order.id.startsWith('ord_')).toBe(true)
     expect(order.status).toBe('submitted')
-    expect(order.paymentStatus).toBe('mock_pending')
+    expect(order.paymentStatus).toBe('payment_pending')
     expect(order.serviceId).toBe('svc_web_landing')
     expect(order.buyerId).toBe('usr_demo_buyer')
     expect(order.brief).toContain('创业项目官网')

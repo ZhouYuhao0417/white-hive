@@ -373,7 +373,7 @@ Response fields:
 
 ## Payments
 
-Payments are now policy-gated. Local/test deployments may still use mock payments for MVP demos, but production must connect a real payment provider before non-CDUT escrow payments can be collected. CDUT orders are excluded from escrow and use direct buyer/seller settlement for now.
+Payments are policy-gated. Local/test deployments may still use mock payments for demos, but production non-CDUT orders use WeChat Pay v3 checkout when configured. CDUT orders are excluded from escrow and use direct buyer/seller settlement for now.
 
 ### `GET /api/payments`
 
@@ -388,22 +388,36 @@ Returns one payment.
 
 ### `POST /api/payments`
 
-Creates an idempotent escrow payment record for a non-CDUT order. If the order already has a held or released escrow payment, the existing payment is returned. In production, this endpoint returns `501 payment_provider_not_configured` or `501 payment_checkout_not_connected` until a real provider adapter is configured. CDUT orders return `409 direct_settlement_order`.
+Creates an idempotent escrow payment record for a non-CDUT order. If the order already has a pending, held, or released WeChat Pay payment, the existing payment is returned. In production, this endpoint returns `501 payment_provider_not_configured` until WeChat Pay credentials are configured. CDUT orders return `409 direct_settlement_order`.
 
 ```json
 {
   "orderId": "ord_demo_001",
-  "method": "alipay_mock"
+  "method": "wechatpay_native"
 }
 ```
 
-When logged in, only the order buyer or an admin can create the mock payment.
+Supported WeChat checkout methods:
+
+- `wechatpay_native`: returns `checkoutUrl` as a WeChat `code_url` for QR-code payment
+- `wechatpay_h5`: returns `checkoutUrl` as a mobile H5 payment URL
+
+When logged in, only the order buyer or an admin can create the payment.
 
 The response includes:
 
-- `status`: currently `succeeded` for mock payments
-- `escrowStatus`: `held`, then `released` or `refunded`
-- `order.paymentStatus`: `mock_paid`, `mock_released`, `mock_refunded`, or `direct_settlement` for CDUT orders
+- `status`: `pending` before WeChat callback, then `succeeded`, `failed`, or `refunded`
+- `escrowStatus`: `none` before WeChat callback, then `held`, `released`, or `refunded`
+- `checkoutUrl`: H5 URL or Native `code_url`
+- `order.paymentStatus`: `payment_pending`, `payment_held`, `payment_released`, `payment_refund_pending`, `payment_refunded`, or `direct_settlement` for CDUT orders
+
+### `POST /api/payments/wechat/notify`
+
+WeChat Pay v3 payment notification endpoint. It verifies the WeChat Pay signature with `WECHAT_PAY_PLATFORM_CERTIFICATE`, decrypts the notification resource with `WECHAT_PAY_API_V3_KEY`, checks the paid amount, and moves the payment to `succeeded` / `held`.
+
+### `POST /api/payments/wechat/refund-notify`
+
+WeChat Pay v3 refund notification endpoint. When a paid WeChat order is cancelled, the backend calls the WeChat Pay refund API and moves the order to `payment_refund_pending` if WeChat returns a processing state. The refund notification verifies and decrypts the callback the same way as the payment callback, then moves the payment to `refunded` and the order to `payment_refunded` after WeChat reports success.
 
 ## Messages
 

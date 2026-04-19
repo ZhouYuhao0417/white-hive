@@ -35,6 +35,9 @@ export function clearProductionEnv() {
   delete process.env.WECHAT_PAY_API_V3_KEY
   delete process.env.WECHAT_PAY_PRIVATE_KEY
   delete process.env.WECHAT_PAY_CERT_SERIAL_NO
+  delete process.env.WECHAT_PAY_PLATFORM_CERTIFICATE
+  delete process.env.WECHAT_PAY_NOTIFY_URL
+  delete process.env.WECHAT_PAY_REFUND_NOTIFY_URL
   delete process.env.ALIPAY_APP_ID
   delete process.env.ALIPAY_PRIVATE_KEY
   delete process.env.ALIPAY_PUBLIC_KEY

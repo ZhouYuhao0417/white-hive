@@ -1,12 +1,12 @@
 export const DIRECT_SETTLEMENT_PAYMENT_STATUS = 'direct_settlement'
-export const MOCK_PENDING_PAYMENT_STATUS = 'mock_pending'
+export const PAYMENT_PENDING_STATUS = 'payment_pending'
 
 export function isCdutServiceCategory(category) {
   return String(category || '').trim().startsWith('cdut/')
 }
 
 export function paymentStatusForService(service) {
-  return isCdutServiceCategory(service?.category) ? DIRECT_SETTLEMENT_PAYMENT_STATUS : MOCK_PENDING_PAYMENT_STATUS
+  return isCdutServiceCategory(service?.category) ? DIRECT_SETTLEMENT_PAYMENT_STATUS : PAYMENT_PENDING_STATUS
 }
 
 export function paymentPolicyForService(service) {
@@ -23,7 +23,7 @@ export function paymentPolicyForService(service) {
   return {
     mode: 'platform_escrow',
     escrowRequired: true,
-    paymentStatus: MOCK_PENDING_PAYMENT_STATUS,
+    paymentStatus: PAYMENT_PENDING_STATUS,
     label: '平台托管付款',
     message: '普通数字服务订单需要走 WhiteHive 平台托管付款。',
   }

@@ -21,7 +21,11 @@ import {
   verifyPassword,
 } from './auth.js'
 import { sendEmailVerification, sendPasswordReset } from './email.js'
-import { assertEscrowPaymentCanBeRecorded } from './payment-gateway.js'
+import {
+  assertEscrowPaymentCanBeRecorded,
+  createWechatPayRefund,
+  createWechatPayTransaction,
+} from './payment-gateway.js'
 import { directSettlementMessage, paymentStatusForService } from './payment-policy.js'
 import { sendSmsVerification } from './sms.js'
 import {
@@ -52,6 +56,12 @@ const orderPaymentStatuses = [
   'mock_refunded',
   'mock_failed',
   'direct_settlement',
+  'payment_pending',
+  'payment_held',
+  'payment_released',
+  'payment_refunded',
+  'payment_refund_pending',
+  'payment_failed',
 ]
 const verificationStatuses = ['unverified', 'pending', 'verified', 'rejected']
 const verificationRequestStatuses = ['pending', 'approved', 'rejected']
@@ -185,7 +195,7 @@ async function migrateAndSeed() {
       status text not null default 'submitted'
         check (status in ('submitted', 'accepted', 'in_progress', 'delivered', 'completed', 'cancelled')),
       payment_status text not null default 'mock_pending'
-        check (payment_status in ('mock_pending', 'mock_paid', 'mock_released', 'mock_refunded', 'mock_failed', 'direct_settlement')),
+        check (payment_status in ('mock_pending', 'mock_paid', 'mock_released', 'mock_refunded', 'mock_failed', 'direct_settlement', 'payment_pending', 'payment_held', 'payment_released', 'payment_refunded', 'payment_refund_pending', 'payment_failed')),
       verification_required boolean not null default false,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
@@ -195,7 +205,7 @@ async function migrateAndSeed() {
   await db`alter table orders drop constraint if exists orders_payment_status_check`
   await db`
     alter table orders add constraint orders_payment_status_check
-    check (payment_status in ('mock_pending', 'mock_paid', 'mock_released', 'mock_refunded', 'mock_failed', 'direct_settlement'))
+    check (payment_status in ('mock_pending', 'mock_paid', 'mock_released', 'mock_refunded', 'mock_failed', 'direct_settlement', 'payment_pending', 'payment_held', 'payment_released', 'payment_refunded', 'payment_refund_pending', 'payment_failed'))
   `
 
   await db`
@@ -209,9 +219,11 @@ async function migrateAndSeed() {
       provider text not null default 'mock',
       method text not null default 'alipay_mock',
       status text not null default 'succeeded'
-        check (status in ('succeeded', 'failed', 'refunded')),
+        check (status in ('pending', 'succeeded', 'failed', 'refund_pending', 'refunded')),
       escrow_status text not null default 'held'
-        check (escrow_status in ('held', 'released', 'refunded')),
+        check (escrow_status in ('none', 'held', 'released', 'refunded')),
+      provider_payment_id text not null default '',
+      checkout_url text not null default '',
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now(),
       confirmed_at timestamptz,
@@ -219,6 +231,13 @@ async function migrateAndSeed() {
       refunded_at timestamptz
     )
   `
+
+  await db`alter table payments drop constraint if exists payments_status_check`
+  await db`alter table payments add constraint payments_status_check check (status in ('pending', 'succeeded', 'failed', 'refund_pending', 'refunded'))`
+  await db`alter table payments drop constraint if exists payments_escrow_status_check`
+  await db`alter table payments add constraint payments_escrow_status_check check (escrow_status in ('none', 'held', 'released', 'refunded'))`
+  await db`alter table payments add column if not exists provider_payment_id text not null default ''`
+  await db`alter table payments add column if not exists checkout_url text not null default ''`
 
   await db`
     create table if not exists messages (
@@ -425,6 +444,7 @@ export async function storeInfo() {
       'messages',
       'mock_payments',
       'payment_policy',
+      'wechatpay_checkout',
       'verification_requests',
     ],
   }
@@ -1264,8 +1284,9 @@ export async function createPayment(input) {
   if (existing && ['held', 'released'].includes(existing.escrowStatus)) {
     return withPaymentRelations(existing)
   }
-
-  assertEscrowPaymentCanBeRecorded()
+  if (existing?.provider === 'wechatpay' && existing.status === 'pending' && existing.checkoutUrl) {
+    return withPaymentRelations(existing)
+  }
 
   const amountCents = Number(input.amountCents || order.budgetCents)
   if (!Number.isFinite(amountCents) || amountCents <= 0) {
@@ -1273,13 +1294,45 @@ export async function createPayment(input) {
   }
 
   const createdAt = nowIso()
+  const paymentId = createId('pay')
+  const gateway = assertEscrowPaymentCanBeRecorded()
+
+  if (gateway.checkoutEnabled && gateway.provider === 'wechatpay') {
+    const transaction = await createWechatPayTransaction({
+      outTradeNo: paymentId,
+      amountCents,
+      currency: input.currency || order.currency || 'CNY',
+      description: order.title,
+      method: input.method,
+      clientIp: input.clientIp,
+    })
+    const rows = await query`
+      insert into payments (
+        id, order_id, buyer_id, seller_id, amount_cents, currency, provider, method,
+        status, escrow_status, provider_payment_id, checkout_url, created_at, updated_at
+      )
+      values (
+        ${paymentId}, ${order.id}, ${order.buyerId}, ${order.sellerId}, ${amountCents},
+        ${input.currency || order.currency || 'CNY'}, 'wechatpay', ${transaction.method},
+        'pending', 'none', '', ${transaction.checkoutUrl || ''}, ${createdAt}, ${createdAt}
+      )
+      returning *
+    `
+    await query`
+      update orders set payment_status = 'payment_pending', updated_at = ${createdAt}
+      where id = ${order.id}
+    `
+    await appendSystemMessage(order.id, '买家已发起微信支付，等待微信支付成功回调后进入平台托管。')
+    return withPaymentRelations(paymentFromRow(rows[0]))
+  }
+
   const rows = await query`
     insert into payments (
       id, order_id, buyer_id, seller_id, amount_cents, currency, provider, method,
       status, escrow_status, created_at, updated_at, confirmed_at
     )
     values (
-      ${createId('pay')}, ${order.id}, ${order.buyerId}, ${order.sellerId}, ${amountCents},
+      ${paymentId}, ${order.id}, ${order.buyerId}, ${order.sellerId}, ${amountCents},
       ${input.currency || order.currency || 'CNY'}, 'mock', ${input.method || 'alipay_mock'},
       'succeeded', 'held', ${createdAt}, ${createdAt}, ${createdAt}
     )
@@ -1293,6 +1346,88 @@ export async function createPayment(input) {
   await appendSystemMessage(order.id, '买家已完成模拟付款，资金进入 WhiteHive 托管。')
 
   return withPaymentRelations(paymentFromRow(rows[0]))
+}
+
+export async function confirmWechatPayment(input = {}) {
+  const outTradeNo = String(input.outTradeNo || '').trim()
+  if (!outTradeNo) {
+    throw new HttpError(400, 'missing_out_trade_no', '缺少微信支付商户订单号。')
+  }
+
+  const rows = await query`
+    select * from payments
+    where id = ${outTradeNo} and provider = 'wechatpay'
+    limit 1
+  `
+  const payment = rows[0] ? paymentFromRow(rows[0]) : null
+  if (!payment) {
+    throw new HttpError(404, 'payment_not_found', '没有找到这笔微信支付付款。')
+  }
+  if (input.amountCents !== undefined && Number(input.amountCents) !== payment.amountCents) {
+    throw new HttpError(409, 'payment_amount_mismatch', '微信支付回调金额与订单金额不一致。')
+  }
+
+  const order = await findOrder(payment.orderId)
+  if (!order) {
+    throw new HttpError(404, 'order_not_found', '没有找到这笔付款对应的订单。')
+  }
+
+  const paidAt = input.successTime || nowIso()
+  const updated = await query`
+    update payments
+    set
+      status = 'succeeded',
+      escrow_status = 'held',
+      provider_payment_id = ${input.transactionId || payment.providerPaymentId || ''},
+      updated_at = ${paidAt},
+      confirmed_at = ${paidAt}
+    where id = ${payment.id}
+    returning *
+  `
+  await query`
+    update orders set payment_status = 'payment_held', updated_at = ${paidAt}
+    where id = ${order.id}
+  `
+  await appendSystemMessage(order.id, '微信支付已确认，资金进入 WhiteHive 托管。')
+
+  return withPaymentRelations(paymentFromRow(updated[0]))
+}
+
+export async function confirmWechatRefund(input = {}) {
+  const outTradeNo = String(input.outTradeNo || '').trim()
+  if (!outTradeNo) {
+    throw new HttpError(400, 'missing_out_trade_no', '缺少微信支付商户订单号。')
+  }
+
+  const rows = await query`
+    select * from payments
+    where id = ${outTradeNo} and provider = 'wechatpay'
+    limit 1
+  `
+  const payment = rows[0] ? paymentFromRow(rows[0]) : null
+  if (!payment) {
+    throw new HttpError(404, 'payment_not_found', '没有找到这笔微信支付付款。')
+  }
+
+  const order = await findOrder(payment.orderId)
+  if (!order) {
+    throw new HttpError(404, 'order_not_found', '没有找到这笔付款对应的订单。')
+  }
+
+  const refundedAt = input.successTime || nowIso()
+  const updated = await query`
+    update payments
+    set status = 'refunded', escrow_status = 'refunded', updated_at = ${refundedAt}, refunded_at = ${refundedAt}
+    where id = ${payment.id}
+    returning *
+  `
+  await query`
+    update orders set payment_status = 'payment_refunded', updated_at = ${refundedAt}
+    where id = ${order.id}
+  `
+  await appendSystemMessage(order.id, '微信支付退款已完成。')
+
+  return withPaymentRelations(paymentFromRow(updated[0]))
 }
 
 export async function listMessages(orderId) {
@@ -1578,8 +1713,13 @@ async function releaseEscrowForOrder(order) {
     set escrow_status = 'released', updated_at = ${releasedAt}, released_at = ${releasedAt}
     where id = ${payment.id}
   `
-  order.paymentStatus = 'mock_released'
-  await appendSystemMessage(order.id, '买家已确认验收，模拟托管款已释放给卖家。')
+  order.paymentStatus = payment.provider === 'wechatpay' ? 'payment_released' : 'mock_released'
+  await appendSystemMessage(
+    order.id,
+    payment.provider === 'wechatpay'
+      ? '买家已确认验收，托管款等待平台按微信支付商户结算流程处理。'
+      : '买家已确认验收，模拟托管款已释放给卖家。',
+  )
 }
 
 async function refundEscrowForOrder(order) {
@@ -1587,9 +1727,37 @@ async function refundEscrowForOrder(order) {
   if (!payment || payment.escrowStatus !== 'held') return
 
   const refundedAt = nowIso()
+  if (payment.provider === 'wechatpay') {
+    const refund = await createWechatPayRefund({
+      outTradeNo: payment.id,
+      outRefundNo: `rf_${payment.id}`,
+      amountCents: payment.amountCents,
+      currency: payment.currency,
+      reason: 'WhiteHive 订单取消退款',
+    })
+    const refundFinished = refund.status === 'SUCCESS'
+    await query`
+      update payments
+      set
+        status = ${refundFinished ? 'refunded' : 'refund_pending'},
+        escrow_status = ${refundFinished ? 'refunded' : 'held'},
+        updated_at = ${refundedAt},
+        refunded_at = ${refundFinished ? refundedAt : null}
+      where id = ${payment.id}
+    `
+    order.paymentStatus = refundFinished ? 'payment_refunded' : 'payment_refund_pending'
+    await appendSystemMessage(
+      order.id,
+      refundFinished
+        ? '订单已取消，微信支付退款已受理完成。'
+        : '订单已取消，微信支付退款申请已提交，等待微信支付处理结果。',
+    )
+    return
+  }
+
   await query`
     update payments
-    set escrow_status = 'refunded', updated_at = ${refundedAt}, refunded_at = ${refundedAt}
+    set status = 'refunded', escrow_status = 'refunded', updated_at = ${refundedAt}, refunded_at = ${refundedAt}
     where id = ${payment.id}
   `
   order.paymentStatus = 'mock_refunded'
@@ -1713,6 +1881,8 @@ function summarizePayment(payment) {
     method: payment.method,
     status: payment.status,
     escrowStatus: payment.escrowStatus,
+    providerPaymentId: payment.providerPaymentId || '',
+    checkoutUrl: payment.checkoutUrl || '',
     createdAt: payment.createdAt,
     confirmedAt: payment.confirmedAt,
     releasedAt: payment.releasedAt,
@@ -1868,6 +2038,8 @@ function paymentFromRow(row) {
     method: row.method,
     status: row.status,
     escrowStatus: row.escrow_status,
+    providerPaymentId: row.provider_payment_id || '',
+    checkoutUrl: row.checkout_url || '',
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
     confirmedAt: toIso(row.confirmed_at),
