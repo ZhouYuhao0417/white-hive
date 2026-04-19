@@ -630,10 +630,13 @@ export default function Local() {
 
   return (
     <>
+      {/* 顶部只保留 Hero 做总介绍 */}
       <LocalHero />
-      <RouteCards />
-      <CategoryGrid activeKey={activeCategory} onPick={setActiveCategory} />
+      {/* 商品直接前置 */}
       <NearbyList activeKey={activeCategory} />
+      {/* 以下为说明性内容：分类说明 / 两条路线 / 安全提示 / 发布需求 */}
+      <CategoryGrid activeKey={activeCategory} onPick={setActiveCategory} />
+      <RouteCards />
       <TrustTips />
       <PostNeedForm />
     </>
