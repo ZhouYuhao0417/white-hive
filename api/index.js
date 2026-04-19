@@ -2,6 +2,7 @@ import { fail, getQuery, HttpError, methodNotAllowed, ok, readBody, withApiError
 import { createMatch } from './_lib/matcher.js'
 import { blobStatus, uploadAvatarToBlob } from './_lib/blob.js'
 import { emailStatus } from './_lib/email.js'
+import { smsStatus } from './_lib/sms.js'
 import {
   createMessage,
   createOrder,
@@ -279,12 +280,15 @@ async function requireAdminReviewer(request) {
 }
 
 function authProviderStatus() {
+  const sms = smsStatus()
   return {
     password: { mode: 'active', configured: true },
     phone: {
-      mode: process.env.SMS_PROVIDER && process.env.SMS_API_KEY ? 'live' : 'demo',
-      configured: Boolean(process.env.SMS_PROVIDER && process.env.SMS_API_KEY),
-      missing: process.env.SMS_PROVIDER && process.env.SMS_API_KEY ? [] : ['SMS_PROVIDER', 'SMS_API_KEY'],
+      mode: sms.configured ? 'live' : sms.mockEnabled ? 'mock' : 'demo',
+      configured: sms.configured,
+      provider: sms.provider,
+      mockEnabled: sms.mockEnabled,
+      missing: sms.missing,
     },
     github: {
       mode: process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET ? 'live' : 'demo',

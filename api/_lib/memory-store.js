@@ -98,6 +98,7 @@ export function storeInfo() {
       'provider_auth_demo',
       'sessions',
       'email_verification',
+      'phone_verification',
       'password_reset',
       'resend_email_ready',
       'blob_avatar_ready',
@@ -476,6 +477,26 @@ export async function requestPhoneVerification(token, input = {}) {
   const nowMs = now.getTime()
   const state = getState()
 
+  if (user.phone === phone && user.phoneVerifiedAt) {
+    return clone({
+      user: publicUser(user),
+      phoneVerification: {
+        status: 'verified',
+        phone,
+        verifiedAt: user.phoneVerifiedAt,
+        delivery: null,
+      },
+    })
+  }
+
+  const alreadyVerified = state.users.find(
+    (item) => item.id !== user.id && item.phone === phone && item.phoneVerifiedAt,
+  )
+
+  if (alreadyVerified) {
+    throw new HttpError(409, 'phone_already_verified', '这个手机号已经绑定到其他账号。')
+  }
+
   // 清理 24h 之外的历史记录
   state.phoneVerificationTokens = state.phoneVerificationTokens.filter(
     (item) => nowMs - new Date(item.createdAt).getTime() < 24 * 60 * 60 * 1000,
@@ -548,6 +569,14 @@ export function confirmPhoneVerification(token, input = {}) {
   const codeHash = hashToken(code)
   const state = getState()
   const now = new Date()
+
+  const alreadyVerified = state.users.find(
+    (item) => item.id !== user.id && item.phone === phone && item.phoneVerifiedAt,
+  )
+
+  if (alreadyVerified) {
+    throw new HttpError(409, 'phone_already_verified', '这个手机号已经绑定到其他账号。')
+  }
 
   const candidates = state.phoneVerificationTokens.filter(
     (item) =>

@@ -12,6 +12,8 @@ Auth-related account endpoints:
 - `DELETE /api/auth/account`: delete a disposable test account when it has no linked services, orders, payments or messages.
 - `POST /api/auth/email-verification`: create and send a 6-digit email verification code.
 - `POST /api/auth/email-verification/confirm`: confirm the 6-digit code and mark the email as verified.
+- `POST /api/auth/phone-verification`: create and send a 6-digit SMS verification code.
+- `POST /api/auth/phone-verification/confirm`: confirm the 6-digit SMS code and mark the phone as verified.
 - `POST /api/auth/password-reset`: request a password reset code by email.
 - `POST /api/auth/password-reset/confirm`: confirm the reset code and set a new password.
 - `POST /api/uploads/avatar`: upload the current user's avatar to Vercel Blob when configured.
@@ -83,7 +85,7 @@ For login, send:
 
 ### `POST /api/auth/provider`
 
-Creates a session through the MVP provider bridge. This makes every UI entry point usable for demos today. It does not yet perform real WeChat/QQ/GitHub OAuth or SMS verification; those can replace the bridge later using the same endpoint shape once app credentials are available.
+Creates a session through the MVP provider bridge. This makes every UI entry point usable for demos today. Phone registration now has a separate SMS verification flow; WeChat/QQ/GitHub still use demo identities until platform app credentials are available.
 
 Supported `provider` values:
 
@@ -104,7 +106,7 @@ The response shape matches `POST /api/auth/session` and returns a bearer session
 
 ### `GET /api/auth/providers`
 
-Returns a safe configuration summary for password, phone, GitHub, WeChat and QQ login. It never returns secrets. Until SMS/OAuth app credentials are configured, non-password providers remain in `demo` mode.
+Returns a safe configuration summary for password, phone, GitHub, WeChat and QQ login. It never returns secrets. Phone reports `live` when Aliyun SMS variables are configured, `mock` when `WHITEHIVE_SMS_MOCK=1`, and `demo` otherwise. OAuth providers remain in `demo` mode until app credentials are configured.
 
 ### `GET /api/auth/profile`
 
@@ -137,6 +139,29 @@ Creates a short-lived hashed verification code and sends it by email. Production
 ### `POST /api/auth/email-verification/confirm`
 
 Confirms the 6-digit email code. Send/confirm endpoints are rate-limited by IP and session token to reduce verification-code abuse.
+
+### `POST /api/auth/phone-verification`
+
+Creates a short-lived hashed SMS code for the logged-in user. Production delivery uses Aliyun Dysmsapi and requires `ALIYUN_SMS_ACCESS_KEY_ID`, `ALIYUN_SMS_ACCESS_KEY_SECRET`, `ALIYUN_SMS_SIGN_NAME` and `ALIYUN_SMS_TEMPLATE_CODE`. Local demos can use `WHITEHIVE_SMS_MOCK=1`; the API still keeps the verification code server-side.
+
+```json
+{
+  "phone": "13800000000"
+}
+```
+
+The backend rate-limits requests by IP, session and phone number. A verified phone number cannot be claimed by a different account.
+
+### `POST /api/auth/phone-verification/confirm`
+
+Confirms the 6-digit SMS code, stores `phoneVerifiedAt`, and updates the user's bound phone number.
+
+```json
+{
+  "phone": "13800000000",
+  "code": "123456"
+}
+```
 
 ### `POST /api/auth/password-reset`
 

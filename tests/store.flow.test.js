@@ -8,6 +8,7 @@ import { test, expect, describe, beforeEach, afterEach } from 'bun:test'
 import {
   upsertDemoSession,
   getSessionByToken,
+  requestPhoneVerification,
   createService,
   listServices,
   getService,
@@ -92,6 +93,37 @@ describe('store · auth → service → order → message → payment flow', () 
         email,
         password: 'wrongpassword',
       }),
+    ).rejects.toThrow(HttpError)
+  })
+
+  test('verified phone cannot be requested by a different account', async () => {
+    const phone = '13812345678'
+    const owner = await upsertDemoSession({
+      action: 'signup',
+      email: uniqueEmail('phone-owner'),
+      password: 'testpass123',
+      displayName: '手机号主人',
+      role: 'buyer',
+      phone,
+    })
+    const other = await upsertDemoSession({
+      action: 'signup',
+      email: uniqueEmail('phone-other'),
+      password: 'testpass123',
+      displayName: '另一个用户',
+      role: 'buyer',
+    })
+
+    const state = globalThis.__whitehiveMvpStore
+    const ownerRecord = state.users.find((user) => user.id === owner.user.id)
+    ownerRecord.phone = phone
+    ownerRecord.phoneVerifiedAt = new Date().toISOString()
+
+    const repeat = await requestPhoneVerification(owner.session.token, { phone })
+    expect(repeat.phoneVerification.status).toBe('verified')
+
+    await expect(
+      requestPhoneVerification(other.session.token, { phone }),
     ).rejects.toThrow(HttpError)
   })
 

@@ -5,14 +5,15 @@
 The first backend milestone is not real payments or real-name verification. It is the smallest product loop that proves WhiteHive can support buying and selling digital services:
 
 1. A user can register, log in, and keep a short-lived product session.
-1. A user can request and confirm an email verification code.
-2. A seller can publish a structured service.
-3. A buyer can create an order from a service.
-4. The backend can recommend matching services before order creation.
-5. The order can move through clear states.
-6. Buyer and seller can leave messages under the order.
-7. The buyer can create a mock escrow payment.
-8. A seller can submit a mock real-name verification request.
+2. A user can request and confirm phone verification by SMS.
+3. A user can request and confirm an email verification code when the email provider is available.
+4. A seller can publish a structured service.
+5. A buyer can create an order from a service.
+6. The backend can recommend matching services before order creation.
+7. The order can move through clear states.
+8. Buyer and seller can leave messages under the order.
+9. The buyer can create a mock escrow payment.
+10. A seller can submit a mock real-name verification request.
 
 ## Current Implementation
 
@@ -30,6 +31,8 @@ Public endpoints:
 - `DELETE /api/auth/account`
 - `POST /api/auth/email-verification`
 - `POST /api/auth/email-verification/confirm`
+- `POST /api/auth/phone-verification`
+- `POST /api/auth/phone-verification/confirm`
 - `POST /api/auth/password-reset`
 - `POST /api/auth/password-reset/confirm`
 - `POST /api/uploads/avatar`
@@ -72,11 +75,12 @@ Current storage:
 - `api/_lib/memory-store.js` keeps the safe demo fallback.
 - `api/_lib/postgres-store.js` uses Neon/Postgres when a supported database URL exists.
 - Registration now stores a hashed password, personal profile fields, and a server-side session token hash.
-- Phone, WeChat, QQ and GitHub buttons now create provider-backed MVP sessions through `POST /api/auth/provider`, so every advertised login/register entry point is usable in demos. These are provider bridges, not final OAuth/SMS integrations yet.
-- Registration/login and email verification now have simple IP/session/email rate limits backed by the active store.
+- Phone registration now sends and confirms 6-digit SMS codes through Aliyun Dysmsapi when configured, with `WHITEHIVE_SMS_MOCK=1` available for local demos.
+- WeChat, QQ and GitHub buttons still create provider-backed MVP sessions through `POST /api/auth/provider`, so every advertised login/register entry point is usable in demos while final OAuth credentials are pending.
+- Registration/login, email verification and phone verification now have simple IP/session/email/phone rate limits backed by the active store.
 - Profile data now supports an optional compressed avatar image for higher-trust accounts.
 - Avatar upload now has a Vercel Blob endpoint. When `BLOB_READ_WRITE_TOKEN` is configured, newly uploaded profile photos can move out of the database payload and into object storage.
-- Email verification now stores short-lived hashed verification codes. Production email requires `RESEND_API_KEY` and `EMAIL_FROM`; the UI no longer displays mock codes.
+- Email verification now stores short-lived hashed verification codes. Production email requires `RESEND_API_KEY` and `EMAIL_FROM`; the UI no longer displays mock codes. If the email provider is unavailable, registration can continue through phone verification first.
 - Password reset now stores short-lived hashed reset codes, invalidates old sessions after a reset, and uses the same email delivery configuration.
 - Real-name verification now has session-bound endpoints under `/api/auth/verification`, so the frontend can submit verification for the logged-in user without trusting a browser-provided `userId`.
 - Real-name verification requests now track `verificationType`, school/company, city, optional HTTPS evidence link and review timestamp.
@@ -119,12 +123,13 @@ Verification statuses:
 
 ## Next Backend Steps
 
-1. In Vercel, set `RESEND_API_KEY`, `EMAIL_FROM`, `BLOB_READ_WRITE_TOKEN`, `WHITEHIVE_ADMIN_EMAILS` and optionally `WHITEHIVE_ADMIN_REVIEW_TOKEN`; then verify `/api/health`.
-2. Replace the provider bridges with real SMS, WeChat, QQ and GitHub OAuth credentials.
-3. Replace the MVP password auth with Clerk/Auth0 or email magic-link auth when the product leaves demo mode.
-4. Replace browser cache fallback with Postgres-backed user data everywhere.
-5. Add an admin review page for pending real-name verification requests.
-6. Split `/dashboard` into real buyer/seller dashboards after auth is connected across all flows.
-7. Add the final payment confirmation UI on top of `/api/payments`.
-8. Replace `whitehive-rule-match-v1` with LLM + embedding search after service data grows.
-9. Connect a real payment provider and real-name verification provider only after the demo loop is stable.
+1. Configure Aliyun SMS in Vercel with `ALIYUN_SMS_ACCESS_KEY_ID`, `ALIYUN_SMS_ACCESS_KEY_SECRET`, `ALIYUN_SMS_SIGN_NAME`, `ALIYUN_SMS_TEMPLATE_CODE`, `ALIYUN_SMS_REGION=cn-hangzhou` and `WHITEHIVE_SMS_MOCK=0`; then verify phone registration on production.
+2. Keep `BLOB_READ_WRITE_TOKEN`, `WHITEHIVE_ADMIN_EMAILS` and optionally `WHITEHIVE_ADMIN_REVIEW_TOKEN` configured; restore `RESEND_API_KEY` and `EMAIL_FROM` only after the Resend account is usable again.
+3. Replace the WeChat, QQ and GitHub provider bridges with real OAuth credentials.
+4. Replace the MVP password auth with Clerk/Auth0 or email magic-link auth when the product leaves demo mode.
+5. Replace browser cache fallback with Postgres-backed user data everywhere.
+6. Add an admin review page for pending real-name verification requests.
+7. Split `/dashboard` into real buyer/seller dashboards after auth is connected across all flows.
+8. Add the final payment confirmation UI on top of `/api/payments`.
+9. Replace `whitehive-rule-match-v1` with LLM + embedding search after service data grows.
+10. Connect a real payment provider and real-name verification provider only after the demo loop is stable.

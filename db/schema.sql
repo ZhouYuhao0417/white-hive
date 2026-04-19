@@ -17,6 +17,7 @@ create table if not exists users (
   auth_provider text not null default 'password',
   provider_user_id text not null default '',
   email_verified_at timestamptz,
+  phone_verified_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -160,6 +161,9 @@ create index if not exists verification_requests_user_idx on verification_reques
 create index if not exists email_verification_tokens_user_idx on email_verification_tokens(user_id, expires_at);
 create index if not exists phone_verification_tokens_user_idx on phone_verification_tokens(user_id, expires_at);
 create index if not exists password_reset_tokens_email_idx on password_reset_tokens(email, expires_at);
+create index if not exists users_verified_phone_lookup_idx
+  on users(phone)
+  where phone <> '' and phone_verified_at is not null;
 create unique index if not exists users_provider_identity_idx
   on users(auth_provider, provider_user_id)
   where provider_user_id <> '';

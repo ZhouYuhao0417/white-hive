@@ -131,6 +131,7 @@ async function migrateAndSeed() {
   await db`alter table users add column if not exists auth_provider text not null default 'password'`
   await db`alter table users add column if not exists provider_user_id text not null default ''`
   await db`alter table users add column if not exists email_verified_at timestamptz`
+  await db`alter table users add column if not exists phone_verified_at timestamptz`
   await db`alter table users add column if not exists updated_at timestamptz not null default now()`
 
   await db`
@@ -265,7 +266,6 @@ async function migrateAndSeed() {
       attempts int not null default 0
     )
   `
-  await db`alter table users add column if not exists phone_verified_at timestamptz`
 
   await db`
     create table if not exists password_reset_tokens (
@@ -297,7 +297,13 @@ async function migrateAndSeed() {
   await db`create index if not exists messages_order_idx on messages(order_id, created_at)`
   await db`create index if not exists verification_requests_user_idx on verification_requests(user_id, created_at)`
   await db`create index if not exists email_verification_tokens_user_idx on email_verification_tokens(user_id, expires_at)`
+  await db`create index if not exists phone_verification_tokens_user_idx on phone_verification_tokens(user_id, expires_at)`
   await db`create index if not exists password_reset_tokens_email_idx on password_reset_tokens(email, expires_at)`
+  await db`
+    create index if not exists users_verified_phone_lookup_idx
+    on users(phone)
+    where phone <> '' and phone_verified_at is not null
+  `
   await db`
     create unique index if not exists users_provider_identity_idx
     on users(auth_provider, provider_user_id)
@@ -394,6 +400,7 @@ export async function storeInfo() {
       'provider_auth_demo',
       'sessions',
       'email_verification',
+      'phone_verification',
       'password_reset',
       'resend_email_ready',
       'blob_avatar_ready',
@@ -790,6 +797,30 @@ export async function requestPhoneVerification(token, input = {}) {
   const phone = validatePhone(input.phone || user.phone)
   const nowMs = Date.now()
 
+  if (user.phone === phone && user.phoneVerifiedAt) {
+    return {
+      user: publicUser(user),
+      phoneVerification: {
+        status: 'verified',
+        phone,
+        verifiedAt: user.phoneVerifiedAt,
+        delivery: null,
+      },
+    }
+  }
+
+  const alreadyVerified = await query`
+    select id from users
+    where phone = ${phone}
+      and phone_verified_at is not null
+      and id <> ${user.id}
+    limit 1
+  `
+
+  if (alreadyVerified[0]) {
+    throw new HttpError(409, 'phone_already_verified', '这个手机号已经绑定到其他账号。')
+  }
+
   await query`
     delete from phone_verification_tokens
     where created_at < now() - interval '24 hours'
@@ -855,6 +886,18 @@ export async function confirmPhoneVerification(token, input = {}) {
   const user = await ensureUser(current.user.id)
   const phone = validatePhone(input.phone || user.phone)
   const code = validatePhoneVerificationCode(input.code)
+
+  const alreadyVerified = await query`
+    select id from users
+    where phone = ${phone}
+      and phone_verified_at is not null
+      and id <> ${user.id}
+    limit 1
+  `
+
+  if (alreadyVerified[0]) {
+    throw new HttpError(409, 'phone_already_verified', '这个手机号已经绑定到其他账号。')
+  }
 
   const rows = await query`
     select * from phone_verification_tokens

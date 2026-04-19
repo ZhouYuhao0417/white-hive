@@ -82,6 +82,8 @@ export default function AuthDrawer({ open, onClose }) {
     loginWithProvider,
     requestEmailVerification,
     confirmEmailVerification,
+    requestPhoneVerification,
+    confirmPhoneVerification,
     requestPasswordReset,
     confirmPasswordReset,
   } = useAuth()
@@ -92,11 +94,15 @@ export default function AuthDrawer({ open, onClose }) {
   const [isProcessingAvatar, setIsProcessingAvatar] = useState(false)
   const [isSendingVerification, setIsSendingVerification] = useState(false)
   const [isConfirmingVerification, setIsConfirmingVerification] = useState(false)
+  const [isSendingPhoneVerification, setIsSendingPhoneVerification] = useState(false)
+  const [isConfirmingPhoneVerification, setIsConfirmingPhoneVerification] = useState(false)
   const [isSendingPasswordReset, setIsSendingPasswordReset] = useState(false)
   const [isConfirmingPasswordReset, setIsConfirmingPasswordReset] = useState(false)
   const [emailChallenge, setEmailChallenge] = useState(null)
+  const [phoneChallenge, setPhoneChallenge] = useState(null)
   const [passwordResetChallenge, setPasswordResetChallenge] = useState(null)
   const [verificationCode, setVerificationCode] = useState('')
+  const [phoneVerificationCode, setPhoneVerificationCode] = useState('')
   const [passwordResetCode, setPasswordResetCode] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmNewPassword, setConfirmNewPassword] = useState('')
@@ -104,6 +110,7 @@ export default function AuthDrawer({ open, onClose }) {
   const [error, setError] = useState('')
 
   const hasEmailChallenge = emailChallenge?.status === 'pending'
+  const hasPhoneChallenge = phoneChallenge?.status === 'pending'
 
   const updateForm = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }))
@@ -113,8 +120,10 @@ export default function AuthDrawer({ open, onClose }) {
 
   const resetTransientAuthState = () => {
     setEmailChallenge(null)
+    setPhoneChallenge(null)
     setPasswordResetChallenge(null)
     setVerificationCode('')
+    setPhoneVerificationCode('')
     setPasswordResetCode('')
     setNewPassword('')
     setConfirmNewPassword('')
@@ -122,8 +131,9 @@ export default function AuthDrawer({ open, onClose }) {
 
   const submit = async (event) => {
     event.preventDefault()
-    if (hasEmailChallenge) return
+    if (hasEmailChallenge || hasPhoneChallenge) return
     const isSignup = mode === 'signup'
+    const signupPhone = form.phone.replace(/[^\d]/g, '')
 
     if (isSignup && form.password !== form.confirmPassword) {
       setError('两次输入的密码不一致。')
@@ -132,6 +142,11 @@ export default function AuthDrawer({ open, onClose }) {
 
     if (isSignup && form.displayName.trim().length < 2) {
       setError('请填写至少 2 个字的昵称或团队名。')
+      return
+    }
+
+    if (isSignup && !/^1[3-9]\d{9}$/.test(signupPhone)) {
+      setError('请填写可接收短信验证码的 11 位中国大陆手机号。')
       return
     }
 
@@ -146,7 +161,7 @@ export default function AuthDrawer({ open, onClose }) {
         mode: isSignup ? form.role : 'signin',
         role: form.role,
         displayName: form.displayName,
-        phone: form.phone,
+        phone: isSignup ? signupPhone : form.phone,
         schoolOrCompany: form.schoolOrCompany,
         city: form.city,
         bio: form.bio,
@@ -155,26 +170,37 @@ export default function AuthDrawer({ open, onClose }) {
 
       const result = isSignup ? await signup(payload) : await login(payload)
       const name = result?.user?.displayName || result?.user?.email || '用户'
-      if (!result?.user?.emailVerified) {
-        const challenge = await requestEmailVerification()
-        setEmailChallenge(challenge?.emailVerification || null)
-        setVerificationCode('')
-        const deliveryMessage = challenge?.emailVerification?.delivery?.message
+
+      if (isSignup) {
+        const challenge = await requestPhoneVerification(signupPhone)
+        const phoneVerification = challenge?.phoneVerification || null
+        if (phoneVerification?.status === 'verified') {
+          setNotice(`账户已创建，手机号已验证：${name}。`)
+          setTimeout(() => {
+            onClose()
+            setForm(initialForm)
+            resetTransientAuthState()
+            setNotice('')
+            setError('')
+            setMode('signin')
+          }, 800)
+          return
+        }
+
+        setPhoneChallenge(phoneVerification)
+        setPhoneVerificationCode('')
         setNotice(
-          isSignup
-            ? `账户已创建：${name}。${deliveryMessage || '请先完成邮箱验证。'}`
-            : `登录成功：${name}。${deliveryMessage || '这个邮箱还没有验证。'}`,
+          `账户已创建：${name}。${phoneVerification?.delivery?.message || '请完成手机号验证。'}`,
         )
         return
       }
 
-      setNotice(isSignup ? `账户已创建并已验证：${name}` : `登录成功：${name}`)
+      setNotice(`登录成功：${name}`)
 
       setTimeout(() => {
         onClose()
         setForm(initialForm)
-        setEmailChallenge(null)
-        setVerificationCode('')
+        resetTransientAuthState()
         setNotice('')
         setError('')
         setMode('signin')
@@ -183,6 +209,53 @@ export default function AuthDrawer({ open, onClose }) {
       setError(err.message || '登录暂时失败，请稍后再试。')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const resendPhoneVerification = async () => {
+    const phone = (phoneChallenge?.phone || form.phone).replace(/[^\d]/g, '')
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      setError('请填写正确的 11 位中国大陆手机号。')
+      return
+    }
+
+    setIsSendingPhoneVerification(true)
+    setError('')
+    setNotice('')
+    try {
+      const result = await requestPhoneVerification(phone)
+      setPhoneChallenge(result?.phoneVerification || null)
+      setPhoneVerificationCode('')
+      setNotice(result?.phoneVerification?.delivery?.message || '短信验证码已重新发送。')
+    } catch (err) {
+      setError(err.message || '短信验证码发送失败，请稍后再试。')
+    } finally {
+      setIsSendingPhoneVerification(false)
+    }
+  }
+
+  const verifyPhoneCode = async () => {
+    const phone = (phoneChallenge?.phone || form.phone).replace(/[^\d]/g, '')
+    setIsConfirmingPhoneVerification(true)
+    setError('')
+    setNotice('')
+    try {
+      await confirmPhoneVerification(phone, phoneVerificationCode)
+      setPhoneChallenge(null)
+      setPhoneVerificationCode('')
+      setNotice('手机号验证成功，注册认证已完成。')
+      setTimeout(() => {
+        onClose()
+        setForm(initialForm)
+        resetTransientAuthState()
+        setNotice('')
+        setError('')
+        setMode('signin')
+      }, 900)
+    } catch (err) {
+      setError(err.message || '短信验证码校验失败，请重新输入。')
+    } finally {
+      setIsConfirmingPhoneVerification(false)
     }
   }
 
@@ -540,8 +613,11 @@ export default function AuthDrawer({ open, onClose }) {
                             <input
                               type="tel"
                               value={form.phone}
-                              onChange={(event) => updateForm('phone', event.target.value)}
-                              placeholder="选填"
+                              onChange={(event) => updateForm('phone', event.target.value.replace(/[^\d]/g, '').slice(0, 11))}
+                              inputMode="numeric"
+                              maxLength={11}
+                              placeholder="用于短信验证"
+                              required
                               className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
                             />
                           </label>
@@ -656,7 +732,59 @@ export default function AuthDrawer({ open, onClose }) {
                   </div>
                 )}
 
-                {!hasEmailChallenge && (
+                {hasPhoneChallenge && (
+                  <div className="rounded-2xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/[0.07] p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="mono-label text-[#CFFDF5]">PHONE VERIFY</div>
+                        <div className="mt-1 text-sm font-medium text-white">验证手机号</div>
+                      </div>
+                      <span className="rounded-full border border-[#5EEAD4]/30 bg-[#5EEAD4]/10 px-2 py-1 text-[10px] text-[#CFFDF5]">
+                        {phoneChallenge.delivery?.delivered ? '已发送' : phoneChallenge.delivery?.mock ? '本地模式' : '待配置'}
+                      </span>
+                    </div>
+                    <p className="text-xs leading-relaxed text-white/55">
+                      验证码将发送到 {phoneChallenge.phone}。手机号验证完成后，账号会获得基础可信凭据，后续订单通知和安全联系也会更稳定。
+                    </p>
+                    {phoneChallenge.delivery?.message && (
+                      <div className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
+                        {phoneChallenge.delivery.message}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={phoneVerificationCode}
+                        onChange={(event) => setPhoneVerificationCode(event.target.value.replace(/[^\d]/g, '').slice(0, 6))}
+                        placeholder="6 位短信验证码"
+                        className="flex-1 h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
+                      />
+                      <button
+                        type="button"
+                        disabled={isConfirmingPhoneVerification || phoneVerificationCode.length !== 6}
+                        onClick={verifyPhoneCode}
+                        className="btn-primary !px-4"
+                      >
+                        {isConfirmingPhoneVerification ? '校验中' : '验证'}
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <button
+                        type="button"
+                        disabled={isSendingPhoneVerification}
+                        onClick={resendPhoneVerification}
+                        className="text-[#CFFDF5] hover:text-white transition-colors"
+                      >
+                        {isSendingPhoneVerification ? '发送中...' : '重新发送短信'}
+                      </button>
+                      <span className="text-white/35">5 分钟内有效</span>
+                    </div>
+                  </div>
+                )}
+
+                {!hasEmailChallenge && !hasPhoneChallenge && (
                   <button
                     type="submit"
                     disabled={isSubmitting}

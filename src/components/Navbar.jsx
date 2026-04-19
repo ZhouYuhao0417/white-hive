@@ -71,7 +71,12 @@ function UserMenu({ user, onLogout }) {
 
   const displayName = user.displayName || user.email?.split('@')[0] || '用户'
   const roleBadge = user.role === 'seller' ? '创作者' : '买家'
-  const emailBadge = user.emailVerified ? '邮箱已验证' : '邮箱待验证'
+  const contactVerified = Boolean(user.phoneVerified || user.emailVerified)
+  const contactBadge = user.phoneVerified
+    ? '手机已验证'
+    : user.emailVerified
+      ? '邮箱已验证'
+      : '联系方式待验证'
   const verificationBadge = {
     verified: '实名已认证',
     pending: '实名审核中',
@@ -111,12 +116,12 @@ function UserMenu({ user, onLogout }) {
               </span>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-md border font-medium tracking-wide ${
-                  user.emailVerified
+                  contactVerified
                     ? 'bg-[#5EEAD4]/10 border-[#5EEAD4]/30 text-[#CFFDF5]'
                     : 'bg-amber-300/10 border-amber-300/25 text-amber-100'
                 }`}
               >
-                {emailBadge}
+                {contactBadge}
               </span>
               <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/[0.03] border border-white/10 text-white/60 font-medium tracking-wide">
                 {verificationBadge}
