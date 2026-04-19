@@ -35,6 +35,7 @@ const verificationTypeLabels = {
 const initialVerificationForm = {
   verificationType: 'individual',
   realName: '',
+  studentId: '',
   role: '个人创作者',
   idNumberLast4: '',
   contactEmail: '',
@@ -164,7 +165,16 @@ export default function Account() {
     setNotice('')
     setError('')
     try {
-      const result = await submitCurrentVerification(verificationForm)
+      const payload =
+        verificationForm.verificationType === 'campus'
+          ? {
+              verificationType: 'campus',
+              realName: verificationForm.realName,
+              studentId: verificationForm.studentId,
+              role: '成都理工校园服务者',
+            }
+          : verificationForm
+      const result = await submitCurrentVerification(payload)
       await refreshUser()
       setVerificationProfile((current) => ({
         ...(current || {}),
@@ -223,6 +233,8 @@ export default function Account() {
   }
 
   const latestRequest = verificationProfile?.latestRequest
+  const isCampusVerification = verificationForm.verificationType === 'campus'
+  const canRequestCampusVerification = ['seller', 'admin'].includes(user.role)
 
   return (
     <>
@@ -428,7 +440,11 @@ export default function Account() {
                   <div className="min-w-0">类型：{verificationTypeLabels[latestRequest.verificationType] || latestRequest.verificationType || '个人'}</div>
                   <div className="min-w-0">城市：{latestRequest.city || '未填'}</div>
                   <div className="min-w-0">学校/公司：{latestRequest.schoolOrCompany || '未填'}</div>
-                  <div className="min-w-0">证件尾号：{latestRequest.idNumberLast4 || '未填'}</div>
+                  <div className="min-w-0">
+                    {latestRequest.verificationType === 'campus'
+                      ? `学号：${latestRequest.studentId || '未填'}`
+                      : `证件尾号：${latestRequest.idNumberLast4 || '未填'}`}
+                  </div>
                   <div className="min-w-0">联系邮箱：{latestRequest.contactEmail}</div>
                 </div>
                 {latestRequest.evidenceUrl && (
@@ -456,7 +472,7 @@ export default function Account() {
                   className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-ink-900"
                 >
                   <option value="individual">个人</option>
-                  <option value="campus">校园学生 / CDUT</option>
+                  {canRequestCampusVerification && <option value="campus">校园卖家 / CDUT</option>}
                   <option value="studio">团队 / 工作室</option>
                   <option value="company">企业主体</option>
                 </select>
@@ -468,78 +484,93 @@ export default function Account() {
                   onChange={(event) => updateVerificationForm('realName', event.target.value)}
                   required
                   minLength={2}
-                  placeholder="例如：周煜皓 / 白色蜂巢工作室"
+                  placeholder={isCampusVerification ? '请输入真实姓名' : '例如：周煜皓 / 白色蜂巢工作室'}
                   className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
                 />
               </label>
-              <label className="block">
-                <span className="mono-label">认证身份</span>
-                <select
-                  value={verificationForm.role}
-                  onChange={(event) => updateVerificationForm('role', event.target.value)}
-                  className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-ink-900"
-                >
-                  <option value="个人创作者">个人创作者</option>
-                  <option value="成都理工在校生">成都理工在校生</option>
-                  <option value="校园服务者">校园服务者</option>
-                  <option value="买家个人">买家个人</option>
-                  <option value="团队 / 工作室">团队 / 工作室</option>
-                  <option value="企业主体">企业主体</option>
-                </select>
-              </label>
-              <div className="grid sm:grid-cols-2 gap-4">
+              {isCampusVerification ? (
                 <label className="block">
-                  <span className="mono-label">学校 / 公司</span>
+                  <span className="mono-label">成都理工学号</span>
                   <input
-                    value={verificationForm.schoolOrCompany}
-                    onChange={(event) => updateVerificationForm('schoolOrCompany', event.target.value)}
-                    placeholder="例如：成都理工大学"
-                    className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mono-label">所在城市</span>
-                  <input
-                    value={verificationForm.city}
-                    onChange={(event) => updateVerificationForm('city', event.target.value)}
-                    placeholder="例如：成都"
-                    className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
-                  />
-                </label>
-              </div>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <label className="block">
-                  <span className="mono-label">证件后 4 位</span>
-                  <input
-                    value={verificationForm.idNumberLast4}
-                    onChange={(event) => updateVerificationForm('idNumberLast4', event.target.value.replace(/[^\dXx]/g, '').slice(-4))}
-                    placeholder="演示仅收后 4 位"
-                    className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mono-label">联系邮箱</span>
-                  <input
-                    type="email"
-                    value={verificationForm.contactEmail}
-                    onChange={(event) => updateVerificationForm('contactEmail', event.target.value)}
+                    value={verificationForm.studentId}
+                    onChange={(event) => updateVerificationForm('studentId', event.target.value.replace(/[^\dA-Za-z]/g, '').slice(0, 24))}
                     required
+                    placeholder="仅用于人工核对，不公开展示"
                     className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
                   />
                 </label>
-              </div>
-              <label className="block">
-                <span className="mono-label">辅助证明链接</span>
-                <input
-                  type="url"
-                  value={verificationForm.evidenceUrl}
-                  onChange={(event) => updateVerificationForm('evidenceUrl', event.target.value)}
-                  placeholder="选填，HTTPS 链接，例如作品集/学生主页/企业官网"
-                  className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
-                />
-              </label>
+              ) : (
+                <>
+                  <label className="block">
+                    <span className="mono-label">认证身份</span>
+                    <select
+                      value={verificationForm.role}
+                      onChange={(event) => updateVerificationForm('role', event.target.value)}
+                      className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-ink-900"
+                    >
+                      <option value="个人创作者">个人创作者</option>
+                      <option value="买家个人">买家个人</option>
+                      <option value="团队 / 工作室">团队 / 工作室</option>
+                      <option value="企业主体">企业主体</option>
+                    </select>
+                  </label>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <label className="block">
+                      <span className="mono-label">学校 / 公司</span>
+                      <input
+                        value={verificationForm.schoolOrCompany}
+                        onChange={(event) => updateVerificationForm('schoolOrCompany', event.target.value)}
+                        placeholder="例如：成都理工大学"
+                        className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mono-label">所在城市</span>
+                      <input
+                        value={verificationForm.city}
+                        onChange={(event) => updateVerificationForm('city', event.target.value)}
+                        placeholder="例如：成都"
+                        className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
+                      />
+                    </label>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <label className="block">
+                      <span className="mono-label">证件后 4 位</span>
+                      <input
+                        value={verificationForm.idNumberLast4}
+                        onChange={(event) => updateVerificationForm('idNumberLast4', event.target.value.replace(/[^\dXx]/g, '').slice(-4))}
+                        placeholder="演示仅收后 4 位"
+                        className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mono-label">联系邮箱</span>
+                      <input
+                        type="email"
+                        value={verificationForm.contactEmail}
+                        onChange={(event) => updateVerificationForm('contactEmail', event.target.value)}
+                        required
+                        className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
+                      />
+                    </label>
+                  </div>
+                  <label className="block">
+                    <span className="mono-label">辅助证明链接</span>
+                    <input
+                      type="url"
+                      value={verificationForm.evidenceUrl}
+                      onChange={(event) => updateVerificationForm('evidenceUrl', event.target.value)}
+                      placeholder="选填，HTTPS 链接，例如作品集/学生主页/企业官网"
+                      className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
+                    />
+                  </label>
+                </>
+              )}
               <p className="text-xs text-white/40 leading-relaxed">
-                MVP 阶段不上传身份证照片，只记录必要的演示字段和可公开证明链接。正式上线前需要接入合规实名服务商，并更新隐私政策与数据留存策略。
+                {isCampusVerification
+                  ? 'CDUT 专区买家登录即可交易；只有发布校园服务的卖家需要提交姓名和学号，先由平台人工审核。'
+                  : 'MVP 阶段不上传身份证照片，只记录必要的演示字段和可公开证明链接。正式上线前需要接入合规实名服务商，并更新隐私政策与数据留存策略。'}
               </p>
               <button type="submit" disabled={submittingVerification} className="btn-primary w-full justify-center">
                 {submittingVerification ? '提交中...' : '提交实名认证申请'}

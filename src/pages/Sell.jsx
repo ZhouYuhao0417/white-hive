@@ -592,7 +592,7 @@ export default function Sell() {
     cdut: {
       eyebrow: 'CREATE LISTING · 校园服务发布',
       title: '把你的校园技能上架到 CDUT 专区。',
-      desc: '发布后会出现在 /cdut 校园服务专区，面向成都理工在校同学接单。',
+      desc: '发布后会出现在 /cdut 校园服务专区。买家登录即可下单，卖家需要先通过姓名 + 学号校园认证。',
     },
     local: {
       eyebrow: 'CREATE LISTING · 同城服务发布',

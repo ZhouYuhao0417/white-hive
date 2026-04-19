@@ -223,6 +223,7 @@ async function migrateAndSeed() {
       role text not null,
       verification_type text not null default 'individual',
       id_number_last4 text not null default '',
+      student_id text not null default '',
       contact_email text not null,
       school_or_company text not null default '',
       city text not null default '',
@@ -237,6 +238,7 @@ async function migrateAndSeed() {
   `
 
   await db`alter table verification_requests add column if not exists verification_type text not null default 'individual'`
+  await db`alter table verification_requests add column if not exists student_id text not null default ''`
   await db`alter table verification_requests add column if not exists school_or_company text not null default ''`
   await db`alter table verification_requests add column if not exists city text not null default ''`
   await db`alter table verification_requests add column if not exists evidence_url text not null default ''`
@@ -1064,7 +1066,12 @@ export async function createService(input) {
   }
 
   const sellerId = input.sellerId || 'usr_demo_seller'
-  await ensureUser(sellerId)
+  const seller = await ensureUser(sellerId)
+  const category = String(input.category).trim()
+
+  if (seller.role !== 'admin' && isCdutServiceCategory(category) && !(await hasApprovedCampusVerification(sellerId))) {
+    throw new HttpError(403, 'campus_verification_required', '发布成都理工校园服务前，请先完成卖家校园认证。')
+  }
 
   const createdAt = nowIso()
   const status = serviceStatuses.includes(input.status) ? input.status : 'draft'
@@ -1074,7 +1081,7 @@ export async function createService(input) {
       id, seller_id, category, title, summary, price_cents, currency, delivery_days, status, tags, created_at, updated_at
     )
     values (
-      ${createId('svc')}, ${sellerId}, ${String(input.category).trim()}, ${String(input.title).trim()},
+      ${createId('svc')}, ${sellerId}, ${category}, ${String(input.title).trim()},
       ${String(input.summary).trim()}, ${priceCents}, ${input.currency || 'CNY'}, ${deliveryDays},
       ${status}, ${tags}, ${createdAt}, ${createdAt}
     )
@@ -1390,31 +1397,41 @@ export async function submitVerification(input) {
   const contactEmail = String(input.contactEmail || user.email || '').trim().toLowerCase()
   const idNumberLast4 = String(input.idNumberLast4 || '').replace(/[^\dXx]/g, '').slice(-4)
   const verificationType = normalizeVerificationType(input.verificationType)
-  const schoolOrCompany = limitText(input.schoolOrCompany || user.schoolOrCompany, 80)
-  const city = limitText(input.city || user.city, 40)
-  const evidenceUrl = sanitizeEvidenceUrl(input.evidenceUrl)
+  const isCampus = verificationType === 'campus'
+  const studentId = normalizeStudentId(input.studentId || input.schoolId || input.idNumberLast4)
+  const schoolOrCompany = isCampus ? '成都理工大学' : limitText(input.schoolOrCompany || user.schoolOrCompany, 80)
+  const city = isCampus ? '成都' : limitText(input.city || user.city, 40)
+  const evidenceUrl = isCampus ? '' : sanitizeEvidenceUrl(input.evidenceUrl)
 
   if (realName.length < 2) {
     throw new HttpError(400, 'invalid_real_name', '请填写真实姓名或主体名称。')
   }
 
-  if (idNumberLast4 && idNumberLast4.length !== 4) {
+  if (isCampus && !['seller', 'admin'].includes(user.role)) {
+    throw new HttpError(403, 'seller_campus_verification_only', '成都理工校园认证只面向卖家账号。买家登录后即可在校园专区交易。')
+  }
+
+  if (isCampus && studentId.length < 5) {
+    throw new HttpError(400, 'invalid_student_id', '请填写有效学号。')
+  }
+
+  if (!isCampus && idNumberLast4 && idNumberLast4.length !== 4) {
     throw new HttpError(400, 'invalid_id_number', '证件号码只需要提交后 4 位用于演示校验。')
   }
 
-  if (!contactEmail.includes('@')) {
+  if (!isCampus && !contactEmail.includes('@')) {
     throw new HttpError(400, 'invalid_contact_email', '请填写有效联系邮箱。')
   }
 
   const createdAt = nowIso()
   const rows = await query`
     insert into verification_requests (
-      id, user_id, real_name, role, verification_type, id_number_last4, contact_email,
+      id, user_id, real_name, role, verification_type, id_number_last4, student_id, contact_email,
       school_or_company, city, evidence_url, status, reviewer_note, created_at, updated_at
     )
     values (
       ${createId('ver')}, ${user.id}, ${realName}, ${input.role || user.role}, ${verificationType},
-      ${idNumberLast4}, ${contactEmail}, ${schoolOrCompany}, ${city}, ${evidenceUrl},
+      ${idNumberLast4}, ${studentId}, ${contactEmail}, ${schoolOrCompany}, ${city}, ${evidenceUrl},
       'pending', '', ${createdAt}, ${createdAt}
     )
     returning *
@@ -1678,6 +1695,7 @@ function sanitizeVerificationRequest(request) {
     role: request.role,
     verificationType: request.verificationType || 'individual',
     idNumberLast4: request.idNumberLast4,
+    studentId: request.studentId || '',
     contactEmail: request.contactEmail,
     schoolOrCompany: request.schoolOrCompany || '',
     city: request.city || '',
@@ -1693,6 +1711,26 @@ function sanitizeVerificationRequest(request) {
 function normalizeVerificationType(value) {
   const text = String(value || '').trim()
   return ['individual', 'campus', 'studio', 'company'].includes(text) ? text : 'individual'
+}
+
+function normalizeStudentId(value) {
+  return String(value || '').replace(/[^\dA-Za-z]/g, '').slice(0, 24)
+}
+
+function isCdutServiceCategory(category) {
+  return String(category || '').trim().startsWith('cdut/')
+}
+
+async function hasApprovedCampusVerification(userId) {
+  const rows = await query`
+    select id from verification_requests
+    where user_id = ${userId}
+      and status = 'approved'
+      and verification_type = 'campus'
+      and school_or_company = '成都理工大学'
+    limit 1
+  `
+  return Boolean(rows[0])
 }
 
 function limitText(value, maxLength) {
@@ -1823,6 +1861,7 @@ function verificationRequestFromRow(row) {
     role: row.role,
     verificationType: row.verification_type || 'individual',
     idNumberLast4: row.id_number_last4,
+    studentId: row.student_id || '',
     contactEmail: row.contact_email,
     schoolOrCompany: row.school_or_company || '',
     city: row.city || '',

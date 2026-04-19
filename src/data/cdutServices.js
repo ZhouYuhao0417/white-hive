@@ -91,7 +91,7 @@ export const cdutTrustPoints = [
   {
     icon: 'shield',
     title: '学生身份核验（CDUT 在校生）',
-    desc: '所有服务者都通过 .edu 邮箱 + 一卡通验证, 确认是成都理工在校生, 不是随便来的。',
+    desc: '校园服务者先提交姓名和学号, 由平台人工审核确认是成都理工在校生。',
     color: '#7FD3FF',
   },
   {

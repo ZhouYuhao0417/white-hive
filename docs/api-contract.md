@@ -443,18 +443,16 @@ Creates a pending verification request.
 {
   "userId": "usr_demo_seller",
   "realName": "蜂巢创作者",
-  "idNumberLast4": "2026",
-  "contactEmail": "seller@whitehive.cn",
-  "role": "seller",
+  "studentId": "20260419001",
+  "role": "成都理工校园服务者",
   "verificationType": "campus",
   "schoolOrCompany": "成都理工大学",
-  "city": "成都",
-  "evidenceUrl": "https://www.whitehive.cn"
+  "city": "成都"
 }
 ```
 
 When logged in, the verification request is attached to the current bearer-token user.
-`verificationType` supports `individual`, `campus`, `studio` and `company`. The `campus` type is the MVP path for 成都理工校园认证: users submit school identity evidence first, and admins manually approve it from `/admin/verifications`.
+`verificationType` supports `individual`, `campus`, `studio` and `company`. The `campus` type is the MVP path for 成都理工校园认证: only seller/admin accounts can submit it, and the required fields are just `realName` and `studentId`. CDUT buyers only need to be logged in to create orders; publishing `cdut/*` services requires an approved campus verification.
 
 ### `PATCH /api/verification?id=ver_xxx`
 

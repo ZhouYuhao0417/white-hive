@@ -133,7 +133,7 @@ export default function AdminVerifications() {
               <div>
                 <h1 className="text-3xl md:text-5xl font-semibold tracking-tight">人工审核先跑起来。</h1>
                 <p className="mt-4 max-w-3xl text-white/60 leading-relaxed">
-                  上线初期先由管理员核对实名、校园身份和证明链接。成都理工校园认证会以“校园认证”类型进入这里，通过后用户获得实名可信状态。
+                  上线初期先由管理员核对卖家的姓名和学号。成都理工校园认证会以“校园认证”类型进入这里，通过后卖家才能发布 CDUT 校园服务。
                 </p>
               </div>
               <Link to="/account" className="btn-ghost shrink-0 justify-center">
@@ -238,7 +238,10 @@ export default function AdminVerifications() {
                   <Info label="手机号" value={item.user?.phone || '未绑定'} />
                   <Info label="学校 / 公司" value={item.schoolOrCompany || '未填写'} />
                   <Info label="城市" value={item.city || '未填写'} />
-                  <Info label="证件尾号" value={item.idNumberLast4 || '未填写'} />
+                  <Info
+                    label={item.verificationType === 'campus' ? '学号' : '证件尾号'}
+                    value={item.verificationType === 'campus' ? item.studentId : item.idNumberLast4}
+                  />
                   <Info label="账号状态" value={item.user?.verificationStatus || '未知'} />
                   <Info label="账号来源" value={item.user?.authProvider || 'password'} />
                   <Info label="申请 ID" value={item.id} />
@@ -261,7 +264,7 @@ export default function AdminVerifications() {
                     value={notes[item.id] || ''}
                     onChange={(event) => setNotes((current) => ({ ...current, [item.id]: event.target.value }))}
                     rows={3}
-                    placeholder="例如：CDUT 校园邮箱/学生证信息已核对；或说明未通过原因。"
+                    placeholder="例如：姓名和学号已人工核对；或说明未通过原因。"
                     className="mt-2 w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] focus:outline-none"
                   />
                 </label>

@@ -572,7 +572,7 @@ export default function CDUT() {
                   想用空余时间接单赚零花?
                 </h3>
                 <p className="mt-2 sm:mt-3 text-white/65 leading-relaxed max-w-2xl text-sm sm:text-base">
-                  上传校园卡 + .edu 邮箱验证, 审核通过即可开单。每周二、周五结算, 平台只抽 3%。
+                  提交姓名和学号, 人工审核通过即可开单。买家只要登录, 就能在 CDUT 专区下单交易。
                 </p>
               </div>
               <div className="flex gap-3 shrink-0 flex-wrap">

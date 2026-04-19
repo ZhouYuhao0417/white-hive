@@ -730,12 +730,17 @@ export function createService(input) {
   }
 
   const sellerId = input.sellerId || 'usr_demo_seller'
-  ensureUser(sellerId)
+  const seller = ensureUser(sellerId)
+  const category = String(input.category).trim()
+
+  if (seller.role !== 'admin' && isCdutServiceCategory(category) && !hasApprovedCampusVerification(seller.id)) {
+    throw new HttpError(403, 'campus_verification_required', '发布成都理工校园服务前，请先完成卖家校园认证。')
+  }
 
   const service = {
     id: createId('svc'),
     sellerId,
-    category: String(input.category).trim(),
+    category,
     title: String(input.title).trim(),
     summary: String(input.summary).trim(),
     priceCents,
@@ -1021,19 +1026,29 @@ export function submitVerification(input) {
   const contactEmail = String(input.contactEmail || user.email || '').trim().toLowerCase()
   const idNumberLast4 = String(input.idNumberLast4 || '').replace(/[^\dXx]/g, '').slice(-4)
   const verificationType = normalizeVerificationType(input.verificationType)
-  const schoolOrCompany = limitText(input.schoolOrCompany || user.schoolOrCompany, 80)
-  const city = limitText(input.city || user.city, 40)
-  const evidenceUrl = sanitizeEvidenceUrl(input.evidenceUrl)
+  const isCampus = verificationType === 'campus'
+  const studentId = normalizeStudentId(input.studentId || input.schoolId || input.idNumberLast4)
+  const schoolOrCompany = isCampus ? '成都理工大学' : limitText(input.schoolOrCompany || user.schoolOrCompany, 80)
+  const city = isCampus ? '成都' : limitText(input.city || user.city, 40)
+  const evidenceUrl = isCampus ? '' : sanitizeEvidenceUrl(input.evidenceUrl)
 
   if (realName.length < 2) {
     throw new HttpError(400, 'invalid_real_name', '请填写真实姓名或主体名称。')
   }
 
-  if (idNumberLast4 && idNumberLast4.length !== 4) {
+  if (isCampus && !['seller', 'admin'].includes(user.role)) {
+    throw new HttpError(403, 'seller_campus_verification_only', '成都理工校园认证只面向卖家账号。买家登录后即可在校园专区交易。')
+  }
+
+  if (isCampus && studentId.length < 5) {
+    throw new HttpError(400, 'invalid_student_id', '请填写有效学号。')
+  }
+
+  if (!isCampus && idNumberLast4 && idNumberLast4.length !== 4) {
     throw new HttpError(400, 'invalid_id_number', '证件号码只需要提交后 4 位用于演示校验。')
   }
 
-  if (!contactEmail.includes('@')) {
+  if (!isCampus && !contactEmail.includes('@')) {
     throw new HttpError(400, 'invalid_contact_email', '请填写有效联系邮箱。')
   }
 
@@ -1045,6 +1060,7 @@ export function submitVerification(input) {
     role: input.role || user.role,
     verificationType,
     idNumberLast4,
+    studentId,
     contactEmail,
     schoolOrCompany,
     city,
@@ -1288,6 +1304,7 @@ function sanitizeVerificationRequest(request) {
     role: request.role,
     verificationType: request.verificationType || 'individual',
     idNumberLast4: request.idNumberLast4,
+    studentId: request.studentId || '',
     contactEmail: request.contactEmail,
     schoolOrCompany: request.schoolOrCompany || '',
     city: request.city || '',
@@ -1303,6 +1320,24 @@ function sanitizeVerificationRequest(request) {
 function normalizeVerificationType(value) {
   const text = String(value || '').trim()
   return ['individual', 'campus', 'studio', 'company'].includes(text) ? text : 'individual'
+}
+
+function normalizeStudentId(value) {
+  return String(value || '').replace(/[^\dA-Za-z]/g, '').slice(0, 24)
+}
+
+function isCdutServiceCategory(category) {
+  return String(category || '').trim().startsWith('cdut/')
+}
+
+function hasApprovedCampusVerification(userId) {
+  return getState().verificationRequests.some(
+    (request) =>
+      request.userId === userId &&
+      request.status === 'approved' &&
+      request.verificationType === 'campus' &&
+      request.schoolOrCompany === '成都理工大学',
+  )
 }
 
 function limitText(value, maxLength) {

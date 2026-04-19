@@ -162,17 +162,16 @@ describe('store · auth → service → order → message → payment flow', () 
       realName: '成都理工同学',
       role: '成都理工在校生',
       verificationType: 'campus',
-      idNumberLast4: '2026',
-      contactEmail: session.user.email,
+      studentId: '20260419001',
       schoolOrCompany: '成都理工大学',
       city: '成都',
-      evidenceUrl: 'https://www.whitehive.cn/cdut',
     })
 
     const pending = await listVerificationRequests({ status: 'pending' })
     const found = pending.find((item) => item.id === submitted.request.id)
     expect(found).toBeTruthy()
     expect(found.verificationType).toBe('campus')
+    expect(found.studentId).toBe('20260419001')
     expect(found.user.email).toBe(session.user.email)
 
     const reviewed = await reviewVerification(submitted.request.id, {
@@ -182,6 +181,73 @@ describe('store · auth → service → order → message → payment flow', () 
 
     expect(reviewed.request.status).toBe('approved')
     expect(reviewed.user.verificationStatus).toBe('verified')
+  })
+
+  test('campus verification is seller-only and gates CDUT service publishing', async () => {
+    const buyer = await upsertDemoSession({
+      action: 'signup',
+      email: uniqueEmail('cdut-buyer'),
+      password: 'testpass123',
+      displayName: 'CDUT 买家',
+      role: 'buyer',
+    })
+
+    await expect(
+      submitVerification({
+        userId: buyer.user.id,
+        realName: '买家同学',
+        verificationType: 'campus',
+        studentId: '20260419002',
+      }),
+    ).rejects.toThrow(HttpError)
+
+    const seller = await upsertDemoSession({
+      action: 'signup',
+      email: uniqueEmail('cdut-seller'),
+      password: 'testpass123',
+      displayName: 'CDUT 卖家',
+      role: 'seller',
+    })
+
+    await expect(
+      createService({
+        sellerId: seller.user.id,
+        title: 'CDUT 校园代取快递',
+        category: 'cdut/parcel',
+        summary: '帮成都理工同学代取校园快递。',
+        priceCents: 500,
+        deliveryDays: 1,
+        status: 'published',
+      }),
+    ).rejects.toThrow(HttpError)
+
+    const submitted = await submitVerification({
+      userId: seller.user.id,
+      realName: '卖家同学',
+      verificationType: 'campus',
+      studentId: '20260419003',
+    })
+    await reviewVerification(submitted.request.id, { status: 'approved' })
+
+    const service = await createService({
+      sellerId: seller.user.id,
+      title: 'CDUT 校园代取快递',
+      category: 'cdut/parcel',
+      summary: '帮成都理工同学代取校园快递。',
+      priceCents: 500,
+      deliveryDays: 1,
+      status: 'published',
+    })
+    expect(service.category).toBe('cdut/parcel')
+
+    const order = await createOrder({
+      serviceId: service.id,
+      buyerId: buyer.user.id,
+      brief: '我在成都理工，想请同学代取一个快递。',
+      budgetCents: 500,
+    })
+    expect(order.buyerId).toBe(buyer.user.id)
+    expect(order.sellerId).toBe(seller.user.id)
   })
 
   test('seller can create a published service and it shows up in listServices', async () => {
