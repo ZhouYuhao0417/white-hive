@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Section, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
+import SellerLevelBadge from '../components/SellerLevelBadge.jsx'
+import { computeSellerLevel } from '../lib/sellerLevel.js'
 import {
   confirmEmailVerification,
   confirmPhoneVerification,
@@ -308,6 +310,56 @@ export default function Account() {
                   active={user.verificationStatus === 'verified'}
                 />
               </div>
+              {user.role === 'seller' && (() => {
+                const stats = {
+                  ordersCompleted: user.stats?.ordersCompleted || 0,
+                  avgRating: Number.isFinite(user.stats?.avgRating) ? user.stats.avgRating : null,
+                }
+                const lv = computeSellerLevel(stats)
+                return (
+                  <div
+                    className="mt-5 rounded-xl border p-4"
+                    style={{
+                      borderColor: `${lv.color}45`,
+                      background: `${lv.color}10`,
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="mono-label" style={{ color: lv.color }}>SELLER LEVEL · 卖家等级</div>
+                      <SellerLevelBadge level={lv} size="lg" />
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-white/65">
+                      <div>
+                        已完成订单
+                        <div className="mt-0.5 text-base font-semibold text-white">{stats.ordersCompleted}</div>
+                      </div>
+                      <div>
+                        平均评分
+                        <div className="mt-0.5 text-base font-semibold text-white">
+                          {stats.avgRating != null ? `★ ${stats.avgRating.toFixed(1)}` : '暂无评分'}
+                        </div>
+                      </div>
+                    </div>
+                    {lv.next ? (
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between text-[11px] text-white/55">
+                          <span>升到 {lv.next.label} 还差 {lv.progress.ordersNeeded} 单{lv.progress.ratingNeeded > 0 ? ` · 评分再涨 ${lv.progress.ratingNeeded}` : ''}</span>
+                          <span>{Math.round(lv.progress.ordersPct * 100)}%</span>
+                        </div>
+                        <div className="mt-1.5 h-1.5 w-full rounded-full bg-white/8 overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-[width]"
+                            style={{ width: `${Math.round(lv.progress.ordersPct * 100)}%`, background: lv.color }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-[11px] text-white/55">已封顶，欢迎加入殿堂。</p>
+                    )}
+                  </div>
+                )
+              })()}
+
               <button
                 type="button"
                 onClick={handleDeleteAccount}

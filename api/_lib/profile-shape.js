@@ -64,16 +64,46 @@ export function publicUserShape(user, { stats } = {}) {
 export function sellerCard(user, stats) {
   const s = stats || user?.stats || DEFAULT_STATS
   if (!user) return null
+  const ordersCompleted = int(s.ordersCompleted)
+  const avgRating = Number.isFinite(s.avgRating) ? Math.round(s.avgRating * 10) / 10 : null
   return {
     id: user.id,
     displayName: user.displayName || '匿名卖家',
     avatarUrl: user.avatarUrl || null,
     city: user.city || null,
     verified: !!user.verified,
-    avgRating: Number.isFinite(s.avgRating) ? Math.round(s.avgRating * 10) / 10 : null,
-    ordersCompleted: int(s.ordersCompleted),
+    avgRating,
+    ordersCompleted,
     trustScore: profileTrustScore(user, s),
+    level: sellerLevelFor({ ordersCompleted, avgRating }),
   }
+}
+
+/**
+ * 卖家等级 · 与 src/lib/sellerLevel.js 保持同步。
+ * 返回 { key, tier, label, minOrders, minRating } —— 前端可以直接用来渲染徽章,
+ * 不需要再掏 stats 自己算一遍。
+ */
+const SELLER_LEVELS = [
+  { key: 'newcomer', tier: 0, label: '新秀',  minOrders: 0,   minRating: 0 },
+  { key: 'regular',  tier: 1, label: '熟手',  minOrders: 5,   minRating: 4.0 },
+  { key: 'gold',     tier: 2, label: '金牌',  minOrders: 20,  minRating: 4.3 },
+  { key: 'diamond',  tier: 3, label: '钻石',  minOrders: 50,  minRating: 4.5 },
+  { key: 'hall',     tier: 4, label: '殿堂',  minOrders: 100, minRating: 4.7 },
+]
+
+export function sellerLevelFor({ ordersCompleted = 0, avgRating = null }) {
+  const orders = int(ordersCompleted)
+  const rating = Number.isFinite(avgRating) ? avgRating : null
+  let current = SELLER_LEVELS[0]
+  for (let i = SELLER_LEVELS.length - 1; i >= 0; i -= 1) {
+    const lv = SELLER_LEVELS[i]
+    if (orders >= lv.minOrders && (rating == null || rating >= lv.minRating)) {
+      current = lv
+      break
+    }
+  }
+  return { ...current }
 }
 
 /**

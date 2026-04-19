@@ -5,6 +5,7 @@ import { Section, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
 import { categoryDetails } from '../data/listings.js'
 import { useBackendListings } from '../lib/useBackendListings.js'
+import SellerLevelBadge from '../components/SellerLevelBadge.jsx'
 
 /* ---------------- 顶部区:分类头 + 指标 + 筛选 ---------------- */
 function CategoryHero({ cat }) {
@@ -147,7 +148,9 @@ function SellerLine({ seller, rating, color }) {
         </div>
         <span className="truncate">{seller.name}</span>
         <span className="text-white/25 hidden sm:inline">·</span>
-        <span className="text-white/50 hidden sm:inline">{seller.level}</span>
+        <span className="hidden sm:inline">
+          <SellerLevelBadge level={seller.level} stats={{ ordersCompleted: seller.ordersCompleted, avgRating: seller.avgRating }} size="xs" />
+        </span>
       </div>
       <div className="flex items-center gap-0.5 sm:gap-1 shrink-0" style={{ color }}>
         ★ <span className="text-white/80">{rating}</span>
@@ -503,7 +506,9 @@ function ListView({ cat, listings }) {
             </div>
             <div className="col-span-2 text-xs text-white/65 truncate">
               {item.seller.name}
-              <div className="text-[10px] text-white/40">{item.seller.level}</div>
+              <div className="mt-0.5">
+                <SellerLevelBadge level={item.seller.level} stats={{ ordersCompleted: item.seller.ordersCompleted, avgRating: item.seller.avgRating }} size="xs" />
+              </div>
             </div>
             <div className="col-span-1 text-right text-xs" style={{ color: cat.color }}>
               ★ {item.rating}
@@ -546,8 +551,9 @@ function ListView({ cat, listings }) {
                   >
                     {item.kind}
                   </span>
-                  <span className="text-[11px] text-white/60 truncate">
-                    {item.seller.name} · {item.seller.level}
+                  <span className="text-[11px] text-white/60 truncate flex items-center gap-1.5">
+                    {item.seller.name}
+                    <SellerLevelBadge level={item.seller.level} stats={{ ordersCompleted: item.seller.ordersCompleted, avgRating: item.seller.avgRating }} size="xs" />
                   </span>
                 </div>
                 <div className="mt-1.5">

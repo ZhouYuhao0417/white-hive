@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { listBackendServices } from './api.js'
+import { computeSellerLevel } from './sellerLevel.js'
 
 /**
  * 把后端 service 映射为 layout views 里用的 listing 结构。
@@ -16,6 +17,11 @@ export function normalizeBackendService(s) {
   const priceYuan = Number.isFinite(s.priceCents) ? Math.round(s.priceCents / 100) : 0
   const firstTag = Array.isArray(s.tags) && s.tags.length > 0 ? s.tags[0] : '服务'
   const seller = s.seller || {}
+  // 后端已经把 level 拼好了; 如果没有(旧数据 / mock), 前端自己补
+  const sellerLevel = seller.level || computeSellerLevel({
+    ordersCompleted: seller.ordersCompleted,
+    avgRating: seller.avgRating,
+  })
   return {
     id: s.id,
     title: s.title,
@@ -31,6 +37,9 @@ export function normalizeBackendService(s) {
       name: seller.displayName || '创作者',
       avatarUrl: seller.avatarUrl || null,
       verified: !!seller.verified,
+      ordersCompleted: Number.isFinite(seller.ordersCompleted) ? seller.ordersCompleted : 0,
+      avgRating: Number.isFinite(seller.avgRating) ? seller.avgRating : null,
+      level: sellerLevel,
     },
     createdAt: s.createdAt || null,
     // 展示层兜底 —— layout views 里用过这些字段 (mock 阶段遗留)
