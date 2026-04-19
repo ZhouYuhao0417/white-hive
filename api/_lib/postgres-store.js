@@ -2,11 +2,13 @@ import { neon } from '@neondatabase/serverless'
 import { createId, nowIso } from './ids.js'
 import {
   createEmailVerificationCode,
+  createPhoneVerificationCode,
   createSessionToken,
   emailVerificationExpiresAt,
   hashPassword,
   hashToken,
   passwordResetExpiresAt,
+  phoneVerificationExpiresAt,
   providerEmail,
   sanitizeProfileInput,
   sanitizeProviderAuthInput,
@@ -14,9 +16,12 @@ import {
   validateEmailVerificationCode,
   validateEmail,
   validatePassword,
+  validatePhone,
+  validatePhoneVerificationCode,
   verifyPassword,
 } from './auth.js'
 import { sendEmailVerification, sendPasswordReset } from './email.js'
+import { sendSmsVerification } from './sms.js'
 import {
   seedMessages,
   seedOrders,
@@ -247,6 +252,20 @@ async function migrateAndSeed() {
       used_at timestamptz
     )
   `
+
+  await db`
+    create table if not exists phone_verification_tokens (
+      id text primary key,
+      user_id text not null references users(id) on delete cascade,
+      phone text not null,
+      code_hash text not null,
+      created_at timestamptz not null default now(),
+      expires_at timestamptz not null,
+      used_at timestamptz,
+      attempts int not null default 0
+    )
+  `
+  await db`alter table users add column if not exists phone_verified_at timestamptz`
 
   await db`
     create table if not exists password_reset_tokens (
@@ -756,6 +775,141 @@ export async function confirmEmailVerification(token, input = {}) {
     emailVerification: {
       status: 'verified',
       email: refreshed.email,
+      verifiedAt,
+    },
+  }
+}
+
+const PHONE_RESEND_COOLDOWN_MS = 60 * 1000
+const PHONE_DAILY_QUOTA = 5
+const PHONE_MAX_ATTEMPTS = 5
+
+export async function requestPhoneVerification(token, input = {}) {
+  const current = await getSessionByToken(token)
+  const user = await ensureUser(current.user.id)
+  const phone = validatePhone(input.phone || user.phone)
+  const nowMs = Date.now()
+
+  await query`
+    delete from phone_verification_tokens
+    where created_at < now() - interval '24 hours'
+  `
+
+  const recent = await query`
+    select * from phone_verification_tokens
+    where user_id = ${user.id}
+      and phone = ${phone}
+      and created_at >= now() - interval '24 hours'
+    order by created_at desc
+  `
+
+  const last = recent[0]
+  if (last) {
+    const elapsed = nowMs - new Date(last.created_at).getTime()
+    if (elapsed < PHONE_RESEND_COOLDOWN_MS) {
+      const retryAfterSec = Math.ceil((PHONE_RESEND_COOLDOWN_MS - elapsed) / 1000)
+      throw new HttpError(
+        429,
+        'phone_verification_throttled',
+        `请求太快了, 请 ${retryAfterSec} 秒后再试。`,
+        { retryAfterSec },
+      )
+    }
+  }
+
+  if (recent.length >= PHONE_DAILY_QUOTA) {
+    throw new HttpError(
+      429,
+      'phone_verification_quota_exceeded',
+      '今天发送的短信验证码已达上限, 请明天再试。',
+    )
+  }
+
+  const code = createPhoneVerificationCode()
+  const createdAt = nowIso()
+  const expiresAt = phoneVerificationExpiresAt()
+  const delivery = await sendSmsVerification({ to: phone, code })
+
+  await query`
+    insert into phone_verification_tokens (id, user_id, phone, code_hash, created_at, expires_at, attempts)
+    values (${createId('pvt')}, ${user.id}, ${phone}, ${hashToken(code)}, ${createdAt}, ${expiresAt}, 0)
+  `
+
+  if (delivery?.mock) {
+    console.warn(`[whitehive-sms] mock code for ${phone}: ${code}`)
+  }
+
+  return {
+    user: publicUser(user),
+    phoneVerification: {
+      status: 'pending',
+      phone,
+      expiresAt,
+      delivery,
+    },
+  }
+}
+
+export async function confirmPhoneVerification(token, input = {}) {
+  const current = await getSessionByToken(token)
+  const user = await ensureUser(current.user.id)
+  const phone = validatePhone(input.phone || user.phone)
+  const code = validatePhoneVerificationCode(input.code)
+
+  const rows = await query`
+    select * from phone_verification_tokens
+    where user_id = ${user.id}
+      and phone = ${phone}
+      and used_at is null
+      and expires_at > now()
+    order by created_at desc
+    limit 1
+  `
+
+  const challenge = rows[0]
+  if (!challenge) {
+    throw new HttpError(400, 'invalid_phone_code', '验证码不正确或已过期, 请重新发送。')
+  }
+
+  if (challenge.attempts >= PHONE_MAX_ATTEMPTS) {
+    throw new HttpError(
+      400,
+      'phone_verification_too_many_attempts',
+      '输入错误次数过多, 请重新发送验证码。',
+    )
+  }
+
+  if (challenge.code_hash !== hashToken(code)) {
+    const nextAttempts = challenge.attempts + 1
+    await query`
+      update phone_verification_tokens
+      set attempts = ${nextAttempts}
+      where id = ${challenge.id}
+    `
+    throw new HttpError(400, 'invalid_phone_code', '验证码不正确, 请重新输入。', {
+      attemptsLeft: Math.max(0, PHONE_MAX_ATTEMPTS - nextAttempts),
+    })
+  }
+
+  const verifiedAt = nowIso()
+  await query`
+    update phone_verification_tokens
+    set used_at = ${verifiedAt}
+    where id = ${challenge.id}
+  `
+  const updated = await query`
+    update users
+    set phone = ${phone}, phone_verified_at = ${verifiedAt}, updated_at = ${verifiedAt}
+    where id = ${user.id}
+    returning *
+  `
+
+  const refreshed = userFromRow(updated[0])
+  return {
+    user: publicUser(refreshed),
+    phoneVerification: {
+      status: 'verified',
+      phone,
       verifiedAt,
     },
   }
@@ -1351,6 +1505,8 @@ function publicUser(user) {
       : 'unverified',
     emailVerified: Boolean(user.emailVerifiedAt),
     emailVerifiedAt: user.emailVerifiedAt || null,
+    phoneVerified: Boolean(user.phoneVerifiedAt),
+    phoneVerifiedAt: user.phoneVerifiedAt || null,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt || user.createdAt,
   }
@@ -1448,6 +1604,7 @@ function userFromRow(row) {
     providerUserId: row.provider_user_id || '',
     verificationStatus: row.verification_status,
     emailVerifiedAt: toIso(row.email_verified_at),
+    phoneVerifiedAt: toIso(row.phone_verified_at),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at) || toIso(row.created_at),
   }

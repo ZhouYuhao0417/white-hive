@@ -10,6 +10,7 @@ import {
   checkRateLimit,
   confirmEmailVerification,
   confirmPasswordReset,
+  confirmPhoneVerification,
   deleteUserAccount,
   getDemoUser,
   getOrder,
@@ -23,6 +24,7 @@ import {
   listServices,
   requestEmailVerification,
   requestPasswordReset,
+  requestPhoneVerification,
   reviewVerification,
   storeInfo,
   submitVerification,
@@ -116,6 +118,40 @@ async function enforceEmailVerificationConfirmRateLimit(request, token) {
     limit: 8,
     windowSeconds: 10 * 60,
     message: '验证码尝试次数过多，请稍后重新发送。',
+  })
+}
+
+async function enforcePhoneVerificationSendRateLimit(request, token) {
+  await checkRateLimit({
+    bucket: 'phone_verification_send_ip',
+    identifier: clientIp(request),
+    limit: 20,
+    windowSeconds: 10 * 60,
+    message: '短信验证码发送太频繁，请稍后再试。',
+  })
+  await checkRateLimit({
+    bucket: 'phone_verification_send_session',
+    identifier: rateLimitSessionIdentifier(request, token),
+    limit: 4,
+    windowSeconds: 10 * 60,
+    message: '这个账号的短信验证码发送太频繁，请稍后再试。',
+  })
+}
+
+async function enforcePhoneVerificationConfirmRateLimit(request, token) {
+  await checkRateLimit({
+    bucket: 'phone_verification_confirm_ip',
+    identifier: clientIp(request),
+    limit: 40,
+    windowSeconds: 10 * 60,
+    message: '短信验证码校验太频繁，请稍后再试。',
+  })
+  await checkRateLimit({
+    bucket: 'phone_verification_confirm_session',
+    identifier: rateLimitSessionIdentifier(request, token),
+    limit: 8,
+    windowSeconds: 10 * 60,
+    message: '短信验证码尝试次数过多，请稍后重新发送。',
   })
 }
 
@@ -441,6 +477,29 @@ export default {
           const body = await readBody(request)
           await enforceEmailVerificationConfirmRateLimit(request, token)
           return ok(await confirmEmailVerification(token, body))
+        }
+
+        return methodNotAllowed(request.method, ['POST'])
+      }
+
+      if (path === 'auth/phone-verification') {
+        const token = bearerToken(request)
+
+        if (request.method === 'GET' || request.method === 'POST') {
+          const body = request.method === 'POST' ? await readBody(request) : {}
+          await enforcePhoneVerificationSendRateLimit(request, token)
+          return ok(await requestPhoneVerification(token, body))
+        }
+
+        return methodNotAllowed(request.method, ['GET', 'POST'])
+      }
+
+      if (path === 'auth/phone-verification/confirm') {
+        if (request.method === 'POST') {
+          const token = bearerToken(request)
+          const body = await readBody(request)
+          await enforcePhoneVerificationConfirmRateLimit(request, token)
+          return ok(await confirmPhoneVerification(token, body))
         }
 
         return methodNotAllowed(request.method, ['POST'])

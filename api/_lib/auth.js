@@ -3,6 +3,7 @@ import { HttpError } from './http.js'
 
 const sessionDays = 30
 const emailVerificationMinutes = 20
+const phoneVerificationMinutes = 5
 const supportedAuthProviders = ['phone', 'wechat', 'qq', 'github']
 
 const authProviderLabels = {
@@ -106,6 +107,38 @@ export function emailVerificationExpiresAt() {
 
 export function passwordResetExpiresAt() {
   return emailVerificationExpiresAt()
+}
+
+export function normalizePhone(raw) {
+  if (raw === null || raw === undefined) return ''
+  const s = String(raw).replace(/[\s\-()]/g, '').replace(/^\+?86/, '')
+  return s
+}
+
+export function validatePhone(raw) {
+  const normalized = normalizePhone(raw)
+  if (!/^1[3-9]\d{9}$/.test(normalized)) {
+    throw new HttpError(400, 'invalid_phone', '请输入正确的 11 位中国大陆手机号。')
+  }
+  return normalized
+}
+
+export function createPhoneVerificationCode() {
+  return String(randomInt(100000, 1000000))
+}
+
+export function validatePhoneVerificationCode(code) {
+  const value = String(code || '').trim()
+  if (!/^\d{6}$/.test(value)) {
+    throw new HttpError(400, 'invalid_phone_code', '请输入 6 位短信验证码。')
+  }
+  return value
+}
+
+export function phoneVerificationExpiresAt() {
+  const expiresAt = new Date()
+  expiresAt.setUTCMinutes(expiresAt.getUTCMinutes() + phoneVerificationMinutes)
+  return expiresAt.toISOString()
 }
 
 export function providerEmail(provider, providerUserId) {

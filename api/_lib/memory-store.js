@@ -1,11 +1,13 @@
 import { createId, nowIso } from './ids.js'
 import {
   createEmailVerificationCode,
+  createPhoneVerificationCode,
   createSessionToken,
   emailVerificationExpiresAt,
   hashPassword,
   hashToken,
   passwordResetExpiresAt,
+  phoneVerificationExpiresAt,
   providerEmail,
   sanitizeProfileInput,
   sanitizeProviderAuthInput,
@@ -13,9 +15,12 @@ import {
   validateEmailVerificationCode,
   validateEmail,
   validatePassword,
+  validatePhone,
+  validatePhoneVerificationCode,
   verifyPassword,
 } from './auth.js'
 import { sendEmailVerification, sendPasswordReset } from './email.js'
+import { sendSmsVerification } from './sms.js'
 import {
   seedMessages,
   seedOrders,
@@ -65,6 +70,7 @@ function createMemoryState() {
     payments: clone(seedPayments),
     verificationRequests: clone(seedVerificationRequests),
     emailVerificationTokens: [],
+    phoneVerificationTokens: [],
     passwordResetTokens: [],
     rateLimitEvents: [],
     messages: clone(seedMessages),
@@ -454,6 +460,140 @@ export function confirmEmailVerification(token, input = {}) {
   })
 }
 
+/* ============================================================
+   Phone verification (Aliyun SMS)
+   ============================================================ */
+
+const PHONE_RESEND_COOLDOWN_MS = 60 * 1000
+const PHONE_DAILY_QUOTA = 5
+const PHONE_MAX_ATTEMPTS = 5
+
+export async function requestPhoneVerification(token, input = {}) {
+  const session = getSessionByToken(token)
+  const user = ensureUser(session.user.id)
+  const phone = validatePhone(input.phone || user.phone)
+  const now = new Date()
+  const nowMs = now.getTime()
+  const state = getState()
+
+  // 清理 24h 之外的历史记录
+  state.phoneVerificationTokens = state.phoneVerificationTokens.filter(
+    (item) => nowMs - new Date(item.createdAt).getTime() < 24 * 60 * 60 * 1000,
+  )
+
+  const sameUserPhoneToday = state.phoneVerificationTokens.filter(
+    (item) => item.userId === user.id && item.phone === phone,
+  )
+
+  // 60s 冷却
+  const last = sameUserPhoneToday[0]
+  if (last && nowMs - new Date(last.createdAt).getTime() < PHONE_RESEND_COOLDOWN_MS) {
+    const retryAfterSec = Math.ceil(
+      (PHONE_RESEND_COOLDOWN_MS - (nowMs - new Date(last.createdAt).getTime())) / 1000,
+    )
+    throw new HttpError(
+      429,
+      'phone_verification_throttled',
+      `请求太快了, 请 ${retryAfterSec} 秒后再试。`,
+      { retryAfterSec },
+    )
+  }
+
+  // 每日 5 次配额
+  if (sameUserPhoneToday.length >= PHONE_DAILY_QUOTA) {
+    throw new HttpError(
+      429,
+      'phone_verification_quota_exceeded',
+      '今天发送的短信验证码已达上限, 请明天再试。',
+    )
+  }
+
+  const code = createPhoneVerificationCode()
+  const createdAt = nowIso()
+  const expiresAt = phoneVerificationExpiresAt()
+  const delivery = await sendSmsVerification({ to: phone, code })
+
+  state.phoneVerificationTokens.unshift({
+    id: createId('pvt'),
+    userId: user.id,
+    phone,
+    codeHash: hashToken(code),
+    createdAt,
+    expiresAt,
+    usedAt: null,
+    attempts: 0,
+  })
+
+  // mock 模式打印 code, 方便本地调试
+  if (delivery?.mock) {
+    console.warn(`[whitehive-sms] mock code for ${phone}: ${code}`)
+  }
+
+  return clone({
+    user: publicUser(user),
+    phoneVerification: {
+      status: 'pending',
+      phone,
+      expiresAt,
+      delivery,
+    },
+  })
+}
+
+export function confirmPhoneVerification(token, input = {}) {
+  const session = getSessionByToken(token)
+  const user = ensureUser(session.user.id)
+  const phone = validatePhone(input.phone || user.phone)
+  const code = validatePhoneVerificationCode(input.code)
+  const codeHash = hashToken(code)
+  const state = getState()
+  const now = new Date()
+
+  const candidates = state.phoneVerificationTokens.filter(
+    (item) =>
+      item.userId === user.id &&
+      item.phone === phone &&
+      !item.usedAt &&
+      new Date(item.expiresAt) > now,
+  )
+
+  if (candidates.length === 0) {
+    throw new HttpError(400, 'invalid_phone_code', '验证码不正确或已过期, 请重新发送。')
+  }
+
+  const challenge = candidates[0]
+
+  if (challenge.attempts >= PHONE_MAX_ATTEMPTS) {
+    throw new HttpError(
+      400,
+      'phone_verification_too_many_attempts',
+      '输入错误次数过多, 请重新发送验证码。',
+    )
+  }
+
+  if (challenge.codeHash !== codeHash) {
+    challenge.attempts += 1
+    throw new HttpError(400, 'invalid_phone_code', '验证码不正确, 请重新输入。', {
+      attemptsLeft: Math.max(0, PHONE_MAX_ATTEMPTS - challenge.attempts),
+    })
+  }
+
+  const verifiedAt = nowIso()
+  challenge.usedAt = verifiedAt
+  user.phone = phone
+  user.phoneVerifiedAt = verifiedAt
+  user.updatedAt = verifiedAt
+
+  return clone({
+    user: publicUser(user),
+    phoneVerification: {
+      status: 'verified',
+      phone,
+      verifiedAt,
+    },
+  })
+}
+
 export function deleteUserAccount(token) {
   const session = getSessionByToken(token)
   const userId = session.user.id
@@ -471,6 +611,7 @@ export function deleteUserAccount(token) {
   state.users = state.users.filter((user) => user.id !== userId)
   state.sessions = state.sessions.filter((item) => item.userId !== userId)
   state.emailVerificationTokens = state.emailVerificationTokens.filter((item) => item.userId !== userId)
+  state.phoneVerificationTokens = state.phoneVerificationTokens.filter((item) => item.userId !== userId)
   state.passwordResetTokens = state.passwordResetTokens.filter((item) => item.userId !== userId)
   state.verificationRequests = state.verificationRequests.filter((item) => item.userId !== userId)
 
@@ -923,6 +1064,8 @@ function publicUser(user) {
       : 'unverified',
     emailVerified: Boolean(user.emailVerifiedAt),
     emailVerifiedAt: user.emailVerifiedAt || null,
+    phoneVerified: Boolean(user.phoneVerifiedAt),
+    phoneVerifiedAt: user.phoneVerifiedAt || null,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt || user.createdAt,
   }

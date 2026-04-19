@@ -82,6 +82,14 @@ export function confirmEmailVerification(token, input) {
   return callStore('confirmEmailVerification', [token, input])
 }
 
+export function requestPhoneVerification(token, input) {
+  return callStore('requestPhoneVerification', [token, input])
+}
+
+export function confirmPhoneVerification(token, input) {
+  return callStore('confirmPhoneVerification', [token, input])
+}
+
 export function deleteUserAccount(token) {
   return callStore('deleteUserAccount', [token])
 }

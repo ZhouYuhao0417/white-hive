@@ -3,6 +3,7 @@ import {
   clearSession,
   confirmPasswordReset as confirmPasswordResetRequest,
   confirmEmailVerification as confirmEmailVerificationRequest,
+  confirmPhoneVerification as confirmPhoneVerificationRequest,
   createProviderSession,
   createSession,
   deleteAccount as deleteAccountRequest,
@@ -10,6 +11,7 @@ import {
   hasSessionToken,
   requestPasswordReset as requestPasswordResetRequest,
   requestEmailVerification as requestEmailVerificationRequest,
+  requestPhoneVerification as requestPhoneVerificationRequest,
   uploadAvatar as uploadAvatarRequest,
 } from './api.js'
 
@@ -105,6 +107,18 @@ export function AuthProvider({ children }) {
     return data
   }, [])
 
+  const requestPhoneVerification = useCallback(async (phone) => {
+    const data = await requestPhoneVerificationRequest(phone)
+    if (data?.user) setUser(data.user)
+    return data
+  }, [])
+
+  const confirmPhoneVerification = useCallback(async (phone, code) => {
+    const data = await confirmPhoneVerificationRequest(phone, code)
+    if (data?.user) setUser(data.user)
+    return data
+  }, [])
+
   const requestPasswordReset = useCallback(async (email) => {
     return requestPasswordResetRequest(email)
   }, [])
@@ -140,6 +154,8 @@ export function AuthProvider({ children }) {
         refreshUser,
         requestEmailVerification,
         confirmEmailVerification,
+        requestPhoneVerification,
+        confirmPhoneVerification,
         requestPasswordReset,
         confirmPasswordReset,
       }}

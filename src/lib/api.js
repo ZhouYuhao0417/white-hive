@@ -84,6 +84,20 @@ export function confirmEmailVerification(code) {
   })
 }
 
+export function requestPhoneVerification(phone) {
+  return request('/auth/phone-verification', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
+  })
+}
+
+export function confirmPhoneVerification(phone, code) {
+  return request('/auth/phone-verification/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ phone, code }),
+  })
+}
+
 export function requestPasswordReset(email) {
   return request('/auth/password-reset', {
     method: 'POST',

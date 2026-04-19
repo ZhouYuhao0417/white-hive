@@ -4,8 +4,10 @@ import { Section, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
 import {
   confirmEmailVerification,
+  confirmPhoneVerification,
   getCurrentVerificationProfile,
   requestEmailVerification,
+  requestPhoneVerification,
   submitCurrentVerification,
 } from '../lib/api.js'
 import { useAuth } from '../lib/auth.jsx'
@@ -47,6 +49,11 @@ export default function Account() {
   const [emailChallenge, setEmailChallenge] = useState(null)
   const [emailBusy, setEmailBusy] = useState(false)
   const [verifyBusy, setVerifyBusy] = useState(false)
+  const [phoneInput, setPhoneInput] = useState('')
+  const [phoneCode, setPhoneCode] = useState('')
+  const [phoneChallenge, setPhoneChallenge] = useState(null)
+  const [phoneBusy, setPhoneBusy] = useState(false)
+  const [phoneVerifyBusy, setPhoneVerifyBusy] = useState(false)
   const [verificationProfile, setVerificationProfile] = useState(null)
   const [verificationForm, setVerificationForm] = useState(initialVerificationForm)
   const [submittingVerification, setSubmittingVerification] = useState(false)
@@ -111,6 +118,42 @@ export default function Account() {
       setError(err.message || '验证码不正确，请重新输入。')
     } finally {
       setVerifyBusy(false)
+    }
+  }
+
+  const sendPhoneCode = async () => {
+    setPhoneBusy(true)
+    setNotice('')
+    setError('')
+    try {
+      const phoneToUse = phoneInput || user?.phone || ''
+      const result = await requestPhoneVerification(phoneToUse)
+      setPhoneChallenge(result.phoneVerification)
+      setPhoneCode('')
+      setNotice(result.phoneVerification?.delivery?.message || '短信验证码已发送。')
+    } catch (err) {
+      setError(err.message || '发送短信验证码失败，请稍后再试。')
+    } finally {
+      setPhoneBusy(false)
+    }
+  }
+
+  const verifyPhone = async () => {
+    setPhoneVerifyBusy(true)
+    setNotice('')
+    setError('')
+    try {
+      const phoneToUse = phoneInput || phoneChallenge?.phone || user?.phone || ''
+      await confirmPhoneVerification(phoneToUse, phoneCode)
+      await refreshUser()
+      setPhoneChallenge(null)
+      setPhoneCode('')
+      setPhoneInput('')
+      setNotice('手机号验证完成。')
+    } catch (err) {
+      setError(err.message || '短信验证码不正确，请重新输入。')
+    } finally {
+      setPhoneVerifyBusy(false)
     }
   }
 
@@ -245,6 +288,7 @@ export default function Account() {
               </div>
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <StatusTile label="邮箱" value={user.emailVerified ? '已验证' : '待验证'} active={user.emailVerified} />
+                <StatusTile label="手机号" value={user.phoneVerified ? '已验证' : '待验证'} active={user.phoneVerified} />
                 <StatusTile
                   label="实名认证"
                   value={verificationLabels[user.verificationStatus] || '未认证'}
@@ -296,6 +340,62 @@ export default function Account() {
                   </div>
                   <button type="button" onClick={sendEmailCode} disabled={emailBusy} className="btn-ghost w-full justify-center">
                     {emailBusy ? '发送中...' : '发送 / 重发验证码'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="card p-6 md:p-7">
+              <div className="mono-label">PHONE VERIFY</div>
+              <h2 className="mt-1 text-xl font-semibold text-white">手机号验证</h2>
+              <p className="mt-2 text-sm text-white/55 leading-relaxed">
+                手机号用于接单提醒、订单状态同步和交易过程中的安全联系。目前接入阿里云短信。
+              </p>
+
+              {user.phoneVerified ? (
+                <div className="mt-5 rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-4 py-3 text-sm text-[#CFFDF5]">
+                  已验证：{user.phone || '手机号已绑定'}
+                </div>
+              ) : (
+                <div className="mt-5 space-y-3">
+                  <input
+                    value={phoneInput}
+                    onChange={(event) => setPhoneInput(event.target.value.replace(/[^\d]/g, '').slice(0, 11))}
+                    inputMode="numeric"
+                    maxLength={11}
+                    placeholder="中国大陆 11 位手机号"
+                    className="w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
+                  />
+                  {phoneChallenge?.delivery?.message && (
+                    <div className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
+                      {phoneChallenge.delivery.message}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      value={phoneCode}
+                      onChange={(event) => setPhoneCode(event.target.value.replace(/[^\d]/g, '').slice(0, 6))}
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="6 位短信验证码"
+                      className="flex-1 h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
+                    />
+                    <button
+                      type="button"
+                      onClick={verifyPhone}
+                      disabled={phoneVerifyBusy || !phoneCode}
+                      className="btn-primary !px-4"
+                    >
+                      {phoneVerifyBusy ? '验证中' : '验证'}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={sendPhoneCode}
+                    disabled={phoneBusy}
+                    className="btn-ghost w-full justify-center"
+                  >
+                    {phoneBusy ? '发送中...' : '发送 / 重发短信验证码'}
                   </button>
                 </div>
               )}
