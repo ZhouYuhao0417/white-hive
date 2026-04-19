@@ -21,6 +21,8 @@ import {
   verifyPassword,
 } from './auth.js'
 import { sendEmailVerification, sendPasswordReset } from './email.js'
+import { assertEscrowPaymentCanBeRecorded } from './payment-gateway.js'
+import { directSettlementMessage, paymentStatusForService } from './payment-policy.js'
 import { sendSmsVerification } from './sms.js'
 import {
   seedMessages,
@@ -43,7 +45,14 @@ const databaseUrlSource = process.env.DATABASE_URL
       : ''
 const orderStatuses = ['submitted', 'accepted', 'in_progress', 'delivered', 'completed', 'cancelled']
 const serviceStatuses = ['draft', 'published', 'paused', 'archived']
-const orderPaymentStatuses = ['mock_pending', 'mock_paid', 'mock_released', 'mock_refunded', 'mock_failed']
+const orderPaymentStatuses = [
+  'mock_pending',
+  'mock_paid',
+  'mock_released',
+  'mock_refunded',
+  'mock_failed',
+  'direct_settlement',
+]
 const verificationStatuses = ['unverified', 'pending', 'verified', 'rejected']
 const verificationRequestStatuses = ['pending', 'approved', 'rejected']
 
@@ -176,11 +185,17 @@ async function migrateAndSeed() {
       status text not null default 'submitted'
         check (status in ('submitted', 'accepted', 'in_progress', 'delivered', 'completed', 'cancelled')),
       payment_status text not null default 'mock_pending'
-        check (payment_status in ('mock_pending', 'mock_paid', 'mock_released', 'mock_refunded', 'mock_failed')),
+        check (payment_status in ('mock_pending', 'mock_paid', 'mock_released', 'mock_refunded', 'mock_failed', 'direct_settlement')),
       verification_required boolean not null default false,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     )
+  `
+
+  await db`alter table orders drop constraint if exists orders_payment_status_check`
+  await db`
+    alter table orders add constraint orders_payment_status_check
+    check (payment_status in ('mock_pending', 'mock_paid', 'mock_released', 'mock_refunded', 'mock_failed', 'direct_settlement'))
   `
 
   await db`
@@ -409,6 +424,7 @@ export async function storeInfo() {
       'orders',
       'messages',
       'mock_payments',
+      'payment_policy',
       'verification_requests',
     ],
   }
@@ -1130,6 +1146,7 @@ export async function createOrder(input) {
   }
 
   const createdAt = nowIso()
+  const paymentStatus = paymentStatusForService(service)
   const rows = await query`
     insert into orders (
       id, service_id, buyer_id, seller_id, title, brief, budget_cents, currency,
@@ -1138,7 +1155,7 @@ export async function createOrder(input) {
     values (
       ${createId('ord')}, ${service.id}, ${buyerId}, ${service.sellerId}, ${input.title || service.title},
       ${String(input.brief).trim()}, ${budgetCents}, ${input.currency || service.currency || 'CNY'},
-      'submitted', 'mock_pending', ${Boolean(input.verificationRequired)}, ${createdAt}, ${createdAt}
+      'submitted', ${paymentStatus}, ${Boolean(input.verificationRequired)}, ${createdAt}, ${createdAt}
     )
     returning *
   `
@@ -1150,6 +1167,10 @@ export async function createOrder(input) {
     body: `买家提交了需求：${order.brief}`,
     createdAt,
   })
+
+  if (isCdutServiceCategory(service.category)) {
+    await appendSystemMessage(order.id, directSettlementMessage())
+  }
 
   return withOrderRelations(order)
 }
@@ -1234,10 +1255,17 @@ export async function createPayment(input) {
     throw new HttpError(409, 'order_cancelled', '订单已取消，不能继续付款。')
   }
 
+  const service = await serviceForOrder(order)
+  if (isCdutServiceCategory(service?.category)) {
+    throw new HttpError(409, 'direct_settlement_order', directSettlementMessage())
+  }
+
   const existing = await latestPaymentForOrder(order.id)
   if (existing && ['held', 'released'].includes(existing.escrowStatus)) {
     return withPaymentRelations(existing)
   }
+
+  assertEscrowPaymentCanBeRecorded()
 
   const amountCents = Number(input.amountCents || order.budgetCents)
   if (!Number.isFinite(amountCents) || amountCents <= 0) {
@@ -1492,6 +1520,11 @@ async function selectService(input) {
     services.find((item) => item.category === input.category) ||
     services[0]
   )
+}
+
+async function serviceForOrder(order) {
+  const rows = await query`select * from services where id = ${order.serviceId} limit 1`
+  return rows[0] ? serviceFromRow(rows[0]) : null
 }
 
 async function findOrder(id) {

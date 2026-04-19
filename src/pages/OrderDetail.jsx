@@ -26,12 +26,15 @@ const statusText = {
 }
 
 const paymentStatusText = {
-  mock_pending: '待模拟付款',
+  mock_pending: '待托管付款',
   mock_paid: '资金托管中',
   mock_released: '托管已释放',
-  mock_refunded: '已模拟退款',
+  mock_refunded: '托管已退款',
   mock_failed: '付款失败',
+  direct_settlement: '买卖家自行协商结算',
 }
+
+const paidPaymentStatuses = ['mock_paid', 'mock_released', 'mock_refunded', 'direct_settlement']
 
 const nextStatus = {
   submitted: { value: 'accepted', label: '卖家接单' },
@@ -169,6 +172,7 @@ export default function OrderDetail() {
   const [disputeActive, setDisputeActive] = useState(false)
 
   const action = useMemo(() => (order ? nextStatus[order.status] : null), [order])
+  const isDirectSettlementOrder = order?.paymentStatus === 'direct_settlement'
 
   useEffect(() => {
     let mounted = true
@@ -265,6 +269,11 @@ export default function OrderDetail() {
     setNotice('')
     setError('')
 
+    if (isDirectSettlementOrder) {
+      setNotice('CDUT 专区暂不走平台资金托管，请在订单聊天里和对方协商结算方式。')
+      return
+    }
+
     try {
       const payment = await createPayment({
         orderId: order.id,
@@ -274,8 +283,13 @@ export default function OrderDetail() {
       setOrder(updated)
       cacheOrder(updated)
       await refreshMessages()
-      setNotice(`已创建模拟托管付款：${payment.id}`)
-    } catch {
+      setNotice(`已创建托管付款记录：${payment.id}`)
+    } catch (err) {
+      if (id !== DEMO_ID) {
+        setError(err.message || '托管付款暂时不可用。')
+        return
+      }
+
       const updated = {
         ...order,
         paymentStatus: 'mock_paid',
@@ -414,14 +428,16 @@ export default function OrderDetail() {
                   <button
                     type="button"
                     onClick={payOrder}
-                    disabled={['mock_paid', 'mock_released', 'mock_refunded'].includes(order.paymentStatus)}
+                    disabled={paidPaymentStatuses.includes(order.paymentStatus)}
                     className="btn-ghost disabled:opacity-45 disabled:cursor-not-allowed"
                   >
-                    {order.paymentStatus === 'mock_paid'
+                    {isDirectSettlementOrder
+                      ? '自行协商结算'
+                      : order.paymentStatus === 'mock_paid'
                       ? '资金托管中'
                       : order.paymentStatus === 'mock_released'
                         ? '托管已释放'
-                        : '模拟付款'}
+                        : '启动托管付款'}
                   </button>
                   {action && (
                     <button
@@ -458,6 +474,11 @@ export default function OrderDetail() {
                   </div>
                 </div>
               </div>
+              {isDirectSettlementOrder && (
+                <div className="mt-4 rounded-xl border border-[#FBBF77]/25 bg-[#FBBF77]/10 p-4 text-sm text-[#FFE2BC] leading-relaxed">
+                  CDUT 专区当前不走平台资金托管。买卖家可以在站内聊天中协商支付与交付方式，WhiteHive 会保留订单与沟通记录，便于后续人工核对。
+                </div>
+              )}
             </div>
           </div>
         </Reveal>
@@ -483,6 +504,11 @@ export default function OrderDetail() {
               {notice && (
                 <div className="rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-3 py-2 text-xs text-[#CFFDF5] break-all">
                   {notice}
+                </div>
+              )}
+              {error && (
+                <div className="rounded-xl border border-[#F87171]/25 bg-[#F87171]/10 px-3 py-2 text-xs text-[#FECACA] break-all">
+                  {error}
                 </div>
               )}
               <OrderChat

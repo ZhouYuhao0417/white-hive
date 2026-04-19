@@ -163,7 +163,7 @@ function CampusCDUT() {
                   <span className="text-cool-gradient"> 服务专区</span>
                 </h3>
                 <p className="mt-2 text-sm sm:text-base text-white/65 leading-relaxed max-w-2xl">
-                  本校同学提供的线下微服务, 走 WhiteHive 托管, 见面核销即结款。不靠熟人, 不加微信, 照样能托付。
+                  本校同学提供的线下微服务, 先由双方自行协商结算, 站内订单和聊天留痕。不靠熟人, 不加微信, 照样能托付。
                 </p>
               </div>
               <Link
@@ -236,7 +236,7 @@ function CampusCDUT() {
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#A5B4FC]" />
-                平台托管结款
+                站内沟通留痕
               </span>
               <span className="flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#5EEAD4]" />

@@ -27,6 +27,8 @@ import { HttpError } from '../api/_lib/http.js'
 import { resetMemoryStore, clearProductionEnv, uniqueEmail } from './helpers.js'
 
 const savedKey = process.env.DEEPSEEK_API_KEY
+const savedNodeEnv = process.env.NODE_ENV
+const savedVercelEnv = process.env.VERCEL_ENV
 
 describe('store · auth → service → order → message → payment flow', () => {
   beforeEach(() => {
@@ -37,6 +39,10 @@ describe('store · auth → service → order → message → payment flow', () 
 
   afterEach(() => {
     if (savedKey !== undefined) process.env.DEEPSEEK_API_KEY = savedKey
+    if (savedNodeEnv !== undefined) process.env.NODE_ENV = savedNodeEnv
+    else delete process.env.NODE_ENV
+    if (savedVercelEnv !== undefined) process.env.VERCEL_ENV = savedVercelEnv
+    else delete process.env.VERCEL_ENV
   })
 
   test('signup returns user + session token that round-trips', async () => {
@@ -248,6 +254,14 @@ describe('store · auth → service → order → message → payment flow', () 
     })
     expect(order.buyerId).toBe(buyer.user.id)
     expect(order.sellerId).toBe(seller.user.id)
+    expect(order.paymentStatus).toBe('direct_settlement')
+    await expect(
+      createPayment({
+        orderId: order.id,
+        amountCents: 500,
+        method: 'alipay_mock',
+      }),
+    ).rejects.toThrow(HttpError)
   })
 
   test('seller can create a published service and it shows up in listServices', async () => {
@@ -410,5 +424,25 @@ describe('store · auth → service → order → message → payment flow', () 
 
     const refreshed = await getOrder(order.id)
     expect(refreshed.paymentStatus).toBe('mock_paid')
+  })
+
+  test('production payment refuses mock escrow when no real gateway is connected', async () => {
+    process.env.NODE_ENV = 'production'
+    delete process.env.WHITEHIVE_PAYMENT_MOCK
+
+    const order = await createOrder({
+      serviceId: 'svc_web_landing',
+      brief: '测试生产环境真实付款闸门',
+      budgetCents: 280000,
+      buyerId: 'usr_demo_buyer',
+    })
+
+    await expect(
+      createPayment({
+        orderId: order.id,
+        amountCents: 280000,
+        method: 'alipay_mock',
+      }),
+    ).rejects.toThrow(HttpError)
   })
 })

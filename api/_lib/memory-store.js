@@ -20,6 +20,8 @@ import {
   verifyPassword,
 } from './auth.js'
 import { sendEmailVerification, sendPasswordReset } from './email.js'
+import { assertEscrowPaymentCanBeRecorded } from './payment-gateway.js'
+import { directSettlementMessage, paymentStatusForService } from './payment-policy.js'
 import { sendSmsVerification } from './sms.js'
 import {
   seedMessages,
@@ -35,7 +37,14 @@ import { HttpError } from './http.js'
 
 const orderStatuses = ['submitted', 'accepted', 'in_progress', 'delivered', 'completed', 'cancelled']
 const serviceStatuses = ['draft', 'published', 'paused', 'archived']
-const paymentStatuses = ['mock_pending', 'mock_paid', 'mock_released', 'mock_refunded', 'mock_failed']
+const paymentStatuses = [
+  'mock_pending',
+  'mock_paid',
+  'mock_released',
+  'mock_refunded',
+  'mock_failed',
+  'direct_settlement',
+]
 const verificationStatuses = ['unverified', 'pending', 'verified', 'rejected']
 const verificationRequestStatuses = ['pending', 'approved', 'rejected']
 const rateLimitEventTtlMs = 24 * 60 * 60 * 1000
@@ -105,6 +114,7 @@ export function storeInfo() {
       'orders',
       'messages',
       'mock_payments',
+      'payment_policy',
       'verification_requests',
     ],
   }
@@ -807,7 +817,7 @@ export function createOrder(input) {
     budgetCents,
     currency: input.currency || service.currency || 'CNY',
     status: 'submitted',
-    paymentStatus: 'mock_pending',
+    paymentStatus: paymentStatusForService(service),
     verificationRequired: Boolean(input.verificationRequired),
     createdAt: nowIso(),
     updatedAt: nowIso(),
@@ -821,6 +831,10 @@ export function createOrder(input) {
     body: `买家提交了需求：${order.brief}`,
     createdAt: nowIso(),
   })
+
+  if (isCdutServiceCategory(service.category)) {
+    appendSystemMessage(order.id, directSettlementMessage())
+  }
 
   return clone(withOrderRelations(order))
 }
@@ -899,10 +913,17 @@ export function createPayment(input) {
     throw new HttpError(409, 'order_cancelled', '订单已取消，不能继续付款。')
   }
 
+  const service = state.services.find((item) => item.id === order.serviceId)
+  if (isCdutServiceCategory(service?.category)) {
+    throw new HttpError(409, 'direct_settlement_order', directSettlementMessage())
+  }
+
   const existing = latestPaymentForOrder(order.id)
   if (existing && ['held', 'released'].includes(existing.escrowStatus)) {
     return clone(withPaymentRelations(existing))
   }
+
+  assertEscrowPaymentCanBeRecorded()
 
   const amountCents = Number(input.amountCents || order.budgetCents)
   if (!Number.isFinite(amountCents) || amountCents <= 0) {

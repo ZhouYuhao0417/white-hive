@@ -12,7 +12,7 @@ The first backend milestone is not real payments or real-name verification. It i
 6. The backend can recommend matching services before order creation.
 7. The order can move through clear states.
 8. Buyer and seller can leave messages under the order.
-9. The buyer can create a mock escrow payment.
+9. The buyer can create a mock escrow payment in local/test mode. Production non-CDUT orders require a real payment provider adapter before escrow can be collected.
 10. A seller can submit a mock real-name verification request.
 
 ## Current Implementation
@@ -111,9 +111,10 @@ Order statuses:
 
 Payment statuses for MVP:
 
-- `mock_pending`: payment UI placeholder, no real transaction
+- `mock_pending`: non-CDUT payment UI placeholder before escrow collection
 - `mock_paid`: buyer confirmed simulated payment and funds are held in mock escrow
 - `mock_released`: completed order released mock escrow to seller
+- `direct_settlement`: CDUT order; no WhiteHive escrow, buyer and seller settle directly
 - `mock_refunded`: simulated refund state
 
 Verification statuses:

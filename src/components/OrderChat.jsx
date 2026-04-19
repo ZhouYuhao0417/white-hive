@@ -266,7 +266,7 @@ export default function OrderChat({
         </div>
 
         <div className="mt-2 text-[11px] text-white/35 leading-relaxed">
-          <span className="text-white/50">平台提示</span>：请勿在沟通中索取或发送站外收款方式。所有付款请走平台托管。
+          <span className="text-white/50">平台提示</span>：除 CDUT 专区可自行协商结算外，普通数字服务订单请走平台托管。
         </div>
       </form>
     </div>

@@ -329,7 +329,7 @@ Allowed order statuses:
 - `completed`
 - `cancelled`
 
-When a paid order moves to `completed`, the mock escrow payment is released automatically. When a paid order moves to `cancelled`, the mock escrow payment is refunded automatically.
+When a paid non-CDUT order moves to `completed`, the escrow payment is released automatically. When a paid non-CDUT order moves to `cancelled`, the escrow payment is refunded automatically. CDUT orders use `direct_settlement` and do not create platform escrow payments.
 
 ## Matching
 
@@ -373,7 +373,7 @@ Response fields:
 
 ## Payments
 
-Payments are still mock payments for MVP demos. They prove the escrow flow before a real payment provider is connected.
+Payments are now policy-gated. Local/test deployments may still use mock payments for MVP demos, but production must connect a real payment provider before non-CDUT escrow payments can be collected. CDUT orders are excluded from escrow and use direct buyer/seller settlement for now.
 
 ### `GET /api/payments`
 
@@ -388,7 +388,7 @@ Returns one payment.
 
 ### `POST /api/payments`
 
-Creates an idempotent mock payment for an order. If the order already has a held or released escrow payment, the existing payment is returned.
+Creates an idempotent escrow payment record for a non-CDUT order. If the order already has a held or released escrow payment, the existing payment is returned. In production, this endpoint returns `501 payment_provider_not_configured` or `501 payment_checkout_not_connected` until a real provider adapter is configured. CDUT orders return `409 direct_settlement_order`.
 
 ```json
 {
@@ -403,7 +403,7 @@ The response includes:
 
 - `status`: currently `succeeded` for mock payments
 - `escrowStatus`: `held`, then `released` or `refunded`
-- `order.paymentStatus`: `mock_paid`, `mock_released`, or `mock_refunded`
+- `order.paymentStatus`: `mock_paid`, `mock_released`, `mock_refunded`, or `direct_settlement` for CDUT orders
 
 ## Messages
 

@@ -26,6 +26,18 @@ export function clearProductionEnv() {
   delete process.env.QQ_CLIENT_ID
   delete process.env.QQ_CLIENT_SECRET
   delete process.env.WHITEHIVE_OAUTH_STATE_SECRET
+  delete process.env.WHITEHIVE_PAYMENT_PROVIDER
+  delete process.env.WHITEHIVE_PAYMENT_MOCK
+  delete process.env.STRIPE_SECRET_KEY
+  delete process.env.STRIPE_WEBHOOK_SECRET
+  delete process.env.WECHAT_PAY_APP_ID
+  delete process.env.WECHAT_PAY_MCH_ID
+  delete process.env.WECHAT_PAY_API_V3_KEY
+  delete process.env.WECHAT_PAY_PRIVATE_KEY
+  delete process.env.WECHAT_PAY_CERT_SERIAL_NO
+  delete process.env.ALIPAY_APP_ID
+  delete process.env.ALIPAY_PRIVATE_KEY
+  delete process.env.ALIPAY_PUBLIC_KEY
 }
 
 export function withoutDeepSeek(fn) {

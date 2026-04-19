@@ -168,7 +168,8 @@ function FeaturedListings() {
 }
 
 /* ============ 三步上架流程 ============ */
-function ListingProcess() {
+function ListingProcess({ scope = 'general' }) {
+  const isCdut = scope === 'cdut'
   const steps = [
     {
       k: '01',
@@ -189,7 +190,9 @@ function ListingProcess() {
       icon: 'check',
       color: '#5EEAD4',
       title: '上架 · 接单 · 结算',
-      desc: '通过合规审查后正式上架。订单资金进入托管, 按里程碑释放, 不再追讨。',
+      desc: isCdut
+        ? '通过校园认证后正式上架。CDUT 专区先由买卖家自行协商结算，订单和聊天留在站内。'
+        : '通过合规审查后正式上架。普通订单资金进入托管, 按里程碑释放, 不再追讨。',
     },
   ]
   return (
@@ -636,7 +639,7 @@ export default function Sell() {
           desc="不用谈判话术、不用反复沟通定价, 只需要按模板填满三件事。"
         />
         <div className="mt-10">
-          <ListingProcess />
+          <ListingProcess scope={scope} />
         </div>
       </Section>
 

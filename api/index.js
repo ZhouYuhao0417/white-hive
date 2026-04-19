@@ -2,6 +2,7 @@ import { fail, getQuery, HttpError, methodNotAllowed, ok, readBody, withApiError
 import { createMatch } from './_lib/matcher.js'
 import { blobStatus, uploadAvatarToBlob } from './_lib/blob.js'
 import { emailStatus } from './_lib/email.js'
+import { paymentGatewayStatus } from './_lib/payment-gateway.js'
 import { smsStatus } from './_lib/sms.js'
 import {
   buildOAuthStartUrl,
@@ -336,6 +337,7 @@ export default {
           uploads: {
             avatar: blobStatus(),
           },
+          payments: paymentGatewayStatus(),
           authProviders: authProviderStatus(),
         })
       }
