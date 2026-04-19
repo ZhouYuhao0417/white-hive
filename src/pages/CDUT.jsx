@@ -572,8 +572,20 @@ export default function CDUT() {
                   想用空余时间接单赚零花?
                 </h3>
                 <p className="mt-2 sm:mt-3 text-white/65 leading-relaxed max-w-2xl text-sm sm:text-base">
-                  提交姓名和学号, 人工审核通过即可开单。买家只要登录, 就能在 CDUT 专区下单交易。
+                  提交姓名和学号, 人工审核通过即可开单。
+                  <span className="text-[#BEE6FF]">平台初期 0 佣金</span>,
+                  卖家收多少就是多少, 我们先把人气聚起来。
                 </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1.5 h-6 px-2 rounded-md border border-[#5EEAD4]/40 bg-[#5EEAD4]/10 text-[11px] text-[#A7F3D0]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#5EEAD4]" />
+                    0 佣金 · 限时招募
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 h-6 px-2 rounded-md border border-[#7FD3FF]/35 bg-[#7FD3FF]/10 text-[11px] text-[#BEE6FF]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#7FD3FF]" />
+                    人工审核 · 真人把关
+                  </span>
+                </div>
               </div>
               <div className="flex gap-3 shrink-0 flex-wrap">
                 <Link to="/sell?scope=cdut" className="btn-primary">

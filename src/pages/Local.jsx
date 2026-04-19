@@ -375,26 +375,55 @@ function ListingCard({ item }) {
   )
 }
 
+// 成都主城区 + 近郊区县 · 初期只做成都市内, 买家从列表里挑辖区即可。
+// 列表按常见热度排序, 主城区靠前。
+const CHENGDU_DISTRICTS = [
+  '锦江区',
+  '青羊区',
+  '金牛区',
+  '武侯区',
+  '成华区',
+  '高新区',
+  '天府新区',
+  '双流区',
+  '龙泉驿区',
+  '温江区',
+  '郫都区',
+  '新都区',
+  '青白江区',
+  '新津区',
+  '都江堰市',
+  '彭州市',
+  '崇州市',
+  '邛崃市',
+  '简阳市',
+  '金堂县',
+  '大邑县',
+  '蒲江县',
+]
+
+const DEFAULT_CITY = '成都市'
+
 function UserLocationPicker() {
   const [loc, setLoc] = useUserLocation()
   const [open, setOpen] = useState(false)
-  const [city, setCity] = useState(loc?.city || '')
   const [district, setDistrict] = useState(loc?.district || '')
 
   useEffect(() => {
-    setCity(loc?.city || '')
     setDistrict(loc?.district || '')
-  }, [loc?.city, loc?.district])
+  }, [loc?.district])
 
-  const label = loc ? formatUserLocation(loc) : '未设置位置'
+  // 初期只做成都, city 直接锁死 —— 让复访用户看到的始终是"成都市 · XX区"
+  const label = loc?.district ? formatUserLocation(loc) : '未设置辖区'
 
-  const save = (e) => {
-    e.preventDefault()
-    setLoc({ city, district })
+  const pickDistrict = (d) => {
+    setDistrict(d)
+    setLoc({ city: DEFAULT_CITY, district: d })
     setOpen(false)
   }
 
   const clear = () => {
+    setDistrict('')
     setLoc({ city: '', district: '' })
     setOpen(false)
   }
@@ -408,66 +437,62 @@ function UserLocationPicker() {
       >
         <span
           className="h-2 w-2 rounded-full"
-          style={{ background: loc ? '#5EEAD4' : 'rgba(255,255,255,0.35)' }}
+          style={{ background: loc?.district ? '#5EEAD4' : 'rgba(255,255,255,0.35)' }}
         />
-        {loc ? '我的位置：' : ''}{label}
-        <span className="text-white/35">{loc ? '修改' : '设置'}</span>
+        {loc?.district ? '我的位置：' : ''}{label}
+        <span className="text-white/35">{loc?.district ? '修改' : '选择辖区'}</span>
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-72 rounded-xl bg-ink-800 border border-white/10 shadow-xl shadow-black/40 p-4 z-40">
-          <form onSubmit={save} className="space-y-3">
-            <label className="block">
-              <span className="mono-label">城市</span>
-              <input
-                type="text"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="例如：成都"
-                required
-                className="mt-1.5 w-full h-10 px-3 rounded-lg bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55"
-              />
-            </label>
-            <label className="block">
-              <span className="mono-label">辖区 / 区县</span>
-              <input
-                type="text"
-                value={district}
-                onChange={(e) => setDistrict(e.target.value)}
-                placeholder="例如：高新区"
-                className="mt-1.5 w-full h-10 px-3 rounded-lg bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55"
-              />
-            </label>
-            <p className="text-[11px] text-white/45 leading-relaxed">
-              只保存在你这台设备。位置仅用于前端排序和自动填入本地需求表, 不会上报服务器。
-            </p>
-            <div className="flex items-center justify-between gap-2">
-              {loc ? (
-                <button
-                  type="button"
-                  onClick={clear}
-                  className="text-xs text-white/45 hover:text-red-200"
-                >
-                  清除
-                </button>
-              ) : <span />}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="text-xs text-white/55 hover:text-white px-3 py-1.5 rounded-lg border border-white/10"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  className="text-xs text-[#BEE6FF] px-3 py-1.5 rounded-lg border border-[#7FD3FF]/40 bg-[#7FD3FF]/10 hover:bg-[#7FD3FF]/15"
-                >
-                  保存
-                </button>
-              </div>
+        <div className="absolute right-0 mt-2 w-80 rounded-xl bg-ink-800 border border-white/10 shadow-xl shadow-black/40 p-4 z-40">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="mono-label">选择辖区</div>
+              <div className="mt-0.5 text-[11px] text-white/45">当前仅服务 · 成都市</div>
             </div>
-          </form>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-xs text-white/55 hover:text-white px-2 py-1 rounded border border-white/10"
+            >
+              关闭
+            </button>
+          </div>
+
+          <div className="grid grid-cols-3 gap-1.5 max-h-60 overflow-y-auto pr-1">
+            {CHENGDU_DISTRICTS.map((d) => {
+              const active = district === d
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => pickDistrict(d)}
+                  className={`h-8 rounded-lg text-[12px] border transition-colors ${
+                    active
+                      ? 'border-[#7FD3FF]/55 bg-[#7FD3FF]/15 text-[#BEE6FF]'
+                      : 'border-white/10 bg-white/[0.02] text-white/75 hover:border-[#7FD3FF]/40 hover:text-white'
+                  }`}
+                >
+                  {d}
+                </button>
+              )
+            })}
+          </div>
+
+          <p className="mt-3 text-[11px] text-white/45 leading-relaxed">
+            只保存在你这台设备, 仅用于前端排序和自动填入需求表, 不上报服务器。
+          </p>
+          {loc?.district && (
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={clear}
+                className="text-xs text-white/45 hover:text-red-200"
+              >
+                清除我的位置
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -550,24 +575,24 @@ function TrustTips() {
 function PostNeedForm() {
   const [userLoc] = useUserLocation()
   const [form, setForm] = useState({
-    city: formatUserLocation(userLoc),
+    district: userLoc?.district || '',
     service: '',
     meetMode: 'offline',
     budget: '',
     time: '',
     needIdentity: true,
   })
-  const [cityEdited, setCityEdited] = useState(false)
+  const [districtEdited, setDistrictEdited] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
-  // 用户在头部的 UserLocationPicker 改了位置 → 同步到表单(除非用户手动改过表单里的城市)
+  // 用户在头部的 UserLocationPicker 改了辖区 → 同步到表单(除非用户手动改过表单里的辖区)
   useEffect(() => {
-    if (cityEdited) return
-    setForm((p) => ({ ...p, city: formatUserLocation(userLoc) }))
-  }, [userLoc?.city, userLoc?.district, cityEdited])
+    if (districtEdited) return
+    setForm((p) => ({ ...p, district: userLoc?.district || '' }))
+  }, [userLoc?.district, districtEdited])
 
   const update = (k, v) => {
-    if (k === 'city') setCityEdited(true)
+    if (k === 'district') setDistrictEdited(true)
     setForm((p) => ({ ...p, [k]: v }))
   }
 
@@ -590,15 +615,27 @@ function PostNeedForm() {
         <form onSubmit={submit} className="rounded-2xl border border-white/10 bg-white/[0.025] p-5 sm:p-7 space-y-4">
           <div className="grid sm:grid-cols-2 gap-4">
             <label className="block">
-              <span className="mono-label">你在哪个城市 / 区域</span>
-              <input
-                type="text"
-                value={form.city}
-                onChange={(e) => update('city', e.target.value)}
-                placeholder="例如：成都 · 高新区"
-                required
-                className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
-              />
+              <span className="mono-label">你在成都哪个辖区</span>
+              <div className="relative mt-2">
+                <select
+                  value={form.district}
+                  onChange={(e) => update('district', e.target.value)}
+                  required
+                  className="w-full h-11 pl-4 pr-9 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors appearance-none"
+                >
+                  <option value="" disabled className="bg-ink-900 text-white/60">
+                    选择辖区 (成都市)
+                  </option>
+                  {CHENGDU_DISTRICTS.map((d) => (
+                    <option key={d} value={d} className="bg-ink-900 text-white">
+                      成都市 · {d}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/45 text-xs">
+                  ▾
+                </span>
+              </div>
             </label>
             <label className="block">
               <span className="mono-label">需要什么服务</span>
