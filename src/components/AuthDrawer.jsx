@@ -314,7 +314,7 @@ export default function AuthDrawer({ open, onClose }) {
         displayName: `${method.label}用户`,
       })
       const name = result?.user?.displayName || method.label
-      setNotice(`已通过 ${method.label} 登录：${name}。当前是演示接入，后续可替换成正式授权。`)
+      setNotice(`已通过 ${method.label} 登录：${name}。`)
       setTimeout(() => {
         onClose()
         setNotice('')
@@ -944,9 +944,6 @@ export default function AuthDrawer({ open, onClose }) {
                       <m.Logo size={18} />
                     </span>
                     <span>{socialBusy === m.key ? `${m.label}连接中...` : `使用 ${m.label} 继续`}</span>
-                    <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-white/35">
-                      演示接入
-                    </span>
                     <span className="ml-auto text-white/35 group-hover:text-white/70 transition-colors">
                       <Icon name="arrow" size={14} />
                     </span>
