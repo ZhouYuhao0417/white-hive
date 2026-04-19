@@ -507,11 +507,10 @@ function PostNeedForm() {
 
           <div>
             <span className="mono-label">期望形式</span>
-            <div className="mt-2 grid grid-cols-3 gap-2">
+            <div className="mt-2 grid grid-cols-2 gap-2">
               {[
-                { v: 'offline', label: '上门 / 线下' },
-                { v: 'meet-first', label: '先见一面' },
-                { v: 'online-first', label: '线上先聊' },
+                { v: 'online', label: '线上' },
+                { v: 'offline', label: '线下' },
               ].map((o) => {
                 const active = form.meetMode === o.v
                 return (
