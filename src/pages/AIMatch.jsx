@@ -33,7 +33,7 @@ function categoryLabel(slug) {
   return categoryOptions.find((item) => item.slug === slug)?.title || slug || '未选择'
 }
 
-/* AI 追问模板: 根据用户 want 动态生成 (前端假装的, 真产品会走 LLM) */
+/* API 暂不可用时的本地追问兜底；正式结果优先使用 /api/matches 返回的问题。 */
 const baseQuestions = [
   {
     key: 'reference',
@@ -60,6 +60,105 @@ const baseQuestions = [
     placeholder: '例: 不要渐变色、不要弹窗、不要英文比例过高',
   },
 ]
+
+const localQuestionBank = {
+  gaming: [
+    {
+      key: 'game_context',
+      label: '具体是哪款游戏、区服/服务器和账号平台？',
+      reason: '不同游戏和区服决定卖家是否能接单。',
+    },
+    {
+      key: 'gaming_goal',
+      label: '这次要代肝到什么目标？',
+      reason: '明确段位、任务或资源数量，方便报价验收。',
+    },
+    {
+      key: 'gaming_safety',
+      label: '账号交接和安全边界有什么要求？',
+      reason: '先说清登录方式、禁用操作和截图留痕。',
+    },
+    {
+      key: 'gaming_proof',
+      label: '完成后用什么截图或记录验收？',
+      reason: '验收标准越清楚，纠纷越少。',
+    },
+  ],
+  web: [
+    {
+      key: 'page_scope',
+      label: '需要哪些页面和核心功能？',
+      reason: '页面和功能范围会直接影响报价与周期。',
+    },
+    {
+      key: 'conversion_goal',
+      label: '最希望访问者在页面上完成什么动作？',
+      reason: '先明确转化目标，页面设计才不会跑偏。',
+    },
+    {
+      key: 'assets_ready',
+      label: '文案、图片、Logo、域名现在准备到什么程度？',
+      reason: '素材是否齐全会影响上线速度。',
+    },
+    {
+      key: 'web_integrations',
+      label: '是否要接入表单、支付、登录或后台管理？',
+      reason: '外部接口会影响技术方案和验收方式。',
+    },
+  ],
+  design: [
+    {
+      key: 'design_usage',
+      label: '这套设计主要会用在哪里？',
+      reason: '使用场景决定尺寸、风格和交付格式。',
+    },
+    {
+      key: 'brand_keywords',
+      label: '你希望别人看到后想到哪 3 个关键词？',
+      reason: '关键词能把抽象审美转成明确方向。',
+    },
+    {
+      key: 'design_assets',
+      label: '已有 Logo、字体、色彩或品牌素材吗？',
+      reason: '现有资产会影响是否需要从零设计。',
+    },
+  ],
+  ai: [
+    {
+      key: 'workflow_steps',
+      label: '你想把哪几步工作交给 AI/自动化？',
+      reason: '拆清步骤才能判断适合脚本还是工作流。',
+    },
+    {
+      key: 'current_tools',
+      label: '现在用哪些工具或平台处理这件事？',
+      reason: '现有工具决定接入方式。',
+    },
+    {
+      key: 'data_privacy',
+      label: '里面有没有账号、客户资料或敏感数据？',
+      reason: '敏感数据需要提前设计安全边界。',
+    },
+  ],
+}
+
+function fallbackQuestionsForForm(form) {
+  const want = String(form.want || '').toLowerCase()
+  const inferred =
+    form.category && form.category !== 'any'
+      ? form.category
+      : /游戏|代肝|陪玩|排位|开黑|账号|装备/.test(want)
+        ? 'gaming'
+        : /官网|网站|落地页|表单|前端|上线/.test(want)
+          ? 'web'
+          : /设计|logo|品牌|海报|ui|视觉/.test(want)
+            ? 'design'
+            : /ai|prompt|自动化|智能体|agent/.test(want)
+              ? 'ai'
+              : ''
+
+  return localQuestionBank[inferred] || baseQuestions
+}
 
 /* ============================================================
    Stage 指示器
@@ -289,7 +388,7 @@ function AIClarify({
                 收到。我从你的描述里补齐了
                 <span className="text-[#BEE6FF]"> {form.deadline || '时限'} </span>和
                 <span className="text-[#BEE6FF]"> {form.budget || '预算'} </span>
-                两个字段。接下来我想再确认 {questions.length} 件事, 这样匹配到的创作者会更贴近你想要的结果。
+                两个字段。接下来我想再确认 {questions.length || '几'} 件事, 这样匹配到的创作者会更贴近你想要的结果。
               </>
             )}
           </div>
@@ -625,8 +724,8 @@ export default function AIMatch() {
         reason: q.reason || '',
       }))
     }
-    return baseQuestions
-  }, [matchResult])
+    return fallbackQuestionsForForm(form)
+  }, [matchResult, form])
 
   const engineLabel = matchResult
     ? matchResult.engine === 'whitehive-deepseek-v1'
@@ -838,7 +937,7 @@ export default function AIMatch() {
                   <StageHeader
                     n="02"
                     title="让 AI 追问细节"
-                    desc="AI 基于你的核心目标生成 4 个澄清问题。回答一个算一个, 空着也可以。"
+                    desc="AI 基于你的核心目标生成几条澄清问题。回答一个算一个, 空着也可以。"
                     active={stage === 2}
                     done={stage > 2}
                   />

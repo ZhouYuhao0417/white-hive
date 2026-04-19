@@ -18,6 +18,196 @@ const categorySignals = {
   gaming: ['游戏', '代肝', '陪玩', '账号', '排位', '开黑', '装备'],
 }
 
+const categoryQuestionBank = {
+  gaming: [
+    {
+      key: 'game_context',
+      label: '具体是哪款游戏、区服/服务器和账号平台？',
+      reason: '不同游戏和区服决定卖家是否能接单。',
+    },
+    {
+      key: 'gaming_goal',
+      label: '这次要代肝到什么目标？',
+      reason: '明确段位、任务或资源数量，方便报价验收。',
+    },
+    {
+      key: 'gaming_safety',
+      label: '账号交接和安全边界有什么要求？',
+      reason: '先说清登录方式、禁用操作和截图留痕。',
+    },
+    {
+      key: 'gaming_proof',
+      label: '完成后用什么截图或记录验收？',
+      reason: '验收标准越清楚，纠纷越少。',
+    },
+    {
+      key: 'gaming_schedule',
+      label: '希望服务者在哪些时间段操作？',
+      reason: '避免撞上你自己在线或重要活动。',
+    },
+  ],
+  web: [
+    {
+      key: 'page_scope',
+      label: '需要哪些页面和核心功能？',
+      reason: '页面和功能范围会直接影响报价与周期。',
+    },
+    {
+      key: 'conversion_goal',
+      label: '最希望访问者在页面上完成什么动作？',
+      reason: '先明确转化目标，页面设计才不会跑偏。',
+    },
+    {
+      key: 'assets_ready',
+      label: '文案、图片、Logo、域名现在准备到什么程度？',
+      reason: '素材是否齐全会影响上线速度。',
+    },
+    {
+      key: 'web_integrations',
+      label: '是否要接入表单、支付、登录或后台管理？',
+      reason: '外部接口会影响技术方案和验收方式。',
+    },
+    {
+      key: 'style_reference',
+      label: '有没有参考网站或不想要的风格？',
+      reason: '参考能帮助卖家快速判断视觉方向。',
+    },
+  ],
+  design: [
+    {
+      key: 'design_usage',
+      label: '这套设计主要会用在哪里？',
+      reason: '使用场景决定尺寸、风格和交付格式。',
+    },
+    {
+      key: 'brand_keywords',
+      label: '你希望别人看到后想到哪 3 个关键词？',
+      reason: '关键词能把抽象审美转成明确方向。',
+    },
+    {
+      key: 'design_assets',
+      label: '已有 Logo、字体、色彩或品牌素材吗？',
+      reason: '现有资产会影响是否需要从零设计。',
+    },
+    {
+      key: 'design_formats',
+      label: '最终需要哪些文件格式和尺寸？',
+      reason: '交付格式写清楚，后续使用才不返工。',
+    },
+  ],
+  video: [
+    {
+      key: 'video_materials',
+      label: '素材现在有哪些，是否需要卖家帮你补素材？',
+      reason: '素材完整度决定剪辑工作量。',
+    },
+    {
+      key: 'video_platform',
+      label: '视频主要发在哪个平台，目标时长是多少？',
+      reason: '平台和时长会影响节奏、字幕和画幅。',
+    },
+    {
+      key: 'video_style',
+      label: '想要什么剪辑风格或参考账号？',
+      reason: '风格参考能减少来回试错。',
+    },
+    {
+      key: 'video_deliverables',
+      label: '需要封面、字幕、片头或多平台版本吗？',
+      reason: '附加交付物会影响报价和验收。',
+    },
+  ],
+  resume: [
+    {
+      key: 'target_context',
+      label: '这份材料要投递/展示给谁看？',
+      reason: '目标对象决定叙事重点。',
+    },
+    {
+      key: 'source_materials',
+      label: '你已有简历、作品、经历素材到什么程度？',
+      reason: '素材越完整，卖家越能快速重构。',
+    },
+    {
+      key: 'resume_language',
+      label: '需要中文、英文，还是多版本适配？',
+      reason: '语言版本会影响工作量。',
+    },
+    {
+      key: 'proof_points',
+      label: '最想突出哪几段经历或成果？',
+      reason: '亮点先定好，材料更容易打动人。',
+    },
+  ],
+  data: [
+    {
+      key: 'data_source',
+      label: '数据现在在哪里，格式是什么？',
+      reason: '数据来源决定清洗和接入难度。',
+    },
+    {
+      key: 'data_decision',
+      label: '你希望这份图表/看板帮你做什么判断？',
+      reason: '先定决策问题，图表才有重点。',
+    },
+    {
+      key: 'data_output',
+      label: '最终要静态报告、交互看板，还是可复用模板？',
+      reason: '交付形态会影响技术方案。',
+    },
+    {
+      key: 'data_update',
+      label: '数据需要一次性交付，还是后续持续更新？',
+      reason: '更新频率决定是否要自动化。',
+    },
+  ],
+  ai: [
+    {
+      key: 'workflow_steps',
+      label: '你想把哪几步工作交给 AI/自动化？',
+      reason: '拆清步骤才能判断适合脚本还是工作流。',
+    },
+    {
+      key: 'current_tools',
+      label: '现在用哪些工具或平台处理这件事？',
+      reason: '现有工具决定接入方式。',
+    },
+    {
+      key: 'ai_input_output',
+      label: '每次输入什么，期望 AI 输出什么格式？',
+      reason: '输入输出越清楚，调试成本越低。',
+    },
+    {
+      key: 'data_privacy',
+      label: '里面有没有账号、客户资料或敏感数据？',
+      reason: '敏感数据需要提前设计安全边界。',
+    },
+  ],
+}
+
+const genericQuestionBank = [
+  {
+    key: 'desired_outcome',
+    label: '你最想让卖家帮你解决哪一个核心问题？',
+    reason: '先抓住核心问题，匹配不会被表面描述带偏。',
+  },
+  {
+    key: 'deliverable_shape',
+    label: '最终你希望收到什么形式的交付物？',
+    reason: '交付形态决定卖家类型和报价方式。',
+  },
+  {
+    key: 'acceptance_standard',
+    label: '什么结果出现时，你会觉得这单已经达标？',
+    reason: '验收标准前置能减少纠纷。',
+  },
+  {
+    key: 'hard_constraints',
+    label: '有没有不能碰的限制、禁区或特殊要求？',
+    reason: '边界越早说清，合作越稳。',
+  },
+]
+
 const commonSignals = [
   '创业',
   '比赛',
@@ -84,6 +274,30 @@ function demandText(input) {
     .map(normalize)
     .filter(Boolean)
     .join(' ')
+}
+
+function inferCategory(input, matches, signals) {
+  const explicit = normalize(input.category)
+  if (explicit && explicit !== 'any') return explicit
+
+  const categories = Object.keys(categorySignals)
+  const signaled = categories.find((category) => signals.includes(category))
+  if (signaled) return signaled
+
+  const confidentMatch = matches.find(
+    (match) => categories.includes(match.service?.category) && Number(match.score) >= 58,
+  )
+  return confidentMatch?.service?.category || 'unknown'
+}
+
+function questionKey(question) {
+  return String(question?.key || question?.label || '').trim()
+}
+
+function pushQuestion(questions, question) {
+  if (!question?.label) return
+  if (questions.some((item) => questionKey(item) === questionKey(question))) return
+  questions.push(question)
 }
 
 function extractSignals(text) {
@@ -225,11 +439,12 @@ function scoreService(service, input, signals) {
   }
 }
 
-function questionsFor(input, matches) {
+function questionsFor(input, matches, signals = extractSignals(demandText(input))) {
   const questions = []
+  const category = inferCategory(input, matches, signals)
 
   if (!numberOrUndefined(input.budgetCents)) {
-    questions.push({
+    pushQuestion(questions, {
       key: 'budget',
       label: '你的预算上限大概是多少？',
       reason: '预算会影响能否匹配到起步价合适的服务。',
@@ -237,27 +452,42 @@ function questionsFor(input, matches) {
   }
 
   if (!input.deadline) {
-    questions.push({
+    pushQuestion(questions, {
       key: 'deadline',
       label: '你希望多久内完成？',
       reason: '时限会影响卖家的档期和交付拆分方式。',
     })
   }
 
-  if (!input.brief || String(input.brief).trim().length < 16) {
-    questions.push({
-      key: 'brief',
-      label: '你能再补充一下具体交付物吗？',
-      reason: '越清楚的交付物，越容易减少交易纠纷。',
+  const categoryQuestions = categoryQuestionBank[category] || genericQuestionBank
+  categoryQuestions.forEach((question) => pushQuestion(questions, question))
+
+  if (!categoryQuestionBank[category] && (!input.brief || String(input.brief).trim().length < 16)) {
+    pushQuestion(questions, {
+      key: 'need_detail',
+      label: '能不能再补一句你真正想解决的场景？',
+      reason: '场景越具体，匹配越不容易跑偏。',
     })
   }
 
   if (matches.some((match) => match.fit === 'weak')) {
-    questions.push({
-      key: 'scope',
-      label: '你能接受先做一个较小版本吗？',
-      reason: '当预算、周期或分类不完全匹配时，拆分 MVP 更容易成交。',
-    })
+    const scopeQuestion = {
+      gaming: {
+        key: 'gaming_trial',
+        label: '如果目标比较大，能接受先试单一小段进度吗？',
+        reason: '试单能降低账号和效果风险。',
+      },
+      web: {
+        key: 'web_mvp_scope',
+        label: '如果预算或周期紧，哪些功能必须首版上线？',
+        reason: '先区分必做和可后置，成交更容易。',
+      },
+    }[category] || {
+      key: 'scope_tradeoff',
+      label: '如果预算或周期不完全匹配，你最愿意压缩哪一块？',
+      reason: '提前说清取舍，卖家更容易给方案。',
+    }
+    pushQuestion(questions, scopeQuestion)
   }
 
   return questions.slice(0, 4)
@@ -289,6 +519,7 @@ const llmSystemPrompt = `你是 WhiteHive 的 AI 匹配助理。WhiteHive 是一
 - 买家已经填写过的字段（预算、时限、分类、主要目标）不要再追问。
 - reasons / warnings 每条 ≤ 40 字，中文，避免空话如「非常合适」。
 - 追问 label 要具体、能直接抄答，而不是「你还有什么想法」这种开放题。
+- 追问必须贴合分类语境。比如游戏代肝要问游戏名/区服/目标/账号安全/验收截图，不要问「具体交付物」或「较小版本」这种泛化问题。
 - 输出严格 JSON，键名使用 snake_case，不要包含 markdown 代码块。
 
 输出格式：
@@ -518,7 +749,7 @@ export async function createMatch(input = {}) {
   const clarifyingQuestions =
     llm.ok && llm.clarifyingQuestions.length > 0
       ? llm.clarifyingQuestions
-      : questionsFor(input, finalMatches)
+      : questionsFor(input, finalMatches, signals)
 
   const top = finalMatches[0]
 

@@ -130,6 +130,34 @@ describe('matcher · rule fallback (no LLM)', () => {
     expect(keys).toContain('deadline')
   })
 
+  test('clarifyingQuestions are category-specific for gaming services', async () => {
+    const result = await createMatch({
+      category: 'gaming',
+      brief: '我想找游戏代肝',
+      budgetCents: 80000,
+      deadline: '3 天内',
+    })
+
+    const labels = result.clarifyingQuestions.map((q) => q.label).join(' ')
+    expect(labels).toContain('哪款游戏')
+    expect(labels).toContain('区服')
+    expect(labels).toContain('代肝到什么目标')
+    expect(labels).not.toContain('具体交付物')
+    expect(labels).not.toContain('较小版本')
+  })
+
+  test('clarifyingQuestions infer gaming intent when category is not selected', async () => {
+    const result = await createMatch({
+      brief: '我想找王者荣耀排位代打，最好今晚能开始',
+      budgetCents: 100000,
+      deadline: '今天',
+    })
+
+    const keys = result.clarifyingQuestions.map((q) => q.key)
+    expect(keys).toContain('game_context')
+    expect(keys).toContain('gaming_goal')
+  })
+
   test('throws on totally empty input', async () => {
     await expect(createMatch({})).rejects.toThrow(HttpError)
   })

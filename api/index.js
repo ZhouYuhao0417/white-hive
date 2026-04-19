@@ -1,6 +1,7 @@
 import { fail, getQuery, HttpError, methodNotAllowed, ok, readBody, withApiErrors } from './_lib/http.js'
 import { createMatch } from './_lib/matcher.js'
 import { blobStatus, uploadAvatarToBlob } from './_lib/blob.js'
+import { deepSeekStatus } from './_lib/deepseek.js'
 import { emailStatus } from './_lib/email.js'
 import {
   decryptWechatPayResource,
@@ -345,6 +346,9 @@ export default {
           email: emailStatus(),
           uploads: {
             avatar: blobStatus(),
+          },
+          ai: {
+            deepseek: deepSeekStatus(),
           },
           payments: paymentGatewayStatus(),
           authProviders: authProviderStatus(),
