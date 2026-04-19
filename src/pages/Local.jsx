@@ -387,7 +387,7 @@ function NearbyList({ activeKey }) {
       <div className="flex items-end justify-between flex-wrap gap-3">
         <SectionHeader
           eyebrow="NEARBY · 附近的服务"
-          title="按距离排序，越近越容易线下见一面"
+          title="按距离排序，优先为您匹配附近买卖家"
           desc="位置仅展示到区 / 校园，具体见面点由双方在订单里确认。"
         />
         <div className="flex items-center gap-2 text-xs text-white/45 pb-2">
