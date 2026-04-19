@@ -401,8 +401,8 @@ export default function OrderDetail() {
             />
             <div className="relative">
               <div className="flex items-start justify-between gap-5 flex-wrap">
-                <div>
-                  <div className="mono-label">ORDER · {order.id}</div>
+                <div className="min-w-0 max-w-full">
+                  <div className="mono-label break-all">ORDER · {order.id}</div>
                   <h1 className="mt-3 text-3xl md:text-4xl font-semibold text-white tracking-tight leading-tight">
                     {order.title}
                   </h1>
@@ -481,7 +481,7 @@ export default function OrderDetail() {
           <Reveal delay={0.08}>
             <div className="space-y-3">
               {notice && (
-                <div className="rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-3 py-2 text-xs text-[#CFFDF5]">
+                <div className="rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-3 py-2 text-xs text-[#CFFDF5] break-all">
                   {notice}
                 </div>
               )}

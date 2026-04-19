@@ -449,7 +449,7 @@ function ListingForm({ scope = 'general' }) {
         )}
 
         {created && (
-          <div className="mt-5 rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-4 py-3 text-sm text-[#CFFDF5]">
+          <div className="mt-5 rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-4 py-3 text-sm text-[#CFFDF5] break-all">
             服务已发布到 MVP 后端：{created.id}
           </div>
         )}
@@ -521,9 +521,9 @@ function ListingForm({ scope = 'general' }) {
               </div>
             ) : (
               cached.slice(0, 4).map((service) => (
-                <div key={service.id} className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
-                  <div className="text-sm text-white font-medium">{service.title}</div>
-                  <div className="mt-1 text-[11px] text-white/45">
+                <div key={service.id} className="rounded-xl border border-white/8 bg-white/[0.02] p-3 min-w-0">
+                  <div className="text-sm text-white font-medium truncate">{service.title}</div>
+                  <div className="mt-1 text-[11px] text-white/45 truncate">
                     {service.category} · {service.id}
                   </div>
                 </div>

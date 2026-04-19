@@ -316,7 +316,7 @@ export default function Account() {
               </p>
 
               {user.emailVerified ? (
-                <div className="mt-5 rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-4 py-3 text-sm text-[#CFFDF5]">
+                <div className="mt-5 rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-4 py-3 text-sm text-[#CFFDF5] break-all">
                   已验证：{user.emailVerifiedAt || '状态已同步'}
                 </div>
               ) : (
@@ -422,14 +422,14 @@ export default function Account() {
                     {requestStatusLabels[latestRequest.status] || latestRequest.status}
                   </span>
                 </div>
-                <div className="mt-3 grid sm:grid-cols-2 gap-3 text-xs text-white/50">
-                  <div>主体：{latestRequest.realName}</div>
-                  <div>身份：{latestRequest.role}</div>
-                  <div>类型：{verificationTypeLabels[latestRequest.verificationType] || latestRequest.verificationType || '个人'}</div>
-                  <div>城市：{latestRequest.city || '未填'}</div>
-                  <div>学校/公司：{latestRequest.schoolOrCompany || '未填'}</div>
-                  <div>证件尾号：{latestRequest.idNumberLast4 || '未填'}</div>
-                  <div>联系邮箱：{latestRequest.contactEmail}</div>
+                <div className="mt-3 grid sm:grid-cols-2 gap-3 text-xs text-white/50 break-all">
+                  <div className="min-w-0">主体：{latestRequest.realName}</div>
+                  <div className="min-w-0">身份：{latestRequest.role}</div>
+                  <div className="min-w-0">类型：{verificationTypeLabels[latestRequest.verificationType] || latestRequest.verificationType || '个人'}</div>
+                  <div className="min-w-0">城市：{latestRequest.city || '未填'}</div>
+                  <div className="min-w-0">学校/公司：{latestRequest.schoolOrCompany || '未填'}</div>
+                  <div className="min-w-0">证件尾号：{latestRequest.idNumberLast4 || '未填'}</div>
+                  <div className="min-w-0">联系邮箱：{latestRequest.contactEmail}</div>
                 </div>
                 {latestRequest.evidenceUrl && (
                   <a
