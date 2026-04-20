@@ -82,13 +82,18 @@ BLOB_READ_WRITE_TOKEN=...
 WHITEHIVE_ADMIN_EMAILS=your-admin-email@example.com
 WHITEHIVE_ADMIN_REVIEW_TOKEN=optional-long-random-token
 WHITEHIVE_SITE_URL=https://www.whitehive.cn
+WHITEHIVE_SMS_PROVIDER=spug
+SPUG_SMS_URL=...
+SPUG_SMS_APP_NAME=WhiteHive
+WHITEHIVE_SMS_MOCK=0
 ```
 
 `/api/health` 会返回 `storage`、`email`、`uploads.avatar` 和 `authProviders` 的配置状态，但不会暴露密钥。
 
 当前已接入 API 的前端闭环：
 
-- 登录/注册抽屉会调用 `POST /api/auth/session`
+- 登录/注册抽屉会调用 `POST /api/auth/session` 或真实短信链路 `POST /api/auth/phone-login`
+- 微信、QQ、GitHub 只在对应 OAuth 凭证配置完成后开放；未配置时不会创建占位账号
 - `/sell` 可以通过 `POST /api/services` 发布服务
 - `/ai-match` 可以通过 `POST /api/orders` 创建订单
 - `/orders/:id` 登录后可以查看参与订单、推进状态、发送留言

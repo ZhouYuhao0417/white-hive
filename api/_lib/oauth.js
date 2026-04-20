@@ -67,14 +67,14 @@ export function oauthProviderStatus(provider) {
   const normalized = normalizeAuthProvider(provider)
   if (!oauthProviders.includes(normalized)) {
     return {
-      mode: 'demo',
+      mode: 'unavailable',
       configured: false,
       missing: [],
     }
   }
   const credentials = providerCredentials(normalized)
   return {
-    mode: credentials.missing.length === 0 ? 'live' : 'demo',
+    mode: credentials.missing.length === 0 ? 'live' : 'unavailable',
     configured: credentials.missing.length === 0,
     missing: credentials.missing,
   }
@@ -217,7 +217,7 @@ async function resolveGitHubProfile(code, request) {
     providerUserId: String(user.id || user.login || ''),
     displayName: user.name || user.login || 'GitHub 用户',
     avatarUrl: normalizeAvatarUrl(user.avatar_url),
-    bio: user.bio || '通过 GitHub 接入 WhiteHive。',
+    bio: user.bio || '',
   }
 }
 
@@ -245,7 +245,7 @@ async function resolveWeChatProfile(code, request) {
     displayName: user.nickname || '微信用户',
     avatarUrl: normalizeAvatarUrl(user.headimgurl),
     city: [user.country, user.province, user.city].filter(Boolean).join(' '),
-    bio: '通过微信接入 WhiteHive。',
+    bio: '',
   }
 }
 
@@ -283,7 +283,7 @@ async function resolveQQProfile(code, request) {
     displayName: user.nickname || 'QQ 用户',
     avatarUrl: normalizeAvatarUrl(user.figureurl_qq_2 || user.figureurl_qq_1 || user.figureurl_2 || user.figureurl_1),
     city: [user.province, user.city].filter(Boolean).join(' '),
-    bio: '通过 QQ 接入 WhiteHive。',
+    bio: '',
   }
 }
 

@@ -74,14 +74,14 @@ Matching:
 Current storage:
 
 - `api/_lib/store.js` selects the active storage adapter.
-- `api/_lib/memory-store.js` keeps the safe demo fallback.
+- `api/_lib/memory-store.js` is kept for local development and hermetic tests; production should run on Postgres.
 - `api/_lib/postgres-store.js` uses Neon/Postgres when a supported database URL exists.
 - Registration now stores a hashed password, personal profile fields, and a server-side session token hash.
 - Phone login/register now sends and confirms 6-digit SMS codes through Spug Push when configured. The backend generates and hashes the code; Spug only receives the code and target phone number. `WHITEHIVE_SMS_MOCK=1` remains available for local demos.
 - Logged-in users can also verify or bind profile phone numbers through the same SMS transport. Aliyun Dysmsapi remains as an optional fallback, but Spug is the recommended path while the project does not have enterprise SMS qualifications.
 - If SMS is not configured, registration no longer blocks on an impossible code. The phone is saved as an unverified contact method and can be verified later after SMS credentials or a manual review path exists.
-- WeChat, QQ and GitHub buttons still create provider-backed MVP sessions through `POST /api/auth/provider`, so those advertised login/register entry points remain usable while final OAuth credentials are pending. The phone button now uses the real SMS-code flow.
-- GitHub, WeChat and QQ also have live OAuth start/callback endpoints. When platform credentials are configured, the frontend sends users through real provider authorization; otherwise it keeps the demo bridge.
+- WeChat, QQ and GitHub now require real OAuth credentials. The old `POST /api/auth/provider` bridge is disabled by default so unconfigured providers cannot create placeholder accounts.
+- GitHub, WeChat and QQ have live OAuth start/callback endpoints. When platform credentials are configured, the frontend sends users through real provider authorization; otherwise that login method stays unavailable.
 - Registration/login, email verification and phone verification now have simple IP/session/email/phone rate limits backed by the active store.
 - Profile data now supports an optional compressed avatar image for higher-trust accounts.
 - Avatar upload now has a Vercel Blob endpoint. When `BLOB_READ_WRITE_TOKEN` is configured, newly uploaded profile photos can move out of the database payload and into object storage.

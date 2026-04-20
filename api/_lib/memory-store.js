@@ -6,6 +6,7 @@ import {
   emailVerificationExpiresAt,
   hashPassword,
   hashToken,
+  isSyntheticAuthEmail,
   passwordResetExpiresAt,
   phoneVerificationExpiresAt,
   providerEmail,
@@ -136,7 +137,7 @@ export function storeInfo() {
       : '未配置数据库连接变量，当前使用内存种子数据，适合演示和接口联调。',
     capabilities: [
       'password_auth',
-      'provider_auth_demo',
+      'oauth_login',
       'sessions',
       'email_verification',
       'phone_verification',
@@ -445,7 +446,7 @@ export function confirmPhoneLogin(input = {}) {
       city: profile.city,
       bio: profile.bio,
       avatarUrl: profile.avatarUrl,
-      emailVerifiedAt: verifiedAt,
+      emailVerifiedAt: null,
       phoneVerifiedAt: verifiedAt,
       passwordHash: null,
       authProvider: 'phone',
@@ -458,7 +459,6 @@ export function confirmPhoneLogin(input = {}) {
   } else {
     user.phone = phone
     user.phoneVerifiedAt = user.phoneVerifiedAt || verifiedAt
-    user.emailVerifiedAt = user.emailVerifiedAt || (user.authProvider === 'phone' ? verifiedAt : user.emailVerifiedAt)
     user.authProvider = user.authProvider || 'phone'
     user.providerUserId = user.providerUserId || (user.authProvider === 'phone' ? phone : '')
     user.displayName = user.displayName || profile.displayName
@@ -1445,9 +1445,11 @@ function publicUser(user) {
   const stats = ensureUserStats(user)
   const ordersCompleted = Number.isFinite(stats.ordersCompleted) ? stats.ordersCompleted : 0
   const avgRating = Number.isFinite(stats.avgRating) ? stats.avgRating : null
+  const email = isSyntheticAuthEmail(user.email) ? '' : user.email
+  const emailVerifiedAt = email ? user.emailVerifiedAt : null
   return {
     id: user.id,
-    email: user.email,
+    email,
     displayName: user.displayName,
     role: user.role,
     phone: user.phone || '',
@@ -1459,8 +1461,8 @@ function publicUser(user) {
     verificationStatus: verificationStatuses.includes(user.verificationStatus)
       ? user.verificationStatus
       : 'unverified',
-    emailVerified: Boolean(user.emailVerifiedAt),
-    emailVerifiedAt: user.emailVerifiedAt || null,
+    emailVerified: Boolean(emailVerifiedAt),
+    emailVerifiedAt: emailVerifiedAt || null,
     phoneVerified: Boolean(user.phoneVerifiedAt),
     phoneVerifiedAt: user.phoneVerifiedAt || null,
     stats: {

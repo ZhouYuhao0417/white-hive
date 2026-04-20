@@ -9,6 +9,7 @@ import {
   verifyPassword,
   createSessionToken,
   hashToken,
+  isSyntheticAuthEmail,
   createEmailVerificationCode,
   validateEmailVerificationCode,
   providerEmail,
@@ -112,6 +113,8 @@ describe('auth · provider helpers', () => {
     expect(a).not.toBe(c)
     expect(a).not.toBe(d)
     expect(/@auth\.whitehive\.local$/.test(a)).toBe(true)
+    expect(isSyntheticAuthEmail(a)).toBe(true)
+    expect(isSyntheticAuthEmail('user@whitehive.cn')).toBe(false)
   })
 
   test('sanitizeProviderAuthInput fills defaults and limits lengths', () => {
@@ -126,6 +129,11 @@ describe('auth · provider helpers', () => {
     expect(result.role).toBe('seller')
     expect(result.displayName.length).toBeLessThanOrEqual(40)
     expect(result.providerUserId.length).toBeLessThanOrEqual(80)
+    expect(result.bio).toBe('')
+  })
+
+  test('sanitizeProviderAuthInput requires a real provider user id', () => {
+    expect(() => sanitizeProviderAuthInput({ provider: 'github' })).toThrow(HttpError)
   })
 })
 

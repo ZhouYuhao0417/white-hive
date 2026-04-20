@@ -7,6 +7,7 @@ import {
   emailVerificationExpiresAt,
   hashPassword,
   hashToken,
+  isSyntheticAuthEmail,
   passwordResetExpiresAt,
   phoneVerificationExpiresAt,
   providerEmail,
@@ -451,7 +452,7 @@ export async function storeInfo() {
     note: `${databaseUrlSource} 已配置，当前 API 使用 Postgres 持久化存储。`,
     capabilities: [
       'password_auth',
-      'provider_auth_demo',
+      'oauth_login',
       'sessions',
       'email_verification',
       'phone_verification',
@@ -778,7 +779,7 @@ export async function confirmPhoneLogin(input = {}) {
       values (
         ${createId('usr')}, ${email}, ${profile.displayName}, ${profile.role}, 'unverified', null,
         ${phone}, ${profile.schoolOrCompany}, ${profile.city}, ${profile.bio}, ${profile.avatarUrl},
-        'phone', ${phone}, ${verifiedAt}, ${verifiedAt}, ${verifiedAt}, ${verifiedAt}
+        'phone', ${phone}, null, ${verifiedAt}, ${verifiedAt}, ${verifiedAt}
       )
       returning *
     `
@@ -789,10 +790,6 @@ export async function confirmPhoneLogin(input = {}) {
       set
         phone = ${phone},
         phone_verified_at = coalesce(phone_verified_at, ${verifiedAt}),
-        email_verified_at = case
-          when auth_provider = 'phone' then coalesce(email_verified_at, ${verifiedAt})
-          else email_verified_at
-        end,
         auth_provider = coalesce(nullif(auth_provider, ''), 'phone'),
         provider_user_id = case
           when coalesce(provider_user_id, '') = ''
@@ -2023,9 +2020,11 @@ async function withMessageRelations(message) {
 
 function publicUser(user) {
   if (!user) return null
+  const email = isSyntheticAuthEmail(user.email) ? '' : user.email
+  const emailVerifiedAt = email ? user.emailVerifiedAt : null
   return {
     id: user.id,
-    email: user.email,
+    email,
     displayName: user.displayName,
     role: user.role,
     phone: user.phone || '',
@@ -2037,8 +2036,8 @@ function publicUser(user) {
     verificationStatus: verificationStatuses.includes(user.verificationStatus)
       ? user.verificationStatus
       : 'unverified',
-    emailVerified: Boolean(user.emailVerifiedAt),
-    emailVerifiedAt: user.emailVerifiedAt || null,
+    emailVerified: Boolean(emailVerifiedAt),
+    emailVerifiedAt: emailVerifiedAt || null,
     phoneVerified: Boolean(user.phoneVerifiedAt),
     phoneVerifiedAt: user.phoneVerifiedAt || null,
     createdAt: user.createdAt,

@@ -6,7 +6,6 @@ import {
   confirmPasswordReset as confirmPasswordResetRequest,
   confirmPhoneLogin as confirmPhoneLoginRequest,
   confirmPhoneVerification as confirmPhoneVerificationRequest,
-  createProviderSession,
   createSession,
   deleteAccount as deleteAccountRequest,
   getAuthProviders,
@@ -78,12 +77,6 @@ export function AuthProvider({ children }) {
       }
     }
 
-    return data
-  }, [])
-
-  const loginWithProvider = useCallback(async (provider, payload) => {
-    const data = await createProviderSession(provider, payload)
-    if (data?.user) setUser(data.user)
     return data
   }, [])
 
@@ -175,7 +168,6 @@ export function AuthProvider({ children }) {
         isLoading,
         login,
         signup,
-        loginWithProvider,
         acceptSessionToken,
         getProviderStatus,
         logout,

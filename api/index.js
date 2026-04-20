@@ -342,7 +342,7 @@ function authProviderStatus() {
   return {
     password: { mode: 'active', configured: true },
     phone: {
-      mode: sms.configured ? 'live' : sms.mockEnabled ? 'mock' : 'demo',
+      mode: sms.configured ? 'live' : sms.mockEnabled ? 'mock' : 'unavailable',
       configured: sms.configured,
       provider: sms.provider,
       mockEnabled: sms.mockEnabled,
@@ -356,6 +356,32 @@ function authProviderStatus() {
     },
     qq: {
       ...oauthProviderStatus('qq'),
+    },
+  }
+}
+
+function allowLegacyProviderBridge() {
+  return process.env.WHITEHIVE_ALLOW_PROVIDER_BRIDGE === '1'
+}
+
+async function anonymousSession() {
+  if (process.env.WHITEHIVE_ALLOW_DEMO_SESSION === '1') {
+    return {
+      user: await getDemoUser(),
+      session: {
+        mode: 'demo',
+        token: 'demo_usr_demo_buyer',
+        expiresAt: null,
+      },
+    }
+  }
+
+  return {
+    user: null,
+    session: {
+      mode: 'anonymous',
+      token: null,
+      expiresAt: null,
     },
   }
 }
@@ -445,14 +471,7 @@ export default {
             return ok(await getSessionByToken(token))
           }
 
-          return ok({
-            user: await getDemoUser(),
-            session: {
-              mode: 'demo',
-              token: 'demo_usr_demo_buyer',
-              expiresAt: null,
-            },
-          })
+          return ok(await anonymousSession())
         }
 
         if (request.method === 'POST') {
@@ -466,6 +485,13 @@ export default {
 
       if (path === 'auth/provider') {
         if (request.method === 'POST') {
+          if (!allowLegacyProviderBridge()) {
+            throw new HttpError(
+              410,
+              'provider_bridge_disabled',
+              '第三方登录需要通过真实平台授权，当前入口不可用。',
+            )
+          }
           const body = await readBody(request)
           await enforceProviderAuthRateLimit(request, body)
           return ok(await upsertProviderSession(body))

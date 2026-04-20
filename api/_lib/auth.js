@@ -143,15 +143,22 @@ export function phoneVerificationExpiresAt() {
 
 export function providerEmail(provider, providerUserId) {
   const normalizedProvider = normalizeAuthProvider(provider)
-  const stableId = limitSlug(providerUserId || `whitehive-demo-${normalizedProvider}`, 80)
+  const stableId = limitSlug(providerUserId || `whitehive-user-${normalizedProvider}`, 80)
   const digest = createHash('sha256').update(`${normalizedProvider}:${stableId}`).digest('hex').slice(0, 16)
   return `${normalizedProvider}-${digest}@auth.whitehive.local`
+}
+
+export function isSyntheticAuthEmail(email) {
+  return /@auth\.whitehive\.local$/i.test(normalizeEmail(email))
 }
 
 export function sanitizeProviderAuthInput(input = {}) {
   const provider = normalizeAuthProvider(input.provider)
   const label = authProviderLabels[provider]
-  const providerUserId = limitSlug(input.providerUserId || `whitehive-demo-${provider}`, 80)
+  const providerUserId = limitSlug(input.providerUserId, 80)
+  if (!providerUserId) {
+    throw new HttpError(400, 'missing_provider_user_id', '第三方登录缺少平台用户标识，请重新授权。')
+  }
   const defaultName = input.displayName || `${label}用户`
   return {
     provider,
@@ -159,10 +166,10 @@ export function sanitizeProviderAuthInput(input = {}) {
     providerUserId,
     displayName: limitText(defaultName, 40),
     role: normalizeRole(input.role),
-    phone: limitText(input.phone || (provider === 'phone' ? '演示手机号' : ''), 40),
+    phone: limitText(input.phone, 40),
     schoolOrCompany: limitText(input.schoolOrCompany, 80),
     city: limitText(input.city, 40),
-    bio: limitText(input.bio || `通过${label}接入 WhiteHive。`, 240),
+    bio: limitText(input.bio, 240),
     avatarUrl: sanitizeAvatarUrl(input.avatarUrl),
   }
 }
@@ -192,8 +199,7 @@ function limitSlug(value, maxLength) {
     .toLowerCase()
     .replace(/[^a-z0-9._:-]+/g, '-')
     .replace(/^-+|-+$/g, '')
-  const slug = text || 'whitehive-demo'
-  return slug.length > maxLength ? slug.slice(0, maxLength) : slug
+  return text.length > maxLength ? text.slice(0, maxLength) : text
 }
 
 function sanitizeAvatarUrl(value) {

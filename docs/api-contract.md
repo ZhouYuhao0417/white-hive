@@ -1,16 +1,15 @@
-# WhiteHive MVP API Contract
+# WhiteHive API Contract
 
-This is the first backend contract for the buying/selling order MVP. The current implementation runs through one Vercel Function gateway (`api/index.js`). It uses Postgres through `DATABASE_URL` when available, and safely falls back to the in-memory demo store when no database is configured.
+This backend contract powers WhiteHive's buying/selling order flow through one Vercel Function gateway (`api/index.js`). Production deployments should use Postgres through `DATABASE_URL`; the in-memory store remains only for local development and tests.
 
 Auth-related account endpoints:
 
 - `POST /api/auth/session`: sign up or sign in with email/password.
 - `POST /api/auth/phone-login`: send a 6-digit SMS code for phone login/register.
 - `POST /api/auth/phone-login/confirm`: confirm the SMS code, then sign in or create a verified phone account.
-- `POST /api/auth/provider`: sign in with the MVP provider bridge for WeChat, QQ or GitHub.
 - `GET /api/auth/oauth/:provider/start`: start live OAuth for GitHub, WeChat or QQ when credentials are configured.
 - `GET /api/auth/oauth/:provider/callback`: complete the live OAuth callback and create a WhiteHive session.
-- `GET /api/auth/providers`: inspect which provider logins are live vs demo.
+- `GET /api/auth/providers`: inspect which provider logins are live, mock, or unavailable.
 - `GET /api/auth/session`: restore the current bearer-token session.
 - `PATCH /api/auth/profile`: update profile fields for the logged-in user.
 - `DELETE /api/auth/account`: delete a disposable test account when it has no linked services, orders, payments or messages.
@@ -54,17 +53,17 @@ Error response:
 
 ### `GET /api/auth/session`
 
-Returns the current session user when the frontend sends `Authorization: Bearer <token>`. If no token is present, it still returns the seeded demo buyer so the public MVP pages can keep working during early demos.
+Returns the current session user when the frontend sends `Authorization: Bearer <token>`. If no token is present, the API returns `user: null` and `session.mode: "anonymous"`; it does not create or impersonate a user.
 
 ### `POST /api/auth/session`
 
 Creates a password-based session. Passwords are hashed on the server with Node crypto `scrypt`; the API returns a random bearer token that the browser stores locally for later requests.
-Registration and login are rate-limited by IP and email to reduce brute-force attempts. New profile payloads may include `avatarUrl`, currently a compressed image data URL from the frontend MVP.
+Registration and login are rate-limited by IP and email to reduce brute-force attempts. New profile payloads may include `avatarUrl`, currently a compressed image data URL from the frontend.
 
 ```json
 {
   "email": "founder@whitehive.cn",
-  "password": "demo-password",
+  "password": "strong-password-123",
   "action": "signup",
   "role": "buyer",
   "displayName": "WhiteHive Founder",
@@ -81,7 +80,7 @@ For login, send:
 ```json
 {
   "email": "founder@whitehive.cn",
-  "password": "demo-password",
+  "password": "strong-password-123",
   "action": "signin",
   "mode": "signin"
 }
@@ -89,7 +88,7 @@ For login, send:
 
 ### `POST /api/auth/provider`
 
-Creates a session through the MVP provider bridge. WeChat/QQ/GitHub use demo identities until platform app credentials are available. Phone login no longer uses this bridge; it has its own SMS-code flow under `/api/auth/phone-login`.
+Legacy local-development bridge for provider accounts. In normal deployments this endpoint returns `provider_bridge_disabled`; WeChat/QQ/GitHub must use the real OAuth start/callback endpoints. Phone login has its own SMS-code flow under `/api/auth/phone-login`.
 
 Supported `provider` values:
 
@@ -109,7 +108,7 @@ The response shape matches `POST /api/auth/session` and returns a bearer session
 
 ### `GET /api/auth/oauth/:provider/start`
 
-Starts a live OAuth flow for `github`, `wechat` or `qq`. The endpoint redirects to the provider authorize page only when the corresponding client ID/secret variables are configured. Otherwise the frontend keeps using the MVP provider bridge.
+Starts a live OAuth flow for `github`, `wechat` or `qq`. The endpoint redirects to the provider authorize page only when the corresponding client ID/secret variables are configured. If credentials are missing, the login method stays unavailable.
 
 Required callback URLs to register with each platform:
 
@@ -137,7 +136,7 @@ Completes the provider callback, exchanges the OAuth code for a provider identit
 
 ### `GET /api/auth/providers`
 
-Returns a safe configuration summary for password, phone, GitHub, WeChat and QQ login. It never returns secrets. Phone reports `live` when the active SMS transport is configured, `mock` when `WHITEHIVE_SMS_MOCK=1`, and `demo` otherwise. OAuth providers remain in `demo` mode until app credentials are configured.
+Returns a safe configuration summary for password, phone, GitHub, WeChat and QQ login. It never returns secrets. Phone reports `live` when the active SMS transport is configured, `mock` when `WHITEHIVE_SMS_MOCK=1`, and `unavailable` otherwise. OAuth providers remain `unavailable` until app credentials are configured.
 
 ### `POST /api/auth/phone-login`
 
@@ -243,7 +242,7 @@ Confirms the password reset code and stores a new scrypt-hashed password. Existi
 {
   "email": "founder@whitehive.cn",
   "code": "123456",
-  "password": "new-demo-password"
+  "password": "new-strong-password-123"
 }
 ```
 

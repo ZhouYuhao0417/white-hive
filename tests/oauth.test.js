@@ -15,9 +15,9 @@ describe('oauth · provider status', () => {
     clearProductionEnv()
   })
 
-  test('reports demo when provider credentials are missing', () => {
+  test('reports unavailable when provider credentials are missing', () => {
     expect(oauthProviderStatus('wechat')).toEqual({
-      mode: 'demo',
+      mode: 'unavailable',
       configured: false,
       missing: ['WECHAT_CLIENT_ID', 'WECHAT_CLIENT_SECRET'],
     })

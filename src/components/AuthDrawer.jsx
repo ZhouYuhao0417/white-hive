@@ -79,7 +79,6 @@ export default function AuthDrawer({ open, onClose }) {
   const {
     login,
     signup,
-    loginWithProvider,
     getProviderStatus,
     requestPhoneLogin,
     confirmPhoneLogin,
@@ -395,18 +394,7 @@ export default function AuthDrawer({ open, onClose }) {
         return
       }
 
-      const result = await loginWithProvider(method.key, {
-        role: form.role,
-        displayName: `${method.label}用户`,
-      })
-      const name = result?.user?.displayName || method.label
-      setNotice(`已通过 ${method.label} 登录：${name}。`)
-      setTimeout(() => {
-        onClose()
-        setNotice('')
-        setError('')
-        setMode('signin')
-      }, 800)
+      setError(`${method.label} 登录需要平台审核通过后才能开放。现在请先使用手机号登录，账号数据会保留，后续可以绑定 ${method.label}。`)
     } catch (err) {
       setError(err.message || `${method.label} 登录暂时失败，请稍后再试。`)
     } finally {

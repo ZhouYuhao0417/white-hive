@@ -173,6 +173,8 @@ describe('store · auth → service → order → message → payment flow', () 
 
     expect(session.user.phone).toBe(phone)
     expect(session.user.phoneVerified).toBe(true)
+    expect(session.user.email).toBe('')
+    expect(session.user.emailVerified).toBe(false)
     expect(session.user.authProvider).toBe('phone')
     expect(session.user.role).toBe('seller')
     expect(session.session.token).toBeTruthy()
