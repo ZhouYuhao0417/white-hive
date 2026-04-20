@@ -99,6 +99,7 @@ function createMemoryState() {
     phoneLoginTokens: [],
     passwordResetTokens: [],
     rateLimitEvents: [],
+    notifications: [],
     messages: clone(seedMessages),
     reviews: clone(seedReviews),
     sessions: [],
@@ -152,6 +153,7 @@ export function storeInfo() {
       'wechatpay_checkout',
       'verification_requests',
       'service_review',
+      'inapp_notifications',
     ],
   }
 }
@@ -962,6 +964,54 @@ export function createService(input) {
   return clone(withSeller(service))
 }
 
+export function updateService(id, input = {}) {
+  const state = getState()
+  const service = state.services.find((item) => item.id === id)
+  if (!service) throw new HttpError(404, 'service_not_found', '没有找到这个服务。')
+
+  const actorId = input.actorId || input.sellerId
+  const actorRole = input.actorRole || ''
+  if (service.sellerId !== actorId && actorRole !== 'admin') {
+    throw new HttpError(403, 'service_owner_required', '只有服务发布者可以修改这项服务。')
+  }
+  if (!['rejected', 'pending_review', 'draft'].includes(service.status) && actorRole !== 'admin') {
+    throw new HttpError(409, 'service_edit_not_allowed', '当前状态不能直接修改，请先联系平台处理。')
+  }
+
+  const title = limitText(input.title ?? service.title, 120)
+  const summary = limitText(input.summary ?? service.summary, 1200)
+  const category = limitText(input.category ?? service.category, 80)
+  const priceCents = Number(input.priceCents ?? service.priceCents)
+  const deliveryDays = Number(input.deliveryDays ?? service.deliveryDays)
+  const tags = Array.isArray(input.tags) ? input.tags.map(String).slice(0, 8) : service.tags
+
+  if (!title || !category || !summary) {
+    throw new HttpError(400, 'missing_fields', '服务标题、分类和简介不能为空。')
+  }
+  if (!Number.isFinite(priceCents) || priceCents <= 0) {
+    throw new HttpError(400, 'invalid_price', '服务价格必须大于 0。')
+  }
+  if (!Number.isFinite(deliveryDays) || deliveryDays <= 0) {
+    throw new HttpError(400, 'invalid_delivery_days', '交付周期必须大于 0。')
+  }
+
+  service.title = title
+  service.summary = summary
+  service.category = category
+  service.priceCents = priceCents
+  service.deliveryDays = deliveryDays
+  service.tags = tags
+  service.updatedAt = nowIso()
+  if (actorRole !== 'admin') {
+    service.status = 'pending_review'
+    service.reviewNote = ''
+    service.reviewedBy = ''
+    service.reviewedAt = null
+  }
+
+  return clone(withSeller(service))
+}
+
 export function reviewService(id, input = {}) {
   const state = getState()
   const service = state.services.find((item) => item.id === id)
@@ -980,7 +1030,40 @@ export function reviewService(id, input = {}) {
   service.reviewedAt = nowIso()
   service.updatedAt = service.reviewedAt
 
+  createNotification({
+    userId: service.sellerId,
+    type: `service.${status}`,
+    title: serviceReviewNotificationTitle(status),
+    body: serviceReviewNotificationBody(service, status),
+    ctaHref: '/dashboard',
+    metadata: { serviceId: service.id, status, reviewNote: service.reviewNote },
+  })
+
   return clone(withSeller(service))
+}
+
+export function listNotifications({ userId, limit = 30 } = {}) {
+  if (!userId) throw new HttpError(401, 'auth_required', '请先登录。')
+  return clone(
+    getState()
+      .notifications.filter((item) => item.userId === userId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, Math.min(Math.max(Number(limit) || 30, 1), 100)),
+  )
+}
+
+export function markNotificationsRead({ userId, ids = [] } = {}) {
+  if (!userId) throw new HttpError(401, 'auth_required', '请先登录。')
+  const idSet = new Set(Array.isArray(ids) ? ids.map(String) : [])
+  const readAt = nowIso()
+  const updated = []
+  getState().notifications.forEach((item) => {
+    if (item.userId !== userId) return
+    if (idSet.size > 0 && !idSet.has(item.id)) return
+    item.readAt = readAt
+    updated.push(item)
+  })
+  return clone(updated)
 }
 
 export function listOrders({ userId, status } = {}) {
@@ -1750,6 +1833,38 @@ function hasApprovedCampusVerification(userId) {
       request.verificationType === 'campus' &&
       request.schoolOrCompany === '成都理工大学',
   )
+}
+
+function createNotification(input = {}) {
+  if (!input.userId || !input.title || !input.body) return null
+  const notification = {
+    id: createId('ntf'),
+    userId: input.userId,
+    type: limitText(input.type || 'system', 80),
+    title: limitText(input.title, 120),
+    body: limitText(input.body, 1000),
+    ctaHref: limitText(input.ctaHref || '', 300),
+    metadata: input.metadata || {},
+    readAt: null,
+    createdAt: nowIso(),
+  }
+  getState().notifications.unshift(notification)
+  return notification
+}
+
+function serviceReviewNotificationTitle(status) {
+  if (status === 'published') return '你的服务已通过审核'
+  if (status === 'rejected') return '你的服务未通过审核'
+  if (status === 'paused') return '你的服务已被暂停'
+  return '你的服务状态已更新'
+}
+
+function serviceReviewNotificationBody(service, status) {
+  const note = service.reviewNote ? `审核备注：${service.reviewNote}` : ''
+  if (status === 'published') return `「${service.title}」已经公开上架，买家现在可以看到并下单。${note}`
+  if (status === 'rejected') return `「${service.title}」需要修改后重新提交。${note || '请补充更清晰的交付范围、资质或证明材料。'}`
+  if (status === 'paused') return `「${service.title}」已暂时下架。${note || '请根据平台要求调整后再提交。'}`
+  return `「${service.title}」状态已更新为 ${status}。${note}`
 }
 
 function limitText(value, maxLength) {

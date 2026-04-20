@@ -348,6 +348,20 @@ async function migrateAndSeed() {
     )
   `
 
+  await db`
+    create table if not exists notifications (
+      id text primary key,
+      user_id text not null references users(id) on delete cascade,
+      type text not null,
+      title text not null,
+      body text not null,
+      cta_href text not null default '',
+      metadata jsonb not null default '{}'::jsonb,
+      read_at timestamptz,
+      created_at timestamptz not null default now()
+    )
+  `
+
   await db`create index if not exists services_category_status_idx on services(category, status)`
   await db`create index if not exists sessions_user_idx on sessions(user_id, expires_at)`
   await db`create index if not exists sessions_token_hash_idx on sessions(token_hash)`
@@ -360,6 +374,7 @@ async function migrateAndSeed() {
   await db`create index if not exists phone_verification_tokens_user_idx on phone_verification_tokens(user_id, expires_at)`
   await db`create index if not exists phone_login_tokens_phone_idx on phone_login_tokens(phone, expires_at)`
   await db`create index if not exists password_reset_tokens_email_idx on password_reset_tokens(email, expires_at)`
+  await db`create index if not exists notifications_user_idx on notifications(user_id, created_at desc)`
   await db`
     create index if not exists users_verified_phone_lookup_idx
     on users(phone)
@@ -478,6 +493,7 @@ export async function storeInfo() {
       'wechatpay_checkout',
       'verification_requests',
       'service_review',
+      'inapp_notifications',
     ],
   }
 }
@@ -1335,6 +1351,56 @@ export async function createService(input) {
   return withSeller(serviceFromRow(rows[0]))
 }
 
+export async function updateService(id, input = {}) {
+  const service = await getService(id)
+  const actorId = input.actorId || input.sellerId
+  const actorRole = input.actorRole || ''
+  if (service.sellerId !== actorId && actorRole !== 'admin') {
+    throw new HttpError(403, 'service_owner_required', '只有服务发布者可以修改这项服务。')
+  }
+  if (!['rejected', 'pending_review', 'draft'].includes(service.status) && actorRole !== 'admin') {
+    throw new HttpError(409, 'service_edit_not_allowed', '当前状态不能直接修改，请先联系平台处理。')
+  }
+
+  const title = limitText(input.title ?? service.title, 120)
+  const summary = limitText(input.summary ?? service.summary, 1200)
+  const category = limitText(input.category ?? service.category, 80)
+  const priceCents = Number(input.priceCents ?? service.priceCents)
+  const deliveryDays = Number(input.deliveryDays ?? service.deliveryDays)
+  const tags = Array.isArray(input.tags) ? input.tags.map(String).slice(0, 8) : service.tags
+
+  if (!title || !category || !summary) {
+    throw new HttpError(400, 'missing_fields', '服务标题、分类和简介不能为空。')
+  }
+  if (!Number.isFinite(priceCents) || priceCents <= 0) {
+    throw new HttpError(400, 'invalid_price', '服务价格必须大于 0。')
+  }
+  if (!Number.isFinite(deliveryDays) || deliveryDays <= 0) {
+    throw new HttpError(400, 'invalid_delivery_days', '交付周期必须大于 0。')
+  }
+
+  const updatedAt = nowIso()
+  const nextStatus = actorRole === 'admin' ? service.status : 'pending_review'
+  const rows = await query`
+    update services
+    set category = ${category},
+        title = ${title},
+        summary = ${summary},
+        price_cents = ${priceCents},
+        delivery_days = ${deliveryDays},
+        tags = ${tags},
+        status = ${nextStatus},
+        review_note = ${actorRole === 'admin' ? service.reviewNote : ''},
+        reviewed_by = ${actorRole === 'admin' ? service.reviewedBy : ''},
+        reviewed_at = ${actorRole === 'admin' ? service.reviewedAt : null},
+        updated_at = ${updatedAt}
+    where id = ${id}
+    returning *
+  `
+  if (!rows[0]) throw new HttpError(404, 'service_not_found', '没有找到这个服务。')
+  return withSeller(serviceFromRow(rows[0]))
+}
+
 export async function reviewService(id, input = {}) {
   const status = String(input.status || '').trim()
   if (!['published', 'rejected', 'paused', 'archived'].includes(status)) {
@@ -1355,7 +1421,48 @@ export async function reviewService(id, input = {}) {
     returning *
   `
   if (!rows[0]) throw new HttpError(404, 'service_not_found', '没有找到这个服务。')
-  return withSeller(serviceFromRow(rows[0]))
+  const service = serviceFromRow(rows[0])
+  await createNotification({
+    userId: service.sellerId,
+    type: `service.${status}`,
+    title: serviceReviewNotificationTitle(status),
+    body: serviceReviewNotificationBody(service, status),
+    ctaHref: '/dashboard',
+    metadata: { serviceId: service.id, status, reviewNote: service.reviewNote },
+  })
+  return withSeller(service)
+}
+
+export async function listNotifications({ userId, limit = 30 } = {}) {
+  if (!userId) throw new HttpError(401, 'auth_required', '请先登录。')
+  const rows = await query`
+    select * from notifications
+    where user_id = ${userId}
+    order by created_at desc
+    limit ${Math.min(Math.max(Number(limit) || 30, 1), 100)}
+  `
+  return rows.map(notificationFromRow)
+}
+
+export async function markNotificationsRead({ userId, ids = [] } = {}) {
+  if (!userId) throw new HttpError(401, 'auth_required', '请先登录。')
+  const readAt = nowIso()
+  if (Array.isArray(ids) && ids.length > 0) {
+    const rows = await query`
+      update notifications
+      set read_at = ${readAt}
+      where user_id = ${userId} and id = any(${ids.map(String)})
+      returning *
+    `
+    return rows.map(notificationFromRow)
+  }
+  const rows = await query`
+    update notifications
+    set read_at = ${readAt}
+    where user_id = ${userId} and read_at is null
+    returning *
+  `
+  return rows.map(notificationFromRow)
 }
 
 export async function listOrders({ userId, status } = {}) {
@@ -2248,6 +2355,51 @@ function serviceFromRow(row) {
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   }
+}
+
+function notificationFromRow(row) {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    type: row.type,
+    title: row.title,
+    body: row.body,
+    ctaHref: row.cta_href || '',
+    metadata: row.metadata || {},
+    readAt: toIso(row.read_at),
+    createdAt: toIso(row.created_at),
+  }
+}
+
+async function createNotification(input = {}) {
+  if (!input.userId || !input.title || !input.body) return null
+  const createdAt = nowIso()
+  const rows = await query`
+    insert into notifications (id, user_id, type, title, body, cta_href, metadata, created_at)
+    values (
+      ${createId('ntf')}, ${input.userId}, ${limitText(input.type || 'system', 80)},
+      ${limitText(input.title, 120)}, ${limitText(input.body, 1000)},
+      ${limitText(input.ctaHref || '', 300)}, ${JSON.stringify(input.metadata || {})}::jsonb,
+      ${createdAt}
+    )
+    returning *
+  `
+  return notificationFromRow(rows[0])
+}
+
+function serviceReviewNotificationTitle(status) {
+  if (status === 'published') return '你的服务已通过审核'
+  if (status === 'rejected') return '你的服务未通过审核'
+  if (status === 'paused') return '你的服务已被暂停'
+  return '你的服务状态已更新'
+}
+
+function serviceReviewNotificationBody(service, status) {
+  const note = service.reviewNote ? `审核备注：${service.reviewNote}` : ''
+  if (status === 'published') return `「${service.title}」已经公开上架，买家现在可以看到并下单。${note}`
+  if (status === 'rejected') return `「${service.title}」需要修改后重新提交。${note || '请补充更清晰的交付范围、资质或证明材料。'}`
+  if (status === 'paused') return `「${service.title}」已暂时下架。${note || '请根据平台要求调整后再提交。'}`
+  return `「${service.title}」状态已更新为 ${status}。${note}`
 }
 
 function orderFromRow(row) {

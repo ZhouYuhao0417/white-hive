@@ -3,7 +3,13 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Section, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
-import { getSession, listBackendServices, listOrders } from '../lib/api.js'
+import {
+  getSession,
+  listBackendServices,
+  listNotifications,
+  listOrders,
+  updateBackendService,
+} from '../lib/api.js'
 import { readCachedOrders } from '../lib/orderCache.js'
 import { readCachedServices } from '../lib/serviceCache.js'
 
@@ -39,6 +45,32 @@ function mergeById(primary, fallback) {
     if (item?.id && !map.has(item.id)) map.set(item.id, item)
   })
   return Array.from(map.values())
+}
+
+function tagsToInput(tags) {
+  return Array.isArray(tags) ? tags.join(', ') : ''
+}
+
+function inputToTags(value) {
+  return String(value || '')
+    .split(/[,，]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 8)
+}
+
+function formatDate(value) {
+  if (!value) return ''
+  try {
+    return new Intl.DateTimeFormat('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(value))
+  } catch {
+    return value
+  }
 }
 
 function StatCard({ label, value, color }) {
@@ -77,7 +109,63 @@ function OrderRow({ order }) {
   )
 }
 
-function ServiceRow({ service }) {
+function NotificationRow({ item }) {
+  return (
+    <Link
+      to={item.ctaHref || '/dashboard'}
+      className="block rounded-xl border border-[#7FD3FF]/20 bg-[#7FD3FF]/[0.06] p-4 transition-colors hover:border-[#7FD3FF]/35 hover:bg-[#7FD3FF]/[0.09]"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-white">{item.title}</div>
+          <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/55">{item.body}</p>
+        </div>
+        <span className="shrink-0 text-[11px] text-white/40">{formatDate(item.createdAt)}</span>
+      </div>
+    </Link>
+  )
+}
+
+function ServiceRow({ service, onUpdated }) {
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [form, setForm] = useState({
+    title: service.title || '',
+    summary: service.summary || '',
+    priceCents: String(Math.round(Number(service.priceCents || 0) / 100)),
+    deliveryDays: String(service.deliveryDays || 7),
+    tags: tagsToInput(service.tags),
+  })
+
+  const canResubmit = service.status === 'rejected'
+
+  const update = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }))
+    setError('')
+  }
+
+  const submit = async (event) => {
+    event.preventDefault()
+    setSaving(true)
+    setError('')
+    try {
+      await updateBackendService(service.id, {
+        title: form.title,
+        summary: form.summary,
+        priceCents: Math.round(Number(form.priceCents || 0) * 100),
+        deliveryDays: Number(form.deliveryDays || 7),
+        tags: inputToTags(form.tags),
+      })
+      setEditing(false)
+      await onUpdated?.()
+    } catch (err) {
+      setError(err.message || '重新提交失败，请稍后再试。')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4">
       <div className="flex items-start justify-between gap-4">
@@ -93,6 +181,82 @@ function ServiceRow({ service }) {
         <span>{service.category}</span>
         <span>{formatMoney(service.priceCents, service.currency)} · {service.deliveryDays} 天</span>
       </div>
+      {service.reviewNote && (
+        <div className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs leading-relaxed text-amber-100">
+          审核备注：{service.reviewNote}
+        </div>
+      )}
+      {canResubmit && !editing && (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="mt-4 rounded-xl border border-[#7FD3FF]/30 bg-[#7FD3FF]/10 px-4 py-2 text-sm text-[#BEE6FF] transition-colors hover:border-[#7FD3FF]/45 hover:bg-[#7FD3FF]/15"
+        >
+          修改后重新提交
+        </button>
+      )}
+      {editing && (
+        <form onSubmit={submit} className="mt-4 space-y-3 border-t border-white/8 pt-4">
+          <input
+            value={form.title}
+            onChange={(event) => update('title', event.target.value)}
+            required
+            minLength={6}
+            className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 text-sm text-white placeholder:text-white/30 focus:border-[#7FD3FF]/55 focus:outline-none"
+            placeholder="服务标题"
+          />
+          <textarea
+            value={form.summary}
+            onChange={(event) => update('summary', event.target.value)}
+            required
+            minLength={12}
+            rows={4}
+            className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-white placeholder:text-white/30 focus:border-[#7FD3FF]/55 focus:outline-none"
+            placeholder="服务简介"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              value={form.priceCents}
+              onChange={(event) => update('priceCents', event.target.value)}
+              required
+              inputMode="decimal"
+              className="h-11 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-sm text-white placeholder:text-white/30 focus:border-[#7FD3FF]/55 focus:outline-none"
+              placeholder="起步价 / 元"
+            />
+            <input
+              value={form.deliveryDays}
+              onChange={(event) => update('deliveryDays', event.target.value)}
+              required
+              inputMode="numeric"
+              className="h-11 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-sm text-white placeholder:text-white/30 focus:border-[#7FD3FF]/55 focus:outline-none"
+              placeholder="交付天数"
+            />
+          </div>
+          <input
+            value={form.tags}
+            onChange={(event) => update('tags', event.target.value)}
+            className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 text-sm text-white placeholder:text-white/30 focus:border-[#7FD3FF]/55 focus:outline-none"
+            placeholder="标签，用逗号分隔"
+          />
+          {error && (
+            <div className="rounded-xl border border-red-400/25 bg-red-400/10 px-3 py-2 text-xs text-red-100">
+              {error}
+            </div>
+          )}
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white/60 hover:border-white/20 hover:text-white"
+            >
+              取消
+            </button>
+            <button type="submit" disabled={saving} className="btn-primary !px-4 !py-2 disabled:opacity-60">
+              {saving ? '提交中...' : '重新提交审核'}
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   )
 }
@@ -100,6 +264,7 @@ function ServiceRow({ service }) {
 export default function Dashboard() {
   const [orders, setOrders] = useState([])
   const [services, setServices] = useState([])
+  const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState('')
   const [currentUser, setCurrentUser] = useState(null)
@@ -114,19 +279,22 @@ export default function Dashboard() {
       try {
         const session = await getSession().catch(() => null)
         const user = session?.session?.mode === 'demo' ? null : session?.user || null
-        const [apiOrders, apiServices] = user
+        const [apiOrders, apiServices, apiNotifications] = user
           ? await Promise.all([
               listOrders({ userId: user.id }),
               listBackendServices({ status: 'all', sellerId: user.id }),
+              listNotifications({ limit: 5 }).catch(() => []),
             ])
           : await Promise.all([
               Promise.resolve([]),
               listBackendServices({ status: 'published' }),
+              Promise.resolve([]),
             ])
         if (!mounted) return
         setCurrentUser(user)
         setOrders(user ? mergeById(apiOrders, readCachedOrders()) : [])
         setServices(user ? mergeById(apiServices, readCachedServices()) : apiServices)
+        setNotifications(apiNotifications || [])
         if (user) {
           setNotice(`当前工作台已切换到 ${user.displayName || user.email} 的真实账号数据。`)
         }
@@ -134,6 +302,7 @@ export default function Dashboard() {
         if (!mounted) return
         setOrders([])
         setServices([])
+        setNotifications([])
         setNotice('暂时无法连接工作台数据，请稍后刷新。')
       } finally {
         if (mounted) setLoading(false)
@@ -145,6 +314,17 @@ export default function Dashboard() {
       mounted = false
     }
   }, [])
+
+  const reloadSellerServices = async () => {
+    if (!currentUser) return
+    const [apiServices, apiNotifications] = await Promise.all([
+      listBackendServices({ status: 'all', sellerId: currentUser.id }),
+      listNotifications({ limit: 5 }).catch(() => []),
+    ])
+    setServices(mergeById(apiServices, readCachedServices()))
+    setNotifications(apiNotifications || [])
+    setNotice('服务已重新提交审核，管理员通过后会公开展示。')
+  }
 
   const stats = useMemo(() => {
     const activeOrders = orders.filter((order) => !['completed', 'cancelled'].includes(order.status)).length
@@ -272,6 +452,14 @@ export default function Dashboard() {
               </Link>
             </div>
             <div className="mt-5 space-y-3">
+              {notifications.length > 0 && (
+                <div className="space-y-2">
+                  <div className="mono-label">最近通知</div>
+                  {notifications.slice(0, 3).map((item) => (
+                    <NotificationRow key={item.id} item={item} />
+                  ))}
+                </div>
+              )}
               {loading && services.length === 0 ? (
                 <div className="text-sm text-white/45">正在加载服务...</div>
               ) : services.length === 0 ? (
@@ -279,7 +467,9 @@ export default function Dashboard() {
                   还没有服务。先去开设服务页发布一张商品卡。
                 </div>
               ) : (
-                services.map((service) => <ServiceRow key={service.id} service={service} />)
+                services.map((service) => (
+                  <ServiceRow key={service.id} service={service} onUpdated={reloadSellerServices} />
+                ))
               )}
             </div>
           </motion.div>

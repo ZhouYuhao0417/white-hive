@@ -190,10 +190,29 @@ export function createBackendService(service) {
   })
 }
 
+export function updateBackendService(id, changes) {
+  return request(`/services?id=${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(changes),
+  })
+}
+
 export function reviewService(id, changes) {
   return request(`/services?id=${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(changes),
+  })
+}
+
+export function listNotifications(params = {}) {
+  const search = new URLSearchParams(params)
+  return request(`/notifications${search.size ? `?${search.toString()}` : ''}`)
+}
+
+export function markNotificationsRead(ids = []) {
+  return request('/notifications', {
+    method: 'PATCH',
+    body: JSON.stringify({ ids }),
   })
 }
 

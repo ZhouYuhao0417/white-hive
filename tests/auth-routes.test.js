@@ -112,6 +112,55 @@ describe('api · auth route hardening', () => {
     )
     const adminPayload = await jsonResponse(adminResponse)
 
+    const rejectResponse = await api.fetch(
+      new Request(`https://whitehive.test/api/services?id=${createPayload.data.id}`, {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${adminPayload.data.session.token}`,
+        },
+        body: JSON.stringify({
+          status: 'rejected',
+          reviewNote: '请补充交付范围。',
+        }),
+      }),
+    )
+    const rejectPayload = await jsonResponse(rejectResponse)
+    expect(rejectResponse.status).toBe(200)
+    expect(rejectPayload.data.status).toBe('rejected')
+
+    const notificationsResponse = await api.fetch(
+      new Request('https://whitehive.test/api/notifications', {
+        headers: { authorization: `Bearer ${sellerToken}` },
+      }),
+    )
+    const notificationsPayload = await jsonResponse(notificationsResponse)
+    expect(notificationsResponse.status).toBe(200)
+    expect(notificationsPayload.data[0].type).toBe('service.rejected')
+    expect(notificationsPayload.data[0].body).toContain('请补充交付范围')
+
+    const resubmitResponse = await api.fetch(
+      new Request(`https://whitehive.test/api/services?id=${createPayload.data.id}`, {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${sellerToken}`,
+        },
+        body: JSON.stringify({
+          title: '真实审核服务修正版',
+          summary: '补充了清晰的交付范围和验收边界。',
+          priceCents: 120000,
+          deliveryDays: 6,
+          tags: ['官网', '交付说明'],
+        }),
+      }),
+    )
+    const resubmitPayload = await jsonResponse(resubmitResponse)
+    expect(resubmitResponse.status).toBe(200)
+    expect(resubmitPayload.data.status).toBe('pending_review')
+    expect(resubmitPayload.data.reviewNote).toBe('')
+    expect(resubmitPayload.data.title).toBe('真实审核服务修正版')
+
     const reviewResponse = await api.fetch(
       new Request(`https://whitehive.test/api/services?id=${createPayload.data.id}`, {
         method: 'PATCH',

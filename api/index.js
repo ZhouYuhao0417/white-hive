@@ -36,11 +36,13 @@ import {
   getService,
   getVerificationProfile,
   listMessages,
+  listNotifications,
   listOrders,
   listPayments,
   listReviews,
   listServices,
   listVerificationRequests,
+  markNotificationsRead,
   requestEmailVerification,
   requestPhoneLogin,
   requestPasswordReset,
@@ -51,6 +53,7 @@ import {
   submitVerification,
   updateOrder,
   updateReview,
+  updateService,
   updateUserProfile,
   upsertDemoSession,
   upsertProviderSession,
@@ -735,6 +738,18 @@ export default {
           )
         }
 
+        if (request.method === 'PUT') {
+          const body = await readBody(request)
+          const user = await requireSessionUser(request)
+          return ok(
+            await updateService(query.get('id'), {
+              ...body,
+              actorId: user.id,
+              actorRole: user.role,
+            }),
+          )
+        }
+
         if (request.method === 'PATCH') {
           const user = await requireAdminReviewer(request)
           const body = await readBody(request)
@@ -746,7 +761,22 @@ export default {
           )
         }
 
-        return methodNotAllowed(request.method, ['GET', 'POST', 'PATCH'])
+        return methodNotAllowed(request.method, ['GET', 'POST', 'PUT', 'PATCH'])
+      }
+
+      if (path === 'notifications') {
+        const user = await requireSessionUser(request)
+
+        if (request.method === 'GET') {
+          return ok(await listNotifications({ userId: user.id, limit: query.get('limit') || 30 }))
+        }
+
+        if (request.method === 'PATCH') {
+          const body = await readBody(request)
+          return ok(await markNotificationsRead({ userId: user.id, ids: body.ids || [] }))
+        }
+
+        return methodNotAllowed(request.method, ['GET', 'PATCH'])
       }
 
       if (path === 'orders') {

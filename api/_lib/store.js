@@ -122,8 +122,20 @@ export function createService(input) {
   return callStore('createService', [input])
 }
 
+export function updateService(id, input) {
+  return callStore('updateService', [id, input])
+}
+
 export function reviewService(id, input) {
   return callStore('reviewService', [id, input])
+}
+
+export function listNotifications(input) {
+  return callStore('listNotifications', [input])
+}
+
+export function markNotificationsRead(input) {
+  return callStore('markNotificationsRead', [input])
 }
 
 export function listOrders(input) {
