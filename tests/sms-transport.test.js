@@ -70,6 +70,28 @@ describe('sms transport · Spug', () => {
     expect(result.provider).toBe('spug')
   })
 
+  test('supports Spug sms query URL with to/code/number placeholders', async () => {
+    process.env.SPUG_SMS_URL = 'https://push.spug.cc/sms/template_789?to=&name=&code=&number='
+    process.env.SPUG_SMS_APP_NAME = 'WhiteHive'
+    let captured
+    globalThis.fetch = async (url, options) => {
+      captured = { url: new URL(String(url)), options }
+      return new Response(JSON.stringify({ code: 0, message: 'success' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+
+    const result = await sendSmsVerification({ to: '+86 139 1234 5678', code: '123456' })
+
+    expect(result.delivered).toBe(true)
+    expect(captured.options.method).toBe('GET')
+    expect(captured.url.searchParams.get('to')).toBe('13912345678')
+    expect(captured.url.searchParams.get('name')).toBe('WhiteHive')
+    expect(captured.url.searchParams.get('code')).toBe('123456')
+    expect(captured.url.searchParams.get('number')).toBe('5')
+  })
+
   test('returns unavailable details when Spug rejects the request', async () => {
     process.env.SPUG_SMS_URL = 'https://push.spug.cc/send/template_789'
     globalThis.fetch = async () =>

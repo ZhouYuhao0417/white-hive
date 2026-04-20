@@ -86,19 +86,26 @@ export async function sendSmsVerification({ to, code }) {
 async function sendSpugSms({ phone, code }) {
   const config = spugConfig()
   const appName = process.env.SPUG_SMS_APP_NAME || 'WhiteHive'
+  const ttlMinutes = String(process.env.SPUG_SMS_TTL_MINUTES || '5').trim()
   const payload = {
     name: appName,
     code,
     targets: phone,
   }
-  const method = String(process.env.SPUG_SMS_METHOD || 'POST').trim().toUpperCase()
   const url = new URL(config.url)
+  const method = resolveSpugMethod(url)
   let request
 
   if (method === 'GET') {
     url.searchParams.set('name', appName)
     url.searchParams.set('code', code)
-    url.searchParams.set('targets', phone)
+    if (url.searchParams.has('to')) {
+      url.searchParams.set('to', phone)
+    } else {
+      url.searchParams.set('targets', phone)
+    }
+    if (url.searchParams.has('targets')) url.searchParams.set('targets', phone)
+    if (url.searchParams.has('number')) url.searchParams.set('number', ttlMinutes)
     request = {
       method: 'GET',
       headers: { accept: 'application/json' },
@@ -145,6 +152,14 @@ async function sendSpugSms({ phone, code }) {
     message: '短信验证码已发送。',
     requestId: payloadResult?.data?.id || payloadResult?.id || payloadResult?.requestId,
   }
+}
+
+function resolveSpugMethod(url) {
+  const configured = String(process.env.SPUG_SMS_METHOD || '').trim().toUpperCase()
+  if (configured === 'GET' || configured === 'POST') return configured
+  if (url.searchParams.has('to') || url.searchParams.has('number')) return 'GET'
+  if (url.pathname.startsWith('/sms/')) return 'GET'
+  return 'POST'
 }
 
 async function sendAliyunSms({ phone, code }) {
