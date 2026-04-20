@@ -592,7 +592,7 @@ export default function Account() {
                       <input
                         value={verificationForm.idNumberLast4}
                         onChange={(event) => updateVerificationForm('idNumberLast4', event.target.value.replace(/[^\dXx]/g, '').slice(-4))}
-                        placeholder="演示仅收后 4 位"
+                        placeholder="用于人工核对"
                         className="mt-2 w-full h-11 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05]"
                       />
                     </label>
@@ -622,7 +622,7 @@ export default function Account() {
               <p className="text-xs text-white/40 leading-relaxed">
                 {isCampusVerification
                   ? 'CDUT 专区买家登录即可交易；只有发布校园服务的卖家需要提交姓名和学号，先由平台人工审核。'
-                  : 'MVP 阶段不上传身份证照片，只记录必要的演示字段和可公开证明链接。正式上线前需要接入合规实名服务商，并更新隐私政策与数据留存策略。'}
+                  : '当前采用最小化采集原则，只保存人工审核需要的字段和可公开证明链接。后续接入合规实名服务商前，会同步更新隐私政策、授权说明和数据留存策略。'}
               </p>
               <button type="submit" disabled={submittingVerification} className="btn-primary w-full justify-center">
                 {submittingVerification ? '提交中...' : '提交实名认证申请'}

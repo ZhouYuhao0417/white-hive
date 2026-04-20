@@ -1668,7 +1668,8 @@ export async function createMessage(input) {
   })
 }
 
-export async function getVerificationProfile(userId = 'usr_demo_seller') {
+export async function getVerificationProfile(userId) {
+  if (!userId) throw new HttpError(401, 'auth_required', '请先登录。')
   const user = await ensureUser(userId)
   const rows = await query`
     select * from verification_requests
@@ -1749,8 +1750,9 @@ export async function listVerificationRequests({ status = 'pending', limit = 50 
   }))
 }
 
-export async function submitVerification(input) {
-  const user = await ensureUser(input.userId || 'usr_demo_seller')
+export async function submitVerification(input = {}) {
+  if (!input.userId) throw new HttpError(401, 'auth_required', '请先登录。')
+  const user = await ensureUser(input.userId)
   const realName = String(input.realName || '').trim()
   const contactEmail = String(input.contactEmail || user.email || '').trim().toLowerCase()
   const idNumberLast4 = String(input.idNumberLast4 || '').replace(/[^\dXx]/g, '').slice(-4)
@@ -1774,7 +1776,7 @@ export async function submitVerification(input) {
   }
 
   if (!isCampus && idNumberLast4 && idNumberLast4.length !== 4) {
-    throw new HttpError(400, 'invalid_id_number', '证件号码只需要提交后 4 位用于演示校验。')
+    throw new HttpError(400, 'invalid_id_number', '证件号码只需要提交后 4 位用于人工核对。')
   }
 
   if (!isCampus && !contactEmail.includes('@')) {

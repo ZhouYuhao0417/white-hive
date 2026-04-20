@@ -133,8 +133,8 @@ export function storeInfo() {
     driver: hasDatabaseEnv ? 'database-pending' : 'memory',
     persistent: false,
     note: hasDatabaseEnv
-      ? '数据库连接变量已存在，但当前 MVP 仍使用内存适配器；下一步接 Postgres。'
-      : '未配置数据库连接变量，当前使用内存种子数据，适合演示和接口联调。',
+      ? '数据库连接变量已存在，但当前运行在内存适配器。'
+      : '未配置数据库连接变量，当前使用内存种子数据，仅适合本地开发和接口联调。',
     capabilities: [
       'password_auth',
       'oauth_login',
@@ -1302,7 +1302,8 @@ export function createMessage(input) {
   return clone(withMessageRelations(message))
 }
 
-export function getVerificationProfile(userId = 'usr_demo_seller') {
+export function getVerificationProfile(userId) {
+  if (!userId) throw new HttpError(401, 'auth_required', '请先登录。')
   const user = ensureUser(userId)
   const requests = getState().verificationRequests
     .filter((request) => request.userId === user.id)
@@ -1336,9 +1337,10 @@ export function listVerificationRequests({ status = 'pending', limit = 50 } = {}
   )
 }
 
-export function submitVerification(input) {
+export function submitVerification(input = {}) {
   const state = getState()
-  const user = ensureUser(input.userId || 'usr_demo_seller')
+  if (!input.userId) throw new HttpError(401, 'auth_required', '请先登录。')
+  const user = ensureUser(input.userId)
   const realName = String(input.realName || '').trim()
   const contactEmail = String(input.contactEmail || user.email || '').trim().toLowerCase()
   const idNumberLast4 = String(input.idNumberLast4 || '').replace(/[^\dXx]/g, '').slice(-4)
@@ -1362,7 +1364,7 @@ export function submitVerification(input) {
   }
 
   if (!isCampus && idNumberLast4 && idNumberLast4.length !== 4) {
-    throw new HttpError(400, 'invalid_id_number', '证件号码只需要提交后 4 位用于演示校验。')
+    throw new HttpError(400, 'invalid_id_number', '证件号码只需要提交后 4 位用于人工核对。')
   }
 
   if (!isCampus && !contactEmail.includes('@')) {

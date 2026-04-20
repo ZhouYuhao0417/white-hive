@@ -258,8 +258,9 @@ export function createMessage(message) {
   })
 }
 
-export function getVerificationProfile(userId = 'usr_demo_seller') {
-  return request(`/verification?userId=${encodeURIComponent(userId)}`)
+export function getVerificationProfile(userId) {
+  const search = userId ? `?userId=${encodeURIComponent(userId)}` : ''
+  return request(`/verification${search}`)
 }
 
 export function listVerificationRequests(params = {}) {

@@ -1,5 +1,5 @@
 // 用户手动设置的所在地（精确到辖区）。
-// 前端 MVP 阶段只做本地持久化 + 订阅, 后续可以在后端服务卡片加经纬度, 用 haversine 排序。
+// 目前先做本地持久化 + 订阅, 后续可以在后端服务卡片加经纬度, 用 haversine 排序。
 import { useEffect, useState } from 'react'
 
 const KEY = 'whitehive.userLocation'

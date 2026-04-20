@@ -360,13 +360,12 @@ function ListingForm({ scope = 'general' }) {
   return (
     <div id="listing-form" className="grid lg:grid-cols-[1fr_380px] gap-6 items-start">
       <form onSubmit={submit} className="card p-7 md:p-9">
-        <div className="mono-label">LISTING FORM · MVP 服务发布</div>
+        <div className="mono-label">LISTING FORM · 服务发布</div>
         <h3 className="mt-2 text-2xl md:text-3xl font-semibold text-white tracking-tight">
           填一张真正会进入后端的服务卡。
         </h3>
         <p className="mt-3 text-sm text-white/55 leading-relaxed max-w-2xl">
-          这不是静态表单。提交后会调用 `/api/services`, 创建一条服务记录。现在先用于演示,
-          等接入数据库后会变成真实持久化上架。
+          提交后会写入 WhiteHive 服务系统。通用服务会进入平台巡检与交易风控；CDUT 专区的卖家需要先完成校园认证。
         </p>
 
         <div className="mt-7 grid md:grid-cols-2 gap-5">
@@ -453,13 +452,13 @@ function ListingForm({ scope = 'general' }) {
 
         {created && (
           <div className="mt-5 rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-4 py-3 text-sm text-[#CFFDF5] break-all">
-            服务已发布到 MVP 后端：{created.id}
+            服务已提交：{created.id}
           </div>
         )}
 
         <div className="mt-7 pt-6 border-t border-white/6 flex items-center justify-between gap-4 flex-wrap">
           <div className="text-xs text-white/45">
-            当前会直接标记为 published，方便比赛演示；正式版会先进入审核。
+            发布后平台会持续抽检内容、资质和交易风险；违规服务会被下架或要求补充材料。
           </div>
           <button
             type="submit"
@@ -605,12 +604,12 @@ export default function Sell() {
     general: {
       eyebrow: 'CREATE LISTING · 真实发布',
       title: '现在，把你的服务写进后端。',
-      desc: '先用 MVP 接口保存服务卡，后续接数据库后它会进入真实的服务市场。',
+      desc: '提交后会保存到 WhiteHive 服务系统，并展示在对应分类里接受买家咨询。',
     },
   }[scope] || {
     eyebrow: 'CREATE LISTING · 真实发布',
     title: '现在，把你的服务写进后端。',
-    desc: '先用 MVP 接口保存服务卡，后续接数据库后它会进入真实的服务市场。',
+    desc: '提交后会保存到 WhiteHive 服务系统，并展示在对应分类里接受买家咨询。',
   }
 
   return (

@@ -89,8 +89,8 @@ function ServiceRow({ service }) {
 }
 
 export default function Dashboard() {
-  const [orders, setOrders] = useState(() => readCachedOrders())
-  const [services, setServices] = useState(() => readCachedServices())
+  const [orders, setOrders] = useState([])
+  const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
   const [notice, setNotice] = useState('')
   const [currentUser, setCurrentUser] = useState(null)
@@ -105,22 +105,27 @@ export default function Dashboard() {
       try {
         const session = await getSession().catch(() => null)
         const user = session?.session?.mode === 'demo' ? null : session?.user || null
-        const [apiOrders, apiServices] = await Promise.all([
-          listOrders(user ? { userId: user.id } : {}),
-          listBackendServices(user ? { status: 'published', sellerId: user.id } : { status: 'published' }),
-        ])
+        const [apiOrders, apiServices] = user
+          ? await Promise.all([
+              listOrders({ userId: user.id }),
+              listBackendServices({ status: 'published', sellerId: user.id }),
+            ])
+          : await Promise.all([
+              Promise.resolve([]),
+              listBackendServices({ status: 'published' }),
+            ])
         if (!mounted) return
         setCurrentUser(user)
-        setOrders(mergeById(readCachedOrders(), apiOrders))
-        setServices(mergeById(readCachedServices(), apiServices))
+        setOrders(user ? mergeById(apiOrders, readCachedOrders()) : [])
+        setServices(user ? mergeById(apiServices, readCachedServices()) : apiServices)
         if (user) {
           setNotice(`当前工作台已切换到 ${user.displayName || user.email} 的真实账号数据。`)
         }
       } catch {
         if (!mounted) return
-        setOrders(readCachedOrders())
-        setServices(readCachedServices())
-        setNotice('当前工作台使用本地演示缓存；接入数据库后会自动同步真实数据。')
+        setOrders([])
+        setServices([])
+        setNotice('暂时无法连接工作台数据，请稍后刷新。')
       } finally {
         if (mounted) setLoading(false)
       }
@@ -158,15 +163,15 @@ export default function Dashboard() {
             />
             <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8">
               <div>
-                <div className="mono-label">MVP DASHBOARD · 工作台</div>
+                <div className="mono-label">DASHBOARD · 工作台</div>
                 <h1 className="mt-3 text-3xl md:text-5xl font-semibold text-white tracking-tight leading-tight">
-                  买家订单和卖家服务,
+                  订单、服务和认证状态,
                   <br className="hidden md:block" />
                   先在这里汇总。
                 </h1>
                 <p className="mt-5 text-white/60 max-w-2xl leading-relaxed">
-                  这是 WhiteHive 后端 MVP 的管理入口。现在先聚合演示数据和本地缓存,
-                  登录后会优先显示当前账号的订单和服务；未登录时仍保留演示数据。
+                  登录后查看你的买家订单、卖家服务和平台审核状态。未登录时只展示公开服务,
+                  订单与聊天数据不会对外暴露。
                 </p>
               </div>
               <div className="flex gap-3 flex-wrap">
@@ -175,14 +180,6 @@ export default function Dashboard() {
                 </Link>
                 <Link to="/sell" className="btn-ghost">
                   发布服务
-                </Link>
-                <Link
-                  to="/orders/demo"
-                  className="inline-flex items-center gap-1.5 px-4 h-10 sm:h-11 rounded-xl border border-[#7FD3FF]/40 bg-[#7FD3FF]/[0.08] hover:bg-[#7FD3FF]/[0.14] text-sm text-[#BEE6FF] transition-colors"
-                  title="预置示例订单，查看买卖家聊天与平台介入流程"
-                >
-                  <Icon name="mail" size={14} />
-                  聊天演示
                 </Link>
               </div>
             </div>
@@ -229,18 +226,20 @@ export default function Dashboard() {
                   <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4 text-sm text-white/45">
                     还没有订单。先从 AI 匹配页提交一个需求。
                   </div>
-                  <Link
-                    to="/orders/demo"
-                    className="flex items-center justify-between gap-3 rounded-xl border border-[#7FD3FF]/30 bg-[#7FD3FF]/[0.07] hover:bg-[#7FD3FF]/[0.11] transition-colors px-4 py-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-sm text-white font-medium">体验订单聊天 + 平台介入演示</div>
-                      <div className="mt-0.5 text-[11px] text-white/55">
-                        预置示例订单，可直接与"卖家"沟通、申请客服介入
+                  {!currentUser && (
+                    <Link
+                      to="/account"
+                      className="flex items-center justify-between gap-3 rounded-xl border border-[#7FD3FF]/30 bg-[#7FD3FF]/[0.07] hover:bg-[#7FD3FF]/[0.11] transition-colors px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm text-white font-medium">登录后查看你的订单协作区</div>
+                        <div className="mt-0.5 text-[11px] text-white/55">
+                          订单详情、聊天记录和付款状态只对交易双方开放
+                        </div>
                       </div>
-                    </div>
-                    <span className="shrink-0 text-[#BEE6FF]">→</span>
-                  </Link>
+                      <span className="shrink-0 text-[#BEE6FF]">→</span>
+                    </Link>
+                  )}
                 </div>
               ) : (
                 orders.map((order) => <OrderRow key={order.id} order={order} />)

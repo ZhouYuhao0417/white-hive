@@ -514,7 +514,7 @@ function FreeNotes({ notes, setNotes, onSubmit, submitting, error }) {
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-xs text-white/45">
             <span className="h-1.5 w-1.5 rounded-full bg-[#5EEAD4]" />
-            所有字段已就绪 · 提交后会创建一张真实 MVP 订单
+            所有字段已就绪 · 提交后会创建一张订单
           </div>
           {error && (
             <div className="rounded-xl border border-red-400/25 bg-red-400/10 px-3 py-2 text-xs text-red-100">
@@ -648,8 +648,8 @@ function SubmittedOverlay({ onClose, form, answers, notes, order }) {
           需求已提交, AI 正在匹配。
         </h3>
         <p className="mt-3 text-white/65 leading-relaxed max-w-2xl">
-          WhiteHive 已经为这份需求创建了一张 MVP 订单。你现在可以进入订单详情页,
-          继续补充留言、查看状态, 并模拟后续验收流程。
+          WhiteHive 已经为这份需求创建了一张订单。你现在可以进入订单详情页,
+          继续补充留言、查看状态，并和服务方确认交付范围。
         </p>
 
         <div className="mt-6 grid md:grid-cols-2 gap-3">

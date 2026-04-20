@@ -73,7 +73,7 @@ export function AuthProvider({ children }) {
           avatarUpload: uploaded?.upload || null,
         }
       } catch {
-        // Blob may not be configured yet; keep the compressed data URL profile for the MVP.
+        // Blob may not be configured yet; keep the compressed data URL profile for this session.
       }
     }
 

@@ -7,7 +7,7 @@ import { Icon } from '../components/Icons.jsx'
 import OrderChat from '../components/OrderChat.jsx'
 import DisputeModal from '../components/DisputeModal.jsx'
 import { createMessage, createPayment, getSession, listMessages, listOrders, updateOrder } from '../lib/api.js'
-import { cacheOrder, readCachedOrder } from '../lib/orderCache.js'
+import { cacheOrder } from '../lib/orderCache.js'
 
 const statusSteps = [
   { key: 'submitted', label: '已提交', desc: '买家需求已进入系统' },
@@ -59,77 +59,6 @@ const nextStatus = {
   delivered: { value: 'completed', label: '确认验收' },
 }
 
-/* ---- demo 订单 / demo 消息：用于让访客直接看到聊天 + 争议流程 ---- */
-const DEMO_ID = 'demo'
-
-function demoOrderData() {
-  const nowIso = new Date().toISOString()
-  return {
-    id: DEMO_ID,
-    title: '示例订单 · 品牌主视觉 + 3 张子图',
-    status: 'in_progress',
-    paymentStatus: 'mock_paid',
-    budgetCents: 120000,
-    currency: 'CNY',
-    brief:
-      '需要一套品牌主视觉：\n- 1 张主海报（1920×1080）\n- 3 张子图（方图）\n- 风格：冷蓝 × 蜂巢几何\n- 交付：源文件 + 导出 PNG/JPG',
-    buyer: { id: 'usr_demo_buyer', displayName: '周同学', role: 'buyer' },
-    seller: { id: 'usr_demo_seller', displayName: '蜂巢设计工作室', role: 'seller' },
-    buyerId: 'usr_demo_buyer',
-    sellerId: 'usr_demo_seller',
-    service: { title: '品牌主视觉 · 蜂巢设计工作室' },
-    createdAt: nowIso,
-    updatedAt: nowIso,
-  }
-}
-
-function demoMessages() {
-  const now = Date.now()
-  const t = (minAgo) => new Date(now - minAgo * 60 * 1000).toISOString()
-  return [
-    {
-      id: 'demo_m1',
-      orderId: DEMO_ID,
-      senderId: 'usr_demo_buyer',
-      sender: { id: 'usr_demo_buyer', displayName: '周同学', role: 'buyer' },
-      body: '你好！看过你的作品集，想请你做一套品牌主视觉。预算 1200，周内出稿可以吗？',
-      createdAt: t(120),
-    },
-    {
-      id: 'demo_m2',
-      orderId: DEMO_ID,
-      senderId: 'usr_demo_seller',
-      sender: { id: 'usr_demo_seller', displayName: '蜂巢设计工作室', role: 'seller' },
-      body: '可以，先确认一下风格方向：冷蓝 × 蜂巢几何对吗？我这边两天内出 2 版初稿。',
-      createdAt: t(115),
-    },
-    {
-      id: 'demo_m3',
-      orderId: DEMO_ID,
-      senderId: 'usr_demo_buyer',
-      sender: { id: 'usr_demo_buyer', displayName: '周同学', role: 'buyer' },
-      body: '对的。主图 1920×1080，子图 3 张方图。交付要源文件 + 导出图。',
-      createdAt: t(110),
-    },
-    {
-      id: 'demo_m4',
-      orderId: DEMO_ID,
-      senderId: 'usr_system',
-      sender: { role: 'admin', displayName: '平台客服' },
-      body: '买家已通过平台托管付款 ¥1,200.00。资金将在买家确认验收后释放给卖家。',
-      createdAt: t(108),
-    },
-    {
-      id: 'demo_m5',
-      orderId: DEMO_ID,
-      senderId: 'usr_demo_seller',
-      sender: { id: 'usr_demo_seller', displayName: '蜂巢设计工作室', role: 'seller' },
-      body: '初稿已上传（见交付区），两个方向都做了，你看看更喜欢哪一版～',
-      createdAt: t(40),
-    },
-  ]
-}
-
 function formatMoney(cents, currency = 'CNY') {
   const amount = Number(cents || 0) / 100
   return new Intl.NumberFormat('zh-CN', {
@@ -178,7 +107,7 @@ function StatusTimeline({ status }) {
 
 export default function OrderDetail() {
   const { id } = useParams()
-  const [order, setOrder] = useState(() => readCachedOrder(id))
+  const [order, setOrder] = useState(null)
   const [messages, setMessages] = useState([])
   const [currentSession, setCurrentSession] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -216,23 +145,8 @@ export default function OrderDetail() {
     async function load() {
       setLoading(true)
       setError('')
-
-      // /orders/demo —— 前端演示模式：固定数据，不打后端
-      if (id === DEMO_ID) {
-        const demo = demoOrderData()
-        cacheOrder(demo)
-        if (mounted) {
-          setOrder(demo)
-          setMessages(demoMessages())
-          setCurrentSession({
-            user: { id: 'usr_demo_buyer', displayName: '周同学', role: 'buyer' },
-            session: { mode: 'demo' },
-          })
-          setNotice('这是演示订单，用于预览聊天与平台介入流程。')
-          setLoading(false)
-        }
-        return
-      }
+      setOrder(null)
+      setMessages([])
 
       try {
         const session = await getSession().catch(() => null)
@@ -244,13 +158,7 @@ export default function OrderDetail() {
         cacheOrder(data)
       } catch (err) {
         if (!mounted) return
-        const cached = readCachedOrder(id)
-        if (cached) {
-          setOrder(cached)
-          setNotice('当前订单来自本地缓存；接入数据库后会自动持久化。')
-        } else {
-          setError(err.message || '订单加载失败。')
-        }
+        setError(err.message || '订单加载失败。')
       }
 
       try {
@@ -274,7 +182,7 @@ export default function OrderDetail() {
       const data = await listMessages(id)
       setMessages(data)
     } catch {
-      // 留言刷新失败不阻断主流程；用户仍可继续演示订单状态。
+      // 留言刷新失败不阻断主流程；状态更新仍以订单接口结果为准。
     }
   }
 
@@ -288,15 +196,8 @@ export default function OrderDetail() {
       setOrder(updated)
       cacheOrder(updated)
       await refreshMessages()
-    } catch {
-      const updated = {
-        ...order,
-        ...changes,
-        updatedAt: new Date().toISOString(),
-      }
-      setOrder(updated)
-      cacheOrder(updated)
-      setNotice(fallbackNotice || '已在本地演示状态中更新；接入数据库后会持久保存。')
+    } catch (err) {
+      setError(err.message || fallbackNotice || '订单状态更新失败，请刷新后重试。')
     }
   }
 
@@ -336,19 +237,7 @@ export default function OrderDetail() {
         setNotice(`已创建托管付款记录：${payment.id}`)
       }
     } catch (err) {
-      if (id !== DEMO_ID) {
-        setError(err.message || '托管付款暂时不可用。')
-        return
-      }
-
-      const updated = {
-        ...order,
-        paymentStatus: 'mock_paid',
-        updatedAt: new Date().toISOString(),
-      }
-      setOrder(updated)
-      cacheOrder(updated)
-      setNotice('已在本地演示状态中模拟付款；接入数据库后会持久保存。')
+      setError(err.message || '托管付款暂时不可用。')
     }
   }
 
@@ -357,38 +246,11 @@ export default function OrderDetail() {
     if (!value) return
     setNotice('')
 
-    // demo 模式：直接写到本地 state，不打后端
-    if (id === DEMO_ID) {
-      setMessages((current) => [
-        ...current,
-        {
-          id: `local_${Date.now()}`,
-          orderId: id,
-          senderId: currentSession?.user?.id || 'usr_demo_buyer',
-          sender: currentSession?.user || { id: 'usr_demo_buyer', displayName: '周同学', role: 'buyer' },
-          body: value,
-          createdAt: new Date().toISOString(),
-        },
-      ])
-      return
-    }
-
     try {
       const created = await createMessage({ orderId: id, body: value })
       setMessages((current) => [...current, created])
-    } catch {
-      setMessages((current) => [
-        ...current,
-        {
-          id: `local_${Date.now()}`,
-          orderId: id,
-          senderId: currentSession?.user?.id || order?.buyerId || 'usr_demo_buyer',
-          sender: currentSession?.user || order?.buyer || null,
-          body: value,
-          createdAt: new Date().toISOString(),
-        },
-      ])
-      setNotice('消息已临时保存在当前演示会话；接入数据库后会持久保存。')
+    } catch (err) {
+      setError(err.message || '消息发送失败，请确认你已登录且属于这张订单。')
     }
   }
 
@@ -442,7 +304,7 @@ export default function OrderDetail() {
         <div className="card p-8">
           <div className="mono-label">ORDER NOT FOUND</div>
           <h1 className="mt-3 text-2xl font-semibold text-white">没有找到这张订单</h1>
-          <p className="mt-2 text-white/55">{error || '这张订单可能还没有被创建，或演示数据已被重置。'}</p>
+          <p className="mt-2 text-white/55">{error || '这张订单可能还没有被创建，或你没有访问权限。'}</p>
           <Link to="/ai-match" className="btn-primary mt-6">
             去提交需求 <Icon name="arrow" size={16} />
           </Link>
@@ -493,7 +355,7 @@ export default function OrderDetail() {
                   {action && (
                     <button
                       type="button"
-                      onClick={() => patchOrder({ status: action.value }, `已模拟状态更新为：${statusText[action.value]}`)}
+                      onClick={() => patchOrder({ status: action.value }, '订单状态更新失败，请刷新后重试。')}
                       className="btn-primary"
                     >
                       {action.label} <Icon name="arrow" size={16} />
@@ -624,7 +486,7 @@ export default function OrderDetail() {
           <div>
             <div className="mono-label">NEXT</div>
             <p className="mt-2 text-white/65">
-              这一页是后端 MVP 的第一个真实闭环。下一步会把服务发布页也接入 `/api/services`。
+              订单协作会记录需求、聊天、付款和验收状态。若交易出现争议，可以申请平台客服介入。
             </p>
           </div>
           <Link to="/sell" className="btn-ghost">
