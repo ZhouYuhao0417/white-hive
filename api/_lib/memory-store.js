@@ -46,7 +46,7 @@ import { sellerLevelFor } from './profile-shape.js'
 // Fallback adapter for local demos and deployments without DATABASE_URL.
 
 const orderStatuses = ['submitted', 'accepted', 'in_progress', 'delivered', 'completed', 'cancelled']
-const serviceStatuses = ['draft', 'published', 'paused', 'archived']
+const serviceStatuses = ['draft', 'pending_review', 'published', 'rejected', 'paused', 'archived']
 const paymentStatuses = [
   'mock_pending',
   'mock_paid',
@@ -151,6 +151,7 @@ export function storeInfo() {
       'payment_policy',
       'wechatpay_checkout',
       'verification_requests',
+      'service_review',
     ],
   }
 }
@@ -897,7 +898,7 @@ export function updateUserProfile(token, input = {}) {
 export function listServices({ category, status = 'published', sellerId } = {}) {
   const services = getState().services
     .filter((service) => (category ? service.category === category : true))
-    .filter((service) => (status ? service.status === status : true))
+    .filter((service) => (status && status !== 'all' ? service.status === status : true))
     .filter((service) => (sellerId ? service.sellerId === sellerId : true))
     .map((service) => withSeller(service))
 
@@ -938,6 +939,7 @@ export function createService(input) {
     throw new HttpError(403, 'campus_verification_required', '发布成都理工校园服务前，请先完成卖家校园认证。')
   }
 
+  const requestedStatus = serviceStatuses.includes(input.status) ? input.status : 'pending_review'
   const service = {
     id: createId('svc'),
     sellerId,
@@ -947,13 +949,37 @@ export function createService(input) {
     priceCents,
     currency: input.currency || 'CNY',
     deliveryDays,
-    status: serviceStatuses.includes(input.status) ? input.status : 'draft',
+    status: seller.role === 'admin' ? requestedStatus : 'pending_review',
     tags: Array.isArray(input.tags) ? input.tags.map(String).slice(0, 8) : [],
+    reviewNote: '',
+    reviewedBy: '',
+    reviewedAt: null,
     createdAt: nowIso(),
     updatedAt: nowIso(),
   }
 
   state.services.unshift(service)
+  return clone(withSeller(service))
+}
+
+export function reviewService(id, input = {}) {
+  const state = getState()
+  const service = state.services.find((item) => item.id === id)
+  if (!service) throw new HttpError(404, 'service_not_found', '没有找到这个服务。')
+
+  const status = String(input.status || '').trim()
+  if (!['published', 'rejected', 'paused', 'archived'].includes(status)) {
+    throw new HttpError(400, 'invalid_service_review_status', '服务审核状态不合法。', {
+      allowed: ['published', 'rejected', 'paused', 'archived'],
+    })
+  }
+
+  service.status = status
+  service.reviewNote = limitText(input.reviewNote || input.reviewerNote || '', 500)
+  service.reviewedBy = limitText(input.reviewerId || '', 80)
+  service.reviewedAt = nowIso()
+  service.updatedAt = service.reviewedAt
+
   return clone(withSeller(service))
 }
 
@@ -983,6 +1009,10 @@ export function createOrder(input) {
 
   if (!service) {
     throw new HttpError(400, 'invalid_service', '暂时没有可下单服务。')
+  }
+
+  if (service.status !== 'published') {
+    throw new HttpError(409, 'service_not_available', '该服务尚未通过平台审核，暂时不能下单。')
   }
 
   if (!input.brief) {

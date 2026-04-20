@@ -49,7 +49,7 @@ const databaseUrlSource = process.env.DATABASE_URL
       ? 'STORAGES_URL'
       : ''
 const orderStatuses = ['submitted', 'accepted', 'in_progress', 'delivered', 'completed', 'cancelled']
-const serviceStatuses = ['draft', 'published', 'paused', 'archived']
+const serviceStatuses = ['draft', 'pending_review', 'published', 'rejected', 'paused', 'archived']
 const orderPaymentStatuses = [
   'mock_pending',
   'mock_paid',
@@ -176,11 +176,22 @@ async function migrateAndSeed() {
       currency text not null default 'CNY',
       delivery_days integer not null default 7,
       status text not null default 'draft'
-        check (status in ('draft', 'published', 'paused', 'archived')),
+        check (status in ('draft', 'pending_review', 'published', 'rejected', 'paused', 'archived')),
       tags text[] not null default '{}',
+      review_note text not null default '',
+      reviewed_by text not null default '',
+      reviewed_at timestamptz,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
     )
+  `
+  await db`alter table services add column if not exists review_note text not null default ''`
+  await db`alter table services add column if not exists reviewed_by text not null default ''`
+  await db`alter table services add column if not exists reviewed_at timestamptz`
+  await db`alter table services drop constraint if exists services_status_check`
+  await db`
+    alter table services add constraint services_status_check
+    check (status in ('draft', 'pending_review', 'published', 'rejected', 'paused', 'archived'))
   `
 
   await db`
@@ -466,6 +477,7 @@ export async function storeInfo() {
       'payment_policy',
       'wechatpay_checkout',
       'verification_requests',
+      'service_review',
     ],
   }
 }
@@ -1266,7 +1278,7 @@ export async function listServices({ category, status = 'published', sellerId } 
   const filtered = rows
     .map(serviceFromRow)
     .filter((service) => (category ? service.category === category : true))
-    .filter((service) => (status ? service.status === status : true))
+    .filter((service) => (status && status !== 'all' ? service.status === status : true))
     .filter((service) => (sellerId ? service.sellerId === sellerId : true))
 
   return Promise.all(filtered.map(withSeller))
@@ -1305,7 +1317,8 @@ export async function createService(input) {
   }
 
   const createdAt = nowIso()
-  const status = serviceStatuses.includes(input.status) ? input.status : 'draft'
+  const requestedStatus = serviceStatuses.includes(input.status) ? input.status : 'pending_review'
+  const status = seller.role === 'admin' ? requestedStatus : 'pending_review'
   const tags = Array.isArray(input.tags) ? input.tags.map(String).slice(0, 8) : []
   const rows = await query`
     insert into services (
@@ -1319,6 +1332,29 @@ export async function createService(input) {
     returning *
   `
 
+  return withSeller(serviceFromRow(rows[0]))
+}
+
+export async function reviewService(id, input = {}) {
+  const status = String(input.status || '').trim()
+  if (!['published', 'rejected', 'paused', 'archived'].includes(status)) {
+    throw new HttpError(400, 'invalid_service_review_status', '服务审核状态不合法。', {
+      allowed: ['published', 'rejected', 'paused', 'archived'],
+    })
+  }
+
+  const reviewedAt = nowIso()
+  const rows = await query`
+    update services
+    set status = ${status},
+        review_note = ${limitText(input.reviewNote || input.reviewerNote || '', 500)},
+        reviewed_by = ${limitText(input.reviewerId || '', 80)},
+        reviewed_at = ${reviewedAt},
+        updated_at = ${reviewedAt}
+    where id = ${id}
+    returning *
+  `
+  if (!rows[0]) throw new HttpError(404, 'service_not_found', '没有找到这个服务。')
   return withSeller(serviceFromRow(rows[0]))
 }
 
@@ -1345,6 +1381,10 @@ export async function createOrder(input) {
 
   if (!service) {
     throw new HttpError(400, 'invalid_service', '暂时没有可下单服务。')
+  }
+
+  if (service.status !== 'published') {
+    throw new HttpError(409, 'service_not_available', '该服务尚未通过平台审核，暂时不能下单。')
   }
 
   if (!input.brief) {
@@ -2202,6 +2242,9 @@ function serviceFromRow(row) {
     deliveryDays: Number(row.delivery_days),
     status: row.status,
     tags: Array.isArray(row.tags) ? row.tags : [],
+    reviewNote: row.review_note || '',
+    reviewedBy: row.reviewed_by || '',
+    reviewedAt: toIso(row.reviewed_at),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   }

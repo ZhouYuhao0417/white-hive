@@ -22,6 +22,7 @@ import {
   listMessages,
   createPayment,
   listVerificationRequests,
+  reviewService,
   reviewVerification,
   submitVerification,
 } from '../api/_lib/store.js'
@@ -274,9 +275,12 @@ describe('store · auth → service → order → message → payment flow', () 
       status: 'published',
     })
     expect(service.category).toBe('cdut/parcel')
+    expect(service.status).toBe('pending_review')
+    const approvedService = await reviewService(service.id, { status: 'published', reviewNote: '校园服务审核通过。' })
+    expect(approvedService.status).toBe('published')
 
     const order = await createOrder({
-      serviceId: service.id,
+      serviceId: approvedService.id,
       buyerId: buyer.user.id,
       brief: '我在成都理工，想请同学代取一个快递。',
       budgetCents: 500,
@@ -293,7 +297,7 @@ describe('store · auth → service → order → message → payment flow', () 
     ).rejects.toThrow(HttpError)
   })
 
-  test('seller can create a published service and it shows up in listServices', async () => {
+  test('seller submitted service requires review before it is public', async () => {
     const service = await createService({
       title: '测试服务 · 官网',
       category: 'web',
@@ -306,10 +310,19 @@ describe('store · auth → service → order → message → payment flow', () 
     })
 
     expect(service.id.startsWith('svc_')).toBe(true)
-    expect(service.status).toBe('published')
+    expect(service.status).toBe('pending_review')
 
-    const listed = await listServices({ status: 'published' })
-    const found = listed.find((s) => s.id === service.id)
+    const publicBeforeReview = await listServices({ status: 'published' })
+    expect(publicBeforeReview.find((s) => s.id === service.id)).toBeFalsy()
+
+    const pending = await listServices({ status: 'pending_review' })
+    expect(pending.find((s) => s.id === service.id)).toBeTruthy()
+
+    const approved = await reviewService(service.id, { status: 'published', reviewNote: '服务信息清晰。' })
+    expect(approved.status).toBe('published')
+
+    const publicAfterReview = await listServices({ status: 'published' })
+    const found = publicAfterReview.find((s) => s.id === service.id)
     expect(found).toBeTruthy()
     expect(found.title).toBe('测试服务 · 官网')
 

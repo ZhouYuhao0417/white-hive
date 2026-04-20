@@ -45,6 +45,7 @@ import {
   requestPhoneLogin,
   requestPasswordReset,
   requestPhoneVerification,
+  reviewService,
   reviewVerification,
   storeInfo,
   submitVerification,
@@ -332,9 +333,9 @@ async function requireAdminReviewer(request) {
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean)
 
-  if (user?.role === 'admin' || (user?.email && adminEmails.includes(user.email.toLowerCase()))) return
+  if (user?.role === 'admin' || (user?.email && adminEmails.includes(user.email.toLowerCase()))) return user
 
-  throw new HttpError(403, 'admin_required', '只有管理员可以审核实名认证申请。')
+  throw new HttpError(403, 'admin_required', '只有管理员可以执行审核操作。')
 }
 
 function authProviderStatus() {
@@ -693,13 +694,27 @@ export default {
       if (path === 'services') {
         if (request.method === 'GET') {
           const id = query.get('id')
-          if (id) return ok(await getService(id))
+          if (id) {
+            const user = await optionalSessionUser(request)
+            const service = await getService(id)
+            if (service.status !== 'published' && service.sellerId !== user?.id && user?.role !== 'admin') {
+              throw new HttpError(404, 'service_not_found', '没有找到这个服务。')
+            }
+            return ok(service)
+          }
 
+          const user = await optionalSessionUser(request)
+          const requestedStatus = query.get('status') || 'published'
+          const requestedSellerId = query.get('sellerId') || undefined
+          const ownsSellerFilter = Boolean(user?.id && requestedSellerId === user.id)
+          if (requestedStatus !== 'published' && !ownsSellerFilter) {
+            await requireAdminReviewer(request)
+          }
           return ok(
             await listServices({
               category: query.get('category') || undefined,
-              status: query.get('status') || 'published',
-              sellerId: query.get('sellerId') || undefined,
+              status: requestedStatus,
+              sellerId: requestedSellerId,
             }),
           )
         }
@@ -715,11 +730,23 @@ export default {
             await createService({
               ...body,
               sellerId: user.id,
+              status: user.role === 'admin' ? body.status : 'pending_review',
             }),
           )
         }
 
-        return methodNotAllowed(request.method, ['GET', 'POST'])
+        if (request.method === 'PATCH') {
+          const user = await requireAdminReviewer(request)
+          const body = await readBody(request)
+          return ok(
+            await reviewService(query.get('id'), {
+              ...body,
+              reviewerId: user.id,
+            }),
+          )
+        }
+
+        return methodNotAllowed(request.method, ['GET', 'POST', 'PATCH'])
       }
 
       if (path === 'orders') {

@@ -190,6 +190,13 @@ export function createBackendService(service) {
   })
 }
 
+export function reviewService(id, changes) {
+  return request(`/services?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(changes),
+  })
+}
+
 export function listOrders(params = {}) {
   const search = new URLSearchParams(params)
   return request(`/orders${search.size ? `?${search.toString()}` : ''}`)

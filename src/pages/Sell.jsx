@@ -335,7 +335,6 @@ function ListingForm({ scope = 'general' }) {
         summary: form.summary,
         priceCents: parsePriceCents(form.price),
         deliveryDays: Number(form.deliveryDays || 7),
-        status: 'published',
         tags: splitTags(form.tags),
       })
 
@@ -452,13 +451,13 @@ function ListingForm({ scope = 'general' }) {
 
         {created && (
           <div className="mt-5 rounded-xl border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-4 py-3 text-sm text-[#CFFDF5] break-all">
-            服务已提交：{created.id}
+            服务已提交审核：{created.id}
           </div>
         )}
 
         <div className="mt-7 pt-6 border-t border-white/6 flex items-center justify-between gap-4 flex-wrap">
           <div className="text-xs text-white/45">
-            发布后平台会持续抽检内容、资质和交易风险；违规服务会被下架或要求补充材料。
+            提交后进入人工审核，通过后才会公开展示；违规服务会被拒绝或要求补充材料。
           </div>
           <button
             type="submit"

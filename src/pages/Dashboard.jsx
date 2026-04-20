@@ -16,6 +16,15 @@ const orderStatus = {
   cancelled: '已取消',
 }
 
+const serviceStatus = {
+  draft: '草稿',
+  pending_review: '待审核',
+  published: '已上架',
+  rejected: '未通过',
+  paused: '已暂停',
+  archived: '已归档',
+}
+
 function formatMoney(cents, currency = 'CNY') {
   return new Intl.NumberFormat('zh-CN', {
     style: 'currency',
@@ -77,7 +86,7 @@ function ServiceRow({ service }) {
           <p className="mt-1 text-xs text-white/45 line-clamp-2">{service.summary}</p>
         </div>
         <span className="shrink-0 rounded-lg border border-[#5EEAD4]/25 bg-[#5EEAD4]/10 px-2.5 py-1 text-xs text-[#CFFDF5]">
-          {service.status || 'draft'}
+          {serviceStatus[service.status] || service.status || '草稿'}
         </span>
       </div>
       <div className="mt-4 flex items-center justify-between text-xs text-white/50">
@@ -108,7 +117,7 @@ export default function Dashboard() {
         const [apiOrders, apiServices] = user
           ? await Promise.all([
               listOrders({ userId: user.id }),
-              listBackendServices({ status: 'published', sellerId: user.id }),
+              listBackendServices({ status: 'all', sellerId: user.id }),
             ])
           : await Promise.all([
               Promise.resolve([]),
