@@ -197,10 +197,32 @@ export default function AuthDrawer({ open, onClose }) {
       const name = result?.user?.displayName || result?.user?.email || '用户'
 
       if (isSignup) {
+        let emailVerification = null
+        let emailMessage = ''
+        try {
+          const emailResult = await requestEmailVerification()
+          emailVerification = emailResult?.emailVerification || null
+          if (emailVerification?.status === 'pending') {
+            setEmailChallenge(emailVerification)
+            setVerificationCode('')
+          }
+          emailMessage = emailVerification?.delivery?.message || ''
+        } catch (emailErr) {
+          emailMessage = emailErr.message || '邮箱验证码暂时发送失败，请稍后在账号页重试。'
+        }
+
         const challenge = await requestPhoneVerification(signupPhone)
         const phoneVerification = challenge?.phoneVerification || null
+        const pendingEmail = emailVerification?.status === 'pending'
+        const phoneMessage = phoneVerification?.delivery?.message || ''
+
         if (phoneVerification?.status === 'verified') {
-          setNotice(`账户已创建，手机号已验证：${name}。`)
+          if (pendingEmail) {
+            setNotice(`账户已创建，手机号已验证：${name}。${emailMessage || '请继续完成邮箱验证。'}`)
+            return
+          }
+
+          setNotice(`账户已创建，手机号已验证：${name}。${emailMessage}`)
           setTimeout(() => {
             onClose()
             setForm(initialForm)
@@ -216,13 +238,18 @@ export default function AuthDrawer({ open, onClose }) {
           setPhoneChallenge(phoneVerification)
           setPhoneVerificationCode('')
           setNotice(
-            `账户已创建：${name}。${phoneVerification?.delivery?.message || '请完成手机号验证。'}`,
+            `账户已创建：${name}。${phoneMessage || '请完成手机号验证。'}${emailMessage ? ` ${emailMessage}` : ''}`,
           )
           return
         }
 
+        if (pendingEmail) {
+          setNotice(`账户已创建：${name}。${emailMessage || '请继续完成邮箱验证。'}`)
+          return
+        }
+
         setNotice(
-          `账户已创建：${name}。${phoneVerification?.delivery?.message || '手机号已登记，短信认证稍后开放。'}`,
+          `账户已创建：${name}。${phoneMessage || '手机号已登记，短信认证稍后开放。'}${emailMessage ? ` ${emailMessage}` : ''}`,
         )
         setTimeout(() => {
           onClose()
@@ -283,6 +310,11 @@ export default function AuthDrawer({ open, onClose }) {
       await confirmPhoneVerification(phone, phoneVerificationCode)
       setPhoneChallenge(null)
       setPhoneVerificationCode('')
+      if (hasEmailChallenge) {
+        setNotice('手机号验证成功。请继续完成邮箱验证，方便后续找回账号和接收订单通知。')
+        return
+      }
+
       setNotice('手机号验证成功，注册认证已完成。')
       setTimeout(() => {
         onClose()
@@ -499,6 +531,11 @@ export default function AuthDrawer({ open, onClose }) {
       await confirmEmailVerification(verificationCode)
       setEmailChallenge(null)
       setVerificationCode('')
+      if (hasPhoneChallenge) {
+        setNotice('邮箱验证成功。请继续完成手机号验证，保证交易通知可以送达。')
+        return
+      }
+
       setNotice('邮箱验证成功，账户可信状态已更新。')
       setTimeout(() => {
         onClose()

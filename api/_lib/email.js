@@ -31,7 +31,7 @@ export function emailStatus() {
 export async function sendEmailVerification({ to, code }) {
   const resendApiKey = process.env.RESEND_API_KEY
   const from = process.env.EMAIL_FROM || defaultFrom
-  const verificationUrl = `${siteUrl()}/?emailVerificationCode=${encodeURIComponent(code)}`
+  const verificationUrl = `${siteUrl()}/account?emailVerificationCode=${encodeURIComponent(code)}`
   const allowMockEmail = process.env.WHITEHIVE_EMAIL_MOCK === '1'
 
   if (!resendApiKey) {

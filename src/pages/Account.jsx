@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Section, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
 import SellerLevelBadge from '../components/SellerLevelBadge.jsx'
@@ -50,6 +50,8 @@ const initialVerificationForm = {
 export default function Account() {
   const { user, isAuthenticated, isLoading, refreshUser, deleteAccount } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const handledEmailLinkCodeRef = useRef('')
   const [emailCode, setEmailCode] = useState('')
   const [emailChallenge, setEmailChallenge] = useState(null)
   const [emailBusy, setEmailBusy] = useState(false)
@@ -87,6 +89,45 @@ export default function Account() {
       cancelled = true
     }
   }, [isAuthenticated, user?.email])
+
+  useEffect(() => {
+    if (!isAuthenticated || user?.emailVerified) return
+
+    const code = (searchParams.get('emailVerificationCode') || '').replace(/[^\d]/g, '').slice(0, 6)
+    if (code.length !== 6) return
+    if (handledEmailLinkCodeRef.current === code) return
+    handledEmailLinkCodeRef.current = code
+
+    let cancelled = false
+    setVerifyBusy(true)
+    setNotice('检测到邮件验证链接，正在确认邮箱。')
+    setError('')
+    confirmEmailVerification(code)
+      .then(async () => {
+        if (cancelled) return
+        await refreshUser()
+        if (cancelled) return
+        setEmailChallenge(null)
+        setEmailCode('')
+        setNotice('邮箱验证完成。')
+        const next = new URLSearchParams(searchParams)
+        next.delete('emailVerificationCode')
+        setSearchParams(next, { replace: true })
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setEmailCode(code)
+          setError(err.message || '邮件链接里的验证码无效或已过期，请重新发送。')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setVerifyBusy(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isAuthenticated, refreshUser, searchParams, setSearchParams, user?.emailVerified])
 
   const updateVerificationForm = (field, value) => {
     setVerificationForm((current) => ({ ...current, [field]: value }))
