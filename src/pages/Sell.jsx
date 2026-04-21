@@ -10,6 +10,7 @@ import { localCategories } from '../data/localServices.js'
 import { createBackendService } from '../lib/api.js'
 import { cacheService, readCachedServices } from '../lib/serviceCache.js'
 import { useBackendListings } from '../lib/useBackendListings.js'
+import { useAuth } from '../lib/auth.jsx'
 
 /* 根据 scope 给出分类下拉选项。'cdut' -> cdut/*、'local' -> local/*、默认使用站内通用服务 */
 function getCategoryOptionsForScope(scope) {
@@ -288,7 +289,7 @@ function splitTags(value) {
     .slice(0, 8)
 }
 
-function ListingForm({ scope = 'general' }) {
+function ListingForm({ scope = 'general', user, isAuthenticated }) {
   const categoryOptions = useMemo(() => getCategoryOptionsForScope(scope), [scope])
   const [form, setForm] = useState({
     category: categoryOptions[0]?.value || 'web',
@@ -326,6 +327,14 @@ function ListingForm({ scope = 'general' }) {
   const submit = async (event) => {
     event.preventDefault()
     setError('')
+    if (!isAuthenticated) {
+      setError('请先登录，再发布服务。')
+      return
+    }
+    if (user?.role !== 'seller' && user?.role !== 'admin') {
+      setError('当前账号是买家账号。请先到账号页切换为创作者，再回来发布服务。')
+      return
+    }
     setSubmitting(true)
 
     try {
@@ -366,6 +375,19 @@ function ListingForm({ scope = 'general' }) {
         <p className="mt-3 text-sm text-white/55 leading-relaxed max-w-2xl">
           提交后会写入 WhiteHive 服务系统。通用服务会进入平台巡检与交易风控；CDUT 专区的卖家需要先完成校园认证。
         </p>
+
+        {!isAuthenticated ? (
+          <div className="mt-5 rounded-xl border border-[#7FD3FF]/25 bg-[#7FD3FF]/10 px-4 py-3 text-sm text-[#BEE6FF]">
+            请先登录账号，再发布服务。
+          </div>
+        ) : user?.role !== 'seller' && user?.role !== 'admin' ? (
+          <div className="mt-5 rounded-xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
+            当前账号是买家账号。实名认证只证明身份真实；发布服务还需要切换为创作者账号。
+            <Link to="/account" className="ml-2 font-medium text-white underline underline-offset-4">
+              去账号页切换
+            </Link>
+          </div>
+        ) : null}
 
         <div className="mt-7 grid md:grid-cols-2 gap-5">
           <label className="block md:col-span-2">
@@ -588,6 +610,7 @@ function AIMatchFallback() {
 
 export default function Sell() {
   const [searchParams] = useSearchParams()
+  const { user, isAuthenticated } = useAuth()
   const scope = searchParams.get('scope') || 'general'
   const scopeCopy = {
     cdut: {
@@ -648,7 +671,7 @@ export default function Sell() {
           desc={scopeCopy.desc}
         />
         <div className="mt-10">
-          <ListingForm scope={scope} />
+          <ListingForm scope={scope} user={user} isAuthenticated={isAuthenticated} />
         </div>
       </Section>
 

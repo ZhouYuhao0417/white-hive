@@ -726,7 +726,7 @@ export default {
           const body = await readBody(request)
           const user = await requireSessionUser(request)
           if (!['seller', 'admin'].includes(user.role)) {
-            throw new HttpError(403, 'seller_required', '只有创作者账号可以发布服务。')
+            throw new HttpError(403, 'seller_required', '当前账号是买家账号，请先在账号页切换为创作者后再发布服务。')
           }
           await enforceVerificationSubmitRateLimit(request, user?.id || body.userId)
           return ok(

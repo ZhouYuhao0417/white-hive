@@ -11,6 +11,7 @@ import {
   requestEmailVerification,
   requestPhoneVerification,
   submitCurrentVerification,
+  updateProfile,
 } from '../lib/api.js'
 import { useAuth } from '../lib/auth.jsx'
 
@@ -58,6 +59,7 @@ export default function Account() {
   const [phoneChallenge, setPhoneChallenge] = useState(null)
   const [phoneBusy, setPhoneBusy] = useState(false)
   const [phoneVerifyBusy, setPhoneVerifyBusy] = useState(false)
+  const [roleBusy, setRoleBusy] = useState(false)
   const [verificationProfile, setVerificationProfile] = useState(null)
   const [verificationForm, setVerificationForm] = useState(initialVerificationForm)
   const [submittingVerification, setSubmittingVerification] = useState(false)
@@ -207,6 +209,23 @@ export default function Account() {
     }
   }
 
+  const becomeSeller = async () => {
+    setRoleBusy(true)
+    setNotice('')
+    setError('')
+    try {
+      const result = await updateProfile({ role: 'seller' })
+      await refreshUser()
+      setNotice(result?.user?.verificationStatus === 'verified'
+        ? '已切换为创作者账号，现在可以发布服务了。'
+        : '已切换为创作者账号。发布服务后会进入人工审核。')
+    } catch (err) {
+      setError(err.message || '切换创作者账号失败，请稍后再试。')
+    } finally {
+      setRoleBusy(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <Section className="pt-32">
@@ -310,6 +329,23 @@ export default function Account() {
                   active={user.verificationStatus === 'verified'}
                 />
               </div>
+              {user.role !== 'seller' && user.role !== 'admin' && (
+                <div className="mt-5 rounded-xl border border-amber-300/25 bg-amber-300/10 p-4">
+                  <div className="text-sm font-medium text-amber-100">想发布服务，需要先切换为创作者账号。</div>
+                  <p className="mt-1 text-xs leading-relaxed text-white/55">
+                    实名认证负责证明身份真实；账号角色负责开放接单和服务发布权限。切换后不影响你作为买家下单。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={becomeSeller}
+                    disabled={roleBusy}
+                    className="btn-primary mt-4 w-full justify-center !py-2.5 disabled:opacity-60"
+                  >
+                    {roleBusy ? '切换中...' : '切换为创作者账号'}
+                    <Icon name="arrow" size={16} />
+                  </button>
+                </div>
+              )}
               {user.role === 'seller' && (() => {
                 const stats = {
                   ordersCompleted: user.stats?.ordersCompleted || 0,
