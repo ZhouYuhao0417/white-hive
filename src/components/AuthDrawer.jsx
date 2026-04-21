@@ -834,12 +834,12 @@ export default function AuthDrawer({ open, onClose }) {
                         <div className="mt-1 text-sm font-medium text-white">验证邮箱</div>
                       </div>
                       <span className="rounded-full border border-[#7FD3FF]/30 bg-[#7FD3FF]/10 px-2 py-1 text-[10px] text-[#BEE6FF]">
-                        {emailChallenge.delivery?.delivered ? '已发送' : emailChallenge.delivery?.mock ? '本地模式' : '待配置'}
+                        {emailChallenge.delivery?.delivered ? '邮件已发送' : emailChallenge.delivery?.mock ? '本地模式' : '待配置'}
                       </span>
                     </div>
                     <p className="text-xs leading-relaxed text-white/55">
                       {emailChallenge.delivery?.delivered
-                        ? `验证码已发送到 ${emailChallenge.email}。完成验证后，账号可信度会提升，后续实名认证和交易流程也会更顺。`
+                        ? `验证码已发送到 ${emailChallenge.email}，20 分钟内有效。如果没看到，请检查收件箱、更新分类或垃圾邮件。`
                         : `邮箱验证已准备好：${emailChallenge.email}。等真实邮件服务配置完成后，这里会收到 6 位验证码。`}
                     </p>
                     {emailChallenge.delivery?.message && (
@@ -859,7 +859,7 @@ export default function AuthDrawer({ open, onClose }) {
                       />
                       <button
                         type="button"
-                        disabled={isConfirmingVerification}
+                        disabled={isConfirmingVerification || verificationCode.length !== 6}
                         onClick={verifyEmailCode}
                         className="btn-primary !px-4"
                       >

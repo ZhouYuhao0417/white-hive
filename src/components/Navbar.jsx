@@ -71,9 +71,10 @@ function UserMenu({ user, onLogout }) {
 
   const displayName = user.displayName || user.email?.split('@')[0] || '用户'
   const roleBadge = user.role === 'seller' ? '创作者' : '买家'
+  const emailNeedsVerification = Boolean(user.email && !user.emailVerified)
   const contactVerified = Boolean(user.phoneVerified || user.emailVerified)
   const contactBadge = user.phoneVerified
-    ? '手机已验证'
+    ? emailNeedsVerification ? '邮箱待验证' : '手机已验证'
     : user.emailVerified
       ? '邮箱已验证'
       : '联系方式待验证'
@@ -127,6 +128,15 @@ function UserMenu({ user, onLogout }) {
                 {verificationBadge}
               </span>
             </div>
+            {emailNeedsVerification && (
+              <button
+                type="button"
+                onClick={() => { setOpen(false); navigate('/account') }}
+                className="mt-3 w-full rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-left text-xs leading-relaxed text-amber-100 transition-colors hover:border-amber-200/40 hover:bg-amber-300/15"
+              >
+                邮箱待验证。完成后可用于找回账号和接收订单通知。
+              </button>
+            )}
           </div>
 
           {/* 菜单项 */}
@@ -323,6 +333,15 @@ export default function Navbar() {
                       <div className="text-xs text-white/40 truncate">{user.email}</div>
                     </div>
                   </div>
+                  {user.email && !user.emailVerified && (
+                    <button
+                      type="button"
+                      onClick={() => { setMobileOpen(false); navigate('/account') }}
+                      className="mx-3 rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-left text-xs leading-relaxed text-amber-100"
+                    >
+                      邮箱待验证。完成后可用于找回账号和接收订单通知。
+                    </button>
+                  )}
                   <button
                     onClick={() => { setMobileOpen(false); handleLogout() }}
                     className="mt-1 px-3 py-2 rounded-lg text-sm text-red-300/80 hover:bg-red-400/10 text-left transition-colors"
