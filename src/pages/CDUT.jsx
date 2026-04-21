@@ -588,7 +588,7 @@ export default function CDUT() {
                 </div>
               </div>
               <div className="flex gap-3 shrink-0 flex-wrap">
-                <Link to="/sell?scope=cdut" className="btn-primary">
+                <Link to="/sell?scope=cdut#listing-form" className="btn-primary">
                   开设校园服务 <Icon name="arrow" size={16} />
                 </Link>
                 <Link to="/how-it-works" className="btn-ghost">

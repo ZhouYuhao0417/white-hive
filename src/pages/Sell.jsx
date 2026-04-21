@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Section, SectionHeader, Reveal } from '../components/Section.jsx'
 import { Icon } from '../components/Icons.jsx'
@@ -23,6 +23,34 @@ function getCategoryOptionsForScope(scope) {
   return services.map((s) => ({ value: s.slug, label: s.title }))
 }
 
+const validScopes = new Set(['general', 'cdut', 'local'])
+
+function normalizeScope(scope) {
+  return validScopes.has(scope) ? scope : 'general'
+}
+
+function categoryValueForScope(scope, rawCategory) {
+  const options = getCategoryOptionsForScope(scope)
+  const fallback = options[0]?.value || 'web'
+  if (!rawCategory) return fallback
+
+  let value = String(rawCategory)
+  if (scope === 'cdut' && !value.startsWith('cdut/')) {
+    value = `cdut/${value}`
+  }
+  if (scope === 'local' && !value.startsWith('local/')) {
+    value = `local/${value}`
+  }
+
+  return options.some((opt) => opt.value === value) ? value : fallback
+}
+
+function categoryLinkForScope(scope, value) {
+  const params = new URLSearchParams({ category: value })
+  if (scope !== 'general') params.set('scope', scope)
+  return `/sell?${params.toString()}#listing-form`
+}
+
 /* 取后端的真实服务, 按分类挑前几张, 作为"同行怎么上架的"示例 */
 function pickFeaturedFromBackend(backend) {
   const seenCat = new Set()
@@ -39,7 +67,67 @@ function pickFeaturedFromBackend(backend) {
 }
 
 /* ============ Hero ============ */
-function SellHero() {
+function SellHero({ scope = 'general' }) {
+  const copy = {
+    cdut: {
+      eyebrow: 'CDUT CAMPUS · 开设校园服务',
+      title: (
+        <>
+          把你的校园服务,
+          <br className="hidden md:block" />
+          上架到<span className="text-cool-gradient">成都理工专区</span>。
+        </>
+      ),
+      desc: '只面向成都理工在校服务者。买家登录即可下单，卖家先完成姓名 + 学号校园认证；CDUT 专区先不走平台资金托管，双方在站内沟通后自行协商结算。',
+      primary: '填写校园服务',
+      secondary: '查看校园分类',
+      secondaryHref: '#choose-category',
+      metrics: [
+        { label: '校园服务类型', value: '6', color: '#7FD3FF' },
+        { label: '卖家认证', value: '姓名+学号', color: '#A5B4FC' },
+        { label: '结算方式', value: '自行协商', color: '#5EEAD4' },
+      ],
+    },
+    local: {
+      eyebrow: 'LOCAL · 同城服务',
+      title: (
+        <>
+          把线下技能,
+          <br className="hidden md:block" />
+          发布成<span className="text-cool-gradient">同城服务卡</span>。
+        </>
+      ),
+      desc: '同城服务更看重身份、距离和履约留痕。先把服务范围、可服务区域和交付方式写清楚，再进入审核。',
+      primary: '填写同城服务',
+      secondary: '查看同城分类',
+      secondaryHref: '#choose-category',
+      metrics: [
+        { label: '服务半径', value: '同城', color: '#7FD3FF' },
+        { label: '履约方式', value: '线上+线下', color: '#A5B4FC' },
+        { label: '审核策略', value: '人工审核', color: '#5EEAD4' },
+      ],
+    },
+    general: {
+      eyebrow: 'FOR CREATORS · 开设服务',
+      title: (
+        <>
+          把你的技能, 上架成一张
+          <br className="hidden md:block" />
+          可以被搜索的<span className="text-cool-gradient">商品卡片</span>。
+        </>
+      ),
+      desc: 'WhiteHive 不是一个接单广场。你用同一套结构化字段把服务说清楚, 它就会出现在对应的分类里, 被结构化的买家找到。',
+      primary: '开始开设服务',
+      secondary: '先看同行怎么做',
+      secondaryHref: '#featured',
+      metrics: [
+        { label: '活跃创作者', value: '390+', color: '#7FD3FF' },
+        { label: '在售服务', value: '1,281', color: '#A5B4FC' },
+        { label: '近 30 天 GMV', value: '¥ 284K', color: '#5EEAD4' },
+      ],
+    },
+  }[scope] || {}
+
   return (
     <div className="relative card p-8 md:p-12 overflow-hidden">
       <div
@@ -52,31 +140,24 @@ function SellHero() {
       />
       <div className="relative flex flex-col lg:flex-row gap-8 lg:items-end lg:justify-between">
         <div className="max-w-2xl">
-          <div className="mono-label">FOR CREATORS · 开设服务</div>
+          <div className="mono-label">{copy.eyebrow}</div>
           <h1 className="mt-3 text-3xl md:text-5xl font-semibold text-white leading-[1.1] tracking-tight">
-            把你的技能, 上架成一张
-            <br className="hidden md:block" />
-            可以被搜索的<span className="text-cool-gradient">商品卡片</span>。
+            {copy.title}
           </h1>
           <p className="mt-5 text-white/65 leading-relaxed max-w-xl">
-            WhiteHive 不是一个接单广场。
-            你用同一套结构化字段把服务说清楚, 它就会出现在对应的分类里, 被结构化的买家找到。
+            {copy.desc}
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <a href="#listing-form" className="btn-primary">
-              开始开设服务 <Icon name="arrow" size={18} />
+              {copy.primary} <Icon name="arrow" size={18} />
             </a>
-            <a href="#featured" className="btn-ghost">
-              先看同行怎么做
+            <a href={copy.secondaryHref} className="btn-ghost">
+              {copy.secondary}
             </a>
           </div>
         </div>
         <div className="flex gap-2 sm:gap-4 shrink-0">
-          {[
-            { label: '活跃创作者', value: '390+', color: '#7FD3FF' },
-            { label: '在售服务', value: '1,281', color: '#A5B4FC' },
-            { label: '近 30 天 GMV', value: '¥ 284K', color: '#5EEAD4' },
-          ].map((m) => (
+          {copy.metrics.map((m) => (
             <div
               key={m.label}
               className="rounded-lg sm:rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-4 sm:py-3 text-right"
@@ -171,20 +252,27 @@ function FeaturedListings() {
 /* ============ 三步上架流程 ============ */
 function ListingProcess({ scope = 'general' }) {
   const isCdut = scope === 'cdut'
+  const isLocal = scope === 'local'
   const steps = [
     {
       k: '01',
       icon: 'cube',
       color: '#7FD3FF',
       title: '选择一个分类',
-      desc: '七个主要分类 + AI 帮你定义新分类。同一分类内, 所有商品用同一套字段被描述。',
+      desc: isCdut
+        ? '从快递代取、外卖代取、校园约拍、课程协助等校园分类里选择一个，发布后只进入 CDUT 专区。'
+        : isLocal
+          ? '选择家教、陪拍、设备调试、同城跑腿等线下服务类型，发布后进入同城专区。'
+          : '七个主要分类 + AI 帮你定义新分类。同一分类内, 所有商品用同一套字段被描述。',
     },
     {
       k: '02',
       icon: 'document',
       color: '#A5B4FC',
       title: '填写结构化模板',
-      desc: '按平台字段填:交付物、适用对象、范围边界、参考案例、交付周期、定价与档位。',
+      desc: isCdut
+        ? '写清楚校区、楼栋、可接单时间、起步价和不接的边界，避免下单后反复扯皮。'
+        : '按平台字段填:交付物、适用对象、范围边界、参考案例、交付周期、定价与档位。',
     },
     {
       k: '03',
@@ -231,13 +319,121 @@ function ListingProcess({ scope = 'general' }) {
 }
 
 /* ============ 分类选择 ============ */
-function CategoryPicker() {
+function CategoryPicker({ scope = 'general' }) {
+  if (scope === 'cdut') {
+    return (
+      <div id="choose-category" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 sm:gap-4">
+        {cdutCategories.map((c, i) => (
+          <Reveal key={c.key} delay={i * 0.04}>
+            <Link
+              to={categoryLinkForScope('cdut', `cdut/${c.key}`)}
+              className="card card-hover block p-4 sm:p-6 h-full relative overflow-hidden group"
+            >
+              <div
+                className="absolute inset-x-0 top-0 h-px"
+                style={{
+                  background: `linear-gradient(to right, transparent, ${c.color}, transparent)`,
+                }}
+              />
+              <div className="flex items-center justify-between gap-3">
+                <div
+                  className="h-9 w-9 sm:h-11 sm:w-11 rounded-lg sm:rounded-xl flex items-center justify-center"
+                  style={{
+                    background: `${c.color}14`,
+                    border: `1px solid ${c.color}40`,
+                    color: c.color,
+                  }}
+                >
+                  <Icon name={c.icon} />
+                </div>
+                <span className="font-mono text-xs tracking-wider" style={{ color: c.color }}>
+                  ¥{c.priceFrom} 起 / {c.priceUnit}
+                </span>
+              </div>
+              <div className="mt-3 sm:mt-5 font-medium text-white text-base sm:text-lg leading-snug">
+                {c.label}
+              </div>
+              <p className="mt-1.5 sm:mt-2 text-xs sm:text-sm text-white/60 leading-relaxed">
+                {c.desc}
+              </p>
+              <div className="mt-3 sm:mt-4 flex flex-wrap gap-1.5">
+                {c.scenes.slice(0, 3).map((scene) => (
+                  <span
+                    key={scene}
+                    className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/8 text-white/65 whitespace-nowrap"
+                  >
+                    {scene}
+                  </span>
+                ))}
+              </div>
+              <div
+                className="mt-3.5 sm:mt-5 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm opacity-80 group-hover:opacity-100 transition-opacity"
+                style={{ color: c.color }}
+              >
+                <span>发布此校园服务</span> <Icon name="arrow" size={14} />
+              </div>
+            </Link>
+          </Reveal>
+        ))}
+      </div>
+    )
+  }
+
+  if (scope === 'local') {
+    return (
+      <div id="choose-category" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 sm:gap-4">
+        {localCategories.map((c, i) => {
+          const color = c.accent || '#7FD3FF'
+          return (
+            <Reveal key={c.key} delay={i * 0.04}>
+              <Link
+                to={categoryLinkForScope('local', `local/${c.key}`)}
+                className="card card-hover block p-4 sm:p-6 h-full relative overflow-hidden group"
+              >
+                <div
+                  className="absolute inset-x-0 top-0 h-px"
+                  style={{
+                    background: `linear-gradient(to right, transparent, ${color}, transparent)`,
+                  }}
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <div
+                    className="h-9 w-9 sm:h-11 sm:w-11 rounded-lg sm:rounded-xl flex items-center justify-center"
+                    style={{
+                      background: `${color}14`,
+                      border: `1px solid ${color}40`,
+                      color,
+                    }}
+                  >
+                    <Icon name={c.icon} />
+                  </div>
+                  <span className="font-mono text-xs tracking-wider" style={{ color }}>
+                    {c.priceRange}
+                  </span>
+                </div>
+                <div className="mt-3 sm:mt-5 font-medium text-white text-base sm:text-lg leading-snug">
+                  {c.label}
+                </div>
+                <p className="mt-1.5 sm:mt-2 text-xs sm:text-sm text-white/60 leading-relaxed">
+                  {c.desc}
+                </p>
+                <div className="mt-3.5 sm:mt-5 flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm opacity-80 group-hover:opacity-100 transition-opacity" style={{ color }}>
+                  <span>发布此同城服务</span> <Icon name="arrow" size={14} />
+                </div>
+              </Link>
+            </Reveal>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div id="choose-category" className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
       {services.map((s, i) => (
         <Reveal key={s.slug} delay={i * 0.04}>
           <Link
-            to={`/services/${s.slug}`}
+            to={categoryLinkForScope('general', s.slug)}
             className="card card-hover block p-3.5 sm:p-6 h-full relative overflow-hidden group"
           >
             <div
@@ -289,10 +485,10 @@ function splitTags(value) {
     .slice(0, 8)
 }
 
-function ListingForm({ scope = 'general', user, isAuthenticated }) {
+function ListingForm({ scope = 'general', initialCategory, user, isAuthenticated }) {
   const categoryOptions = useMemo(() => getCategoryOptionsForScope(scope), [scope])
   const [form, setForm] = useState({
-    category: categoryOptions[0]?.value || 'web',
+    category: initialCategory || categoryOptions[0]?.value || 'web',
     title: '',
     summary: '',
     price: '',
@@ -304,6 +500,17 @@ function ListingForm({ scope = 'general', user, isAuthenticated }) {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  useEffect(() => {
+    setForm((current) => {
+      const allowed = categoryOptions.some((opt) => opt.value === current.category)
+      const nextCategory = initialCategory || categoryOptions[0]?.value || 'web'
+      if (!allowed || (initialCategory && current.category !== initialCategory)) {
+        return { ...current, category: nextCategory }
+      }
+      return current
+    })
+  }, [categoryOptions, initialCategory])
+
   const activeCategory = useMemo(() => {
     const value = form.category || ''
     if (value.startsWith('cdut/')) {
@@ -314,7 +521,7 @@ function ListingForm({ scope = 'general', user, isAuthenticated }) {
     if (value.startsWith('local/')) {
       const key = value.slice(6)
       const c = localCategories.find((item) => item.key === key) || localCategories[0]
-      return { slug: value, title: `同城 · ${c.label}`, color: c.color || '#7FD3FF', icon: c.icon || 'cube' }
+      return { slug: value, title: `同城 · ${c.label}`, color: c.accent || c.color || '#7FD3FF', icon: c.icon || 'cube' }
     }
     return services.find((item) => item.slug === value) || services[0]
   }, [form.category])
@@ -370,10 +577,12 @@ function ListingForm({ scope = 'general', user, isAuthenticated }) {
       <form onSubmit={submit} className="card p-7 md:p-9">
         <div className="mono-label">LISTING FORM · 服务发布</div>
         <h3 className="mt-2 text-2xl md:text-3xl font-semibold text-white tracking-tight">
-          填一张真正会进入后端的服务卡。
+          {scope === 'cdut' ? '填一张 CDUT 校园服务卡。' : '填一张真正会进入后端的服务卡。'}
         </h3>
         <p className="mt-3 text-sm text-white/55 leading-relaxed max-w-2xl">
-          提交后会写入 WhiteHive 服务系统。通用服务会进入平台巡检与交易风控；CDUT 专区的卖家需要先完成校园认证。
+          {scope === 'cdut'
+            ? '提交后会写入 WhiteHive 服务系统，并标记为成都理工专区服务。卖家需要先完成姓名 + 学号校园认证；专区订单暂不走平台资金托管。'
+            : '提交后会写入 WhiteHive 服务系统。通用服务会进入平台巡检与交易风控；CDUT 专区的卖家需要先完成校园认证。'}
         </p>
 
         {!isAuthenticated ? (
@@ -412,7 +621,7 @@ function ListingForm({ scope = 'general', user, isAuthenticated }) {
               onChange={(event) => update('title', event.target.value)}
               required
               minLength={6}
-              placeholder="例: 创业项目官网与预约落地页"
+              placeholder={scope === 'cdut' ? '例: 西区快递代取送到宿舍楼下' : '例: 创业项目官网与预约落地页'}
               className="mt-2 w-full h-12 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
             />
           </label>
@@ -425,7 +634,7 @@ function ListingForm({ scope = 'general', user, isAuthenticated }) {
               required
               minLength={12}
               rows={5}
-              placeholder="说清楚你能交付什么、适合谁、边界在哪里。"
+              placeholder={scope === 'cdut' ? '说清楚服务范围、校区/楼栋、可接单时间、哪些情况不接。' : '说清楚你能交付什么、适合谁、边界在哪里。'}
               className="mt-2 w-full p-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors resize-none leading-relaxed"
             />
           </label>
@@ -437,7 +646,7 @@ function ListingForm({ scope = 'general', user, isAuthenticated }) {
               onChange={(event) => update('price', event.target.value)}
               required
               inputMode="decimal"
-              placeholder="2800"
+              placeholder={scope === 'cdut' ? '3' : '2800'}
               className="mt-2 w-full h-12 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
             />
           </label>
@@ -449,7 +658,7 @@ function ListingForm({ scope = 'general', user, isAuthenticated }) {
               onChange={(event) => update('deliveryDays', event.target.value)}
               required
               inputMode="numeric"
-              placeholder="7"
+              placeholder={scope === 'cdut' ? '0' : '7'}
               className="mt-2 w-full h-12 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
             />
           </label>
@@ -459,7 +668,7 @@ function ListingForm({ scope = 'general', user, isAuthenticated }) {
             <input
               value={form.tags}
               onChange={(event) => update('tags', event.target.value)}
-              placeholder="官网, Vercel, 响应式"
+              placeholder={scope === 'cdut' ? '西区, 宿舍, 30分钟内' : '官网, Vercel, 响应式'}
               className="mt-2 w-full h-12 px-4 rounded-xl bg-white/[0.03] border border-white/10 text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-[#7FD3FF]/55 focus:bg-white/[0.05] transition-colors"
             />
           </label>
@@ -610,54 +819,89 @@ function AIMatchFallback() {
 
 export default function Sell() {
   const [searchParams] = useSearchParams()
+  const location = useLocation()
   const { user, isAuthenticated } = useAuth()
-  const scope = searchParams.get('scope') || 'general'
+  const scope = normalizeScope(searchParams.get('scope') || 'general')
+  const categoryParam = searchParams.get('category') || ''
+  const initialCategory = useMemo(
+    () => categoryValueForScope(scope, categoryParam),
+    [scope, categoryParam],
+  )
   const scopeCopy = {
     cdut: {
       eyebrow: 'CREATE LISTING · 校园服务发布',
       title: '把你的校园技能上架到 CDUT 专区。',
       desc: '发布后会出现在 /cdut 校园服务专区。买家登录即可下单，卖家需要先通过姓名 + 学号校园认证。',
+      processTitle: '校园服务先核验身份，再进入专区。',
+      processDesc: 'CDUT 专区不是通用数字服务市场；这里只发布校园代取、约拍、跑腿、课程协助等校内微服务。',
+      categoryEyebrow: 'CDUT CATEGORY · 校园服务类型',
+      categoryTitle: '选择你要发布的校园服务。',
+      categoryDesc: '这些分类会直接写入 CDUT 专区，买家在成都理工页面看到的也是这一套服务。普通平台分类不会混进来。',
     },
     local: {
       eyebrow: 'CREATE LISTING · 同城服务发布',
       title: '发布一张同城上门的服务卡。',
       desc: '发布后会进入 /local 同城服务专区，按距离就近派单。',
+      processTitle: '同城服务先讲清距离、身份和履约方式。',
+      processDesc: '线下服务必须把服务区域、见面方式和安全边界写清楚，审核通过后才会进入同城专区。',
+      categoryEyebrow: 'LOCAL CATEGORY · 同城服务类型',
+      categoryTitle: '选择你要发布的同城服务。',
+      categoryDesc: '同城分类会保留线下履约、距离和身份核验信息，不会混到纯线上数字服务里。',
     },
     general: {
       eyebrow: 'CREATE LISTING · 真实发布',
       title: '现在，把你的服务写进后端。',
       desc: '提交后会保存到 WhiteHive 服务系统，并展示在对应分类里接受买家咨询。',
+      processTitle: '把技能, 变成一张结构化的服务卡片。',
+      processDesc: '不用谈判话术、不用反复沟通定价, 只需要按模板填满三件事。',
+      categoryEyebrow: 'CHOOSE A CATEGORY · 分类参考',
+      categoryTitle: '还不确定怎么写? 先看分类结构。',
+      categoryDesc: '每个分类有独立的筛选器、独立的展示模板和独立的买家画像。',
     },
   }[scope] || {
     eyebrow: 'CREATE LISTING · 真实发布',
     title: '现在，把你的服务写进后端。',
     desc: '提交后会保存到 WhiteHive 服务系统，并展示在对应分类里接受买家咨询。',
+    processTitle: '把技能, 变成一张结构化的服务卡片。',
+    processDesc: '不用谈判话术、不用反复沟通定价, 只需要按模板填满三件事。',
+    categoryEyebrow: 'CHOOSE A CATEGORY · 分类参考',
+    categoryTitle: '还不确定怎么写? 先看分类结构。',
+    categoryDesc: '每个分类有独立的筛选器、独立的展示模板和独立的买家画像。',
   }
+
+  useEffect(() => {
+    if (location.hash !== '#listing-form') return
+    window.setTimeout(() => {
+      document.getElementById('listing-form')?.scrollIntoView({ block: 'start' })
+    }, 0)
+  }, [location.hash, location.search])
 
   return (
     <>
       <Section className="pt-28 md:pt-32">
         <Reveal>
-          <SellHero />
+          <SellHero scope={scope} />
         </Reveal>
       </Section>
 
-      <Section id="featured" className="!pt-4">
-        <SectionHeader
-          eyebrow="WHAT CREATORS SELL · 同行的商品"
-          title="先看看同类创作者是怎么上架的。"
-          desc="每一件商品都用同一套字段被描述。看清楚结构, 就知道自己能怎么写。"
-        />
-        <div className="mt-10">
-          <FeaturedListings />
-        </div>
-      </Section>
+      {scope === 'general' ? (
+        <Section id="featured" className="!pt-4">
+          <SectionHeader
+            eyebrow="WHAT CREATORS SELL · 同行的商品"
+            title="先看看同类创作者是怎么上架的。"
+            desc="每一件商品都用同一套字段被描述。看清楚结构, 就知道自己能怎么写。"
+          />
+          <div className="mt-10">
+            <FeaturedListings />
+          </div>
+        </Section>
+      ) : null}
 
       <Section>
         <SectionHeader
           eyebrow="HOW TO LIST · 三步上架"
-          title="把技能, 变成一张结构化的服务卡片。"
-          desc="不用谈判话术、不用反复沟通定价, 只需要按模板填满三件事。"
+          title={scopeCopy.processTitle}
+          desc={scopeCopy.processDesc}
         />
         <div className="mt-10">
           <ListingProcess scope={scope} />
@@ -671,26 +915,33 @@ export default function Sell() {
           desc={scopeCopy.desc}
         />
         <div className="mt-10">
-          <ListingForm scope={scope} user={user} isAuthenticated={isAuthenticated} />
+          <ListingForm
+            scope={scope}
+            initialCategory={initialCategory}
+            user={user}
+            isAuthenticated={isAuthenticated}
+          />
         </div>
       </Section>
 
       <Section>
         <SectionHeader
-          eyebrow="CHOOSE A CATEGORY · 分类参考"
-          title="还不确定怎么写? 先看分类结构。"
-          desc="每个分类有独立的筛选器、独立的展示模板和独立的买家画像。"
+          eyebrow={scopeCopy.categoryEyebrow}
+          title={scopeCopy.categoryTitle}
+          desc={scopeCopy.categoryDesc}
         />
         <div className="mt-10">
-          <CategoryPicker />
+          <CategoryPicker scope={scope} />
         </div>
       </Section>
 
-      <Section>
-        <Reveal>
-          <AIMatchFallback />
-        </Reveal>
-      </Section>
+      {scope === 'general' ? (
+        <Section>
+          <Reveal>
+            <AIMatchFallback />
+          </Reveal>
+        </Section>
+      ) : null}
     </>
   )
 }
