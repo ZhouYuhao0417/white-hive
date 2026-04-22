@@ -33,8 +33,53 @@ function mapToLocalShape(item) {
   }
 }
 
+function isLocalListing(item) {
+  return String(item?.raw?.category || '').startsWith('local/')
+}
+
 /* ------------------------------ Hero ------------------------------ */
+const heroPointPositions = [
+  { x: '22%', y: '30%' },
+  { x: '70%', y: '24%' },
+  { x: '78%', y: '64%' },
+  { x: '24%', y: '70%' },
+  { x: '52%', y: '80%' },
+]
+
+function localCategoryLabel(key) {
+  return localCategories.find((item) => item.key === key)?.label || '本地服务'
+}
+
+function summarizeLocalHero(listings) {
+  const localListings = listings.filter(isLocalListing).map(mapToLocalShape)
+  const categories = new Set(localListings.map((item) => item.category).filter(Boolean))
+  const distances = localListings
+    .map((item) => Number(item.distanceKm))
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .sort((a, b) => a - b)
+
+  const heroPoints = localListings.slice(0, heroPointPositions.length).map((item, index) => ({
+    ...heroPointPositions[index],
+    label: localCategoryLabel(item.category),
+    meta: item.distanceKm === '—' ? item.region : `${item.distanceKm}km · ${item.region}`,
+  }))
+
+  return {
+    localListings,
+    metrics: [
+      { k: String(localCategories.length), label: '本地场景' },
+      { k: distances.length ? `${distances[0]}km` : '待接入', label: '最近距离' },
+      { k: categories.size ? String(categories.size) : '待上架', label: '已开分类' },
+    ],
+    heroPoints,
+  }
+}
+
 function LocalHero() {
+  const { listings: backend, loading } = useBackendListings()
+  const { metrics, heroPoints } = useMemo(() => summarizeLocalHero(backend), [backend])
+  const hasLiveData = heroPoints.length > 0
+
   return (
     <section className="relative pt-14 sm:pt-20 pb-10 sm:pb-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
@@ -97,11 +142,7 @@ function LocalHero() {
               transition={{ duration: 0.8, delay: 0.25 }}
               className="mt-8 grid grid-cols-3 gap-2 sm:gap-4 max-w-md"
             >
-              {[
-                { k: '6', label: '本地场景' },
-                { k: '3km', label: '中位距离' },
-                { k: '100%', label: '平台留痕' },
-              ].map((m) => (
+              {metrics.map((m) => (
                 <div key={m.label} className="rounded-xl border border-white/8 bg-white/[0.02] px-3 py-3 sm:px-4 sm:py-4">
                   <div className="text-xl sm:text-2xl font-semibold text-white">{m.k}</div>
                   <div className="mt-0.5 text-[11px] sm:text-xs text-white/45 tracking-wide">{m.label}</div>
@@ -110,7 +151,7 @@ function LocalHero() {
             </motion.div>
           </div>
 
-          {/* 右侧：抽象"地图 + 定位点"装饰卡 */}
+          {/* 右侧：真实服务数据接入视图 */}
           <motion.div
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -127,36 +168,45 @@ function LocalHero() {
                   backgroundSize: '36px 36px',
                 }}
               />
-              {/* 中心 you-are-here */}
+              {/* 中心区域定位 */}
               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
                 <div className="relative">
                   <div className="h-4 w-4 rounded-full bg-[#7FD3FF] shadow-[0_0_0_4px_rgba(127,211,255,0.25)]" />
                   <div className="absolute inset-0 h-4 w-4 rounded-full bg-[#7FD3FF]/60 animate-ping" />
                 </div>
-                <div className="mt-2 text-[11px] text-white/70 tracking-wider">YOU ARE HERE</div>
+                <div className="mt-2 text-[11px] text-white/70 tracking-wider">YOUR AREA</div>
               </div>
-              {/* 附近点 */}
-              {[
-                { x: '22%', y: '30%', d: '1.2km', n: '林学姐' },
-                { x: '70%', y: '24%', d: '2.4km', n: '陈同学' },
-                { x: '78%', y: '64%', d: '3.8km', n: 'Kai' },
-                { x: '24%', y: '70%', d: '0.8km', n: '周学长' },
-                { x: '52%', y: '80%', d: '5.6km', n: 'Alex' },
-              ].map((p, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, scale: 0.6 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.4 + i * 0.12, duration: 0.4 }}
-                  className="absolute"
-                  style={{ left: p.x, top: p.y }}
+
+              <div className="absolute left-5 top-5 rounded-full border border-[#7FD3FF]/25 bg-ink-950/70 px-3 py-1 text-[11px] text-[#BEE6FF] backdrop-blur">
+                {loading ? '正在同步服务数据' : hasLiveData ? '实时服务视图' : '等待真实服务接入'}
+              </div>
+
+              {hasLiveData ? (
+                heroPoints.map((p, i) => (
+                  <motion.div
+                    key={`${p.label}-${i}`}
+                    initial={{ opacity: 0, scale: 0.6 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.4 + i * 0.12, duration: 0.4 }}
+                    className="absolute"
+                    style={{ left: p.x, top: p.y }}
+                  >
+                    <div className="flex items-center gap-2 rounded-full bg-ink-900/80 border border-white/15 backdrop-blur px-2.5 py-1 text-[10px] text-white/80 whitespace-nowrap">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#5EEAD4]" />
+                      {p.label} · {p.meta}
+                    </div>
+                  </motion.div>
+                ))
+              ) : (
+                <div
+                  className="absolute left-1/2 top-[72%] -translate-x-1/2 w-[72%] rounded-2xl border border-dashed border-white/15 bg-ink-950/75 p-4 text-center backdrop-blur"
                 >
-                  <div className="flex items-center gap-2 rounded-full bg-ink-900/80 border border-white/15 backdrop-blur px-2.5 py-1 text-[10px] text-white/80 whitespace-nowrap">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#5EEAD4]" />
-                    {p.n} · {p.d}
+                  <div className="text-sm font-medium text-white">暂无真实附近服务</div>
+                  <div className="mt-1.5 text-xs text-white/50 leading-relaxed">
+                    服务者入驻并通过审核后，这里会按分类、区域和距离展示真实可接单服务。
                   </div>
-                </motion.div>
-              ))}
+                </div>
+              )}
             </div>
           </motion.div>
         </div>
@@ -500,9 +550,9 @@ function UserLocationPicker() {
 }
 
 function NearbyList({ activeKey }) {
-  const { listings: backend, loading, error } = useBackendListings('local')
+  const { listings: backend, loading, error } = useBackendListings()
   const list = useMemo(() => {
-    const mapped = backend.map(mapToLocalShape)
+    const mapped = backend.filter(isLocalListing).map(mapToLocalShape)
     if (!activeKey) return mapped
     return mapped.filter((n) => n.category === activeKey)
   }, [backend, activeKey])
