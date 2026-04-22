@@ -229,6 +229,70 @@ const genericQuestionBank = [
 
 const intentProfiles = [
   {
+    key: 'competition_pitch_deck',
+    category: 'resume',
+    detect(text) {
+      return (
+        hasAny(text, ['互联网+', '挑战杯', '创青春', '创业比赛', '商业计划书', '路演']) &&
+        hasAny(text, ['ppt', 'deck', '汇报', '答辩', '路演', '展示'])
+      )
+    },
+    questions: [
+      {
+        key: 'competition_stage',
+        label: '这是校赛、省赛、国赛还是路演答辩？评委最看重商业、技术还是落地数据？',
+        reason: '比赛阶段决定叙事重心。',
+      },
+      {
+        key: 'competition_materials',
+        label: '现在已有商业计划书、项目介绍、产品截图、数据和团队资料到什么程度？',
+        reason: '素材完整度决定重写还是优化。',
+      },
+      {
+        key: 'competition_deck_work',
+        label: '你更需要重做逻辑结构、优化视觉版式，还是补商业模型/财务测算？',
+        reason: '先拆清工作类型方便报价。',
+      },
+      {
+        key: 'competition_delivery_context',
+        label: '最终是提交 PDF，现场路演，还是需要配套讲稿和答辩问题？',
+        reason: '使用场景影响交付物。',
+      },
+    ],
+  },
+  {
+    key: 'financial_data_visualization',
+    category: 'data',
+    detect(text) {
+      return (
+        hasAny(text, ['财报', '财务报表', '经营报表', '销售报表', '数据报表', '看板', 'dashboard']) &&
+        hasAny(text, ['可视化', '图表', '大屏', '仪表盘', '报表', '分析'])
+      )
+    },
+    questions: [
+      {
+        key: 'data_source_format',
+        label: '数据现在在哪里，格式是什么？Excel、CSV、飞书表格、数据库，还是 PDF/截图？',
+        reason: '数据来源决定清洗和接入难度。',
+      },
+      {
+        key: 'dashboard_decision',
+        label: '这份图表/看板主要给谁看？希望他们看完能判断什么？',
+        reason: '先定决策问题，图表才有重点。',
+      },
+      {
+        key: 'dashboard_delivery',
+        label: '最终要静态报告、PPT 图表、网页看板，还是可复用模板？',
+        reason: '交付形态会影响技术方案。',
+      },
+      {
+        key: 'data_refresh',
+        label: '数据是一次性交付，还是后续要定期更新或自动同步？',
+        reason: '更新频率决定是否需要自动化。',
+      },
+    ],
+  },
+  {
     key: 'restaurant_ordering_app',
     category: 'web',
     detect(text) {
@@ -402,6 +466,41 @@ function inferIntent(input) {
   return intentProfiles.find((profile) => profile.detect(text)) || null
 }
 
+function hasLikelyGameTitle(input) {
+  const text = demandText(input)
+  if (
+    hasAny(text, [
+      '三角洲',
+      '王者',
+      '王者荣耀',
+      '英雄联盟',
+      'lol',
+      '和平精英',
+      '原神',
+      '崩铁',
+      '星穹铁道',
+      '无畏契约',
+      '瓦罗兰特',
+      'valorant',
+      'cs2',
+      'pubg',
+      '金铲铲',
+      '第五人格',
+      '蛋仔',
+      '明日方舟',
+      '暗区突围',
+      '永劫无间',
+      '穿越火线',
+      'cf',
+      '地下城',
+      'dnf',
+    ])
+  ) {
+    return true
+  }
+  return false
+}
+
 function isGenericClarifyingQuestion(question) {
   const key = questionKey(question)
   const label = normalize(question?.label)
@@ -432,6 +531,20 @@ function mergeClarifyingQuestions(llmQuestions, ruleQuestions) {
   llmQuestions.forEach((question) => pushQuestion(merged, question))
 
   return merged.slice(0, 4)
+}
+
+function questionsForCategory(category, input) {
+  const bank = categoryQuestionBank[category] || genericQuestionBank
+  if (category !== 'gaming' || !hasLikelyGameTitle(input)) return bank
+
+  return bank.map((question) => {
+    if (question.key !== 'game_context') return question
+    return {
+      ...question,
+      label: '区服/服务器、账号平台和可登录方式是什么？',
+      reason: '游戏已基本明确，接下来要确认能否实际接单。',
+    }
+  })
 }
 
 function extractSignals(text) {
@@ -598,7 +711,7 @@ function questionsFor(input, matches, signals = extractSignals(demandText(input)
     intent.questions.forEach((question) => pushQuestion(questions, question))
   }
 
-  const categoryQuestions = categoryQuestionBank[category] || genericQuestionBank
+  const categoryQuestions = questionsForCategory(category, input)
   categoryQuestions.forEach((question) => pushQuestion(questions, question))
 
   if (!categoryQuestionBank[category] && (!input.brief || String(input.brief).trim().length < 16)) {

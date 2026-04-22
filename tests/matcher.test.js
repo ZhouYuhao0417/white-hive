@@ -146,6 +146,20 @@ describe('matcher · rule fallback (no LLM)', () => {
     expect(labels).not.toContain('较小版本')
   })
 
+  test('clarifyingQuestions do not repeat the game name when it is already present', async () => {
+    const result = await createMatch({
+      category: 'gaming',
+      brief: '我要点一个三角洲护航',
+      budgetCents: 80000,
+      deadline: '3 天内',
+    })
+
+    const labels = result.clarifyingQuestions.map((q) => q.label).join(' ')
+    expect(labels).toContain('区服/服务器、账号平台和可登录方式')
+    expect(labels).toContain('代肝到什么目标')
+    expect(labels).not.toContain('具体是哪款游戏')
+  })
+
   test('clarifyingQuestions infer gaming intent when category is not selected', async () => {
     const result = await createMatch({
       brief: '我想找王者荣耀排位代打，最好今晚能开始',
@@ -173,6 +187,38 @@ describe('matcher · rule fallback (no LLM)', () => {
     expect(labels).toContain('店员后台')
     expect(labels).not.toContain('核心问题')
     expect(labels).not.toContain('交付物形式')
+  })
+
+  test('clarifyingQuestions infer competition pitch deck needs beyond generic resume prompts', async () => {
+    const result = await createMatch({
+      category: 'any',
+      brief: '我要一个互联网+比赛的ppt',
+      budgetCents: 100000,
+      deadline: '一周内',
+    })
+
+    const labels = result.clarifyingQuestions.map((q) => q.label).join(' ')
+    expect(labels).toContain('校赛、省赛、国赛')
+    expect(labels).toContain('商业计划书')
+    expect(labels).toContain('重做逻辑结构')
+    expect(labels).toContain('现场路演')
+    expect(labels).not.toContain('这份材料要投递/展示给谁看')
+  })
+
+  test('clarifyingQuestions infer financial visualization needs beyond generic prompts', async () => {
+    const result = await createMatch({
+      category: 'any',
+      brief: '我需要人做几张图表 是我们公司的财报可视化',
+      budgetCents: 100000,
+      deadline: '一周内',
+    })
+
+    const labels = result.clarifyingQuestions.map((q) => q.label).join(' ')
+    expect(labels).toContain('数据现在在哪里')
+    expect(labels).toContain('给谁看')
+    expect(labels).toContain('网页看板')
+    expect(labels).toContain('定期更新')
+    expect(labels).not.toContain('核心问题')
   })
 
   test('throws on totally empty input', async () => {

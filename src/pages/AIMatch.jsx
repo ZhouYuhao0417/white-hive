@@ -334,6 +334,13 @@ function AIClarify({
   const visibleQuestions = questions.slice(0, revealed)
   const awaitingMore = !matchLoading && revealed < questions.length
   const canAdvance = !matchLoading && revealed >= questions.length && questions.length > 0
+  const selectedContext = [
+    form.category && form.category !== 'any' ? categoryLabel(form.category) : 'AI 辅助判断分类',
+    form.deadline ? `时限：${form.deadline}` : '',
+    form.budget ? `预算：${form.budget}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
     <div className="mt-8 card p-7 md:p-9 relative overflow-hidden">
@@ -381,14 +388,13 @@ function AIClarify({
               </>
             ) : intentSummary ? (
               <>
-                {intentSummary}。接下来想再确认 {questions.length || '几'} 件事，这样匹配到的创作者会更贴近你要的结果。
+                我理解的是：{intentSummary}。接下来只确认 {questions.length || '几'} 个会影响报价、排期或验收的关键信息。
               </>
             ) : (
               <>
-                收到。我从你的描述里补齐了
-                <span className="text-[#BEE6FF]"> {form.deadline || '时限'} </span>和
-                <span className="text-[#BEE6FF]"> {form.budget || '预算'} </span>
-                两个字段。接下来我想再确认 {questions.length || '几'} 件事, 这样匹配到的创作者会更贴近你想要的结果。
+                收到。我会结合
+                <span className="text-[#BEE6FF]"> {selectedContext || '你刚才填写的信息'} </span>
+                和你的描述，先确认 {questions.length || '几'} 个真正影响卖家接单、报价和验收的缺口。
               </>
             )}
           </div>
@@ -476,7 +482,7 @@ function AIClarify({
         <div className="mt-7 pt-6 border-t border-white/6 flex items-center justify-between gap-4 flex-wrap">
           <div className="text-xs text-white/45">
             {engineLabel ? <span className="text-[#5EEAD4]">● {engineLabel} · </span> : null}
-            追问可以选择性回答。空着的字段 AI 会根据分类默认值推断。
+            追问可以选择性回答；回答越具体，后续报价和验收边界越清楚。
           </div>
           <button
             type="button"
