@@ -158,6 +158,23 @@ describe('matcher · rule fallback (no LLM)', () => {
     expect(keys).toContain('gaming_goal')
   })
 
+  test('clarifyingQuestions infer restaurant ordering app intent beyond generic web form', async () => {
+    const result = await createMatch({
+      category: 'any',
+      brief: '我想要给我的餐厅做一个点餐小程序',
+      budgetCents: 100000,
+      deadline: '3 天内',
+    })
+
+    const labels = result.clarifyingQuestions.map((q) => q.label).join(' ')
+    expect(labels).toContain('堂食扫码点餐')
+    expect(labels).toContain('菜单')
+    expect(labels).toContain('微信支付')
+    expect(labels).toContain('店员后台')
+    expect(labels).not.toContain('核心问题')
+    expect(labels).not.toContain('交付物形式')
+  })
+
   test('throws on totally empty input', async () => {
     await expect(createMatch({})).rejects.toThrow(HttpError)
   })

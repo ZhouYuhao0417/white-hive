@@ -9,7 +9,26 @@ import { callDeepSeek, isDeepSeekConfigured, parseJsonFromLlm } from './deepseek
    ============================================================ */
 
 const categorySignals = {
-  web: ['官网', '落地页', '网站', '预约', '表单', 'vercel', 'react', '前端', '上线'],
+  web: [
+    '官网',
+    '落地页',
+    '网站',
+    '小程序',
+    '点餐',
+    '扫码',
+    '菜单',
+    '餐厅',
+    '门店',
+    '预约',
+    '表单',
+    '微信支付',
+    '收银',
+    '后台',
+    'vercel',
+    'react',
+    '前端',
+    '上线',
+  ],
   design: ['设计', '品牌', '视觉', '海报', 'logo', 'ui', 'figma', '审美'],
   video: ['视频', '剪辑', '短视频', '字幕', '混剪', '脚本', 'b站', '抖音'],
   resume: ['简历', '求职', '面试', '作品集', '留学', '申请', '文书'],
@@ -208,6 +227,76 @@ const genericQuestionBank = [
   },
 ]
 
+const intentProfiles = [
+  {
+    key: 'restaurant_ordering_app',
+    category: 'web',
+    detect(text) {
+      return (
+        hasAny(text, ['餐厅点餐', '点餐小程序', '扫码点餐']) ||
+        (hasAny(text, ['餐厅', '饭店', '餐饮', '奶茶', '咖啡', '门店']) &&
+          hasAny(text, ['点餐', '菜单', '下单', '扫码', '外卖', '自提', '小程序']))
+      )
+    },
+    questions: [
+      {
+        key: 'restaurant_service_mode',
+        label: '这套餐饮小程序主要做堂食扫码点餐、外卖自提，还是两者都要？',
+        reason: '服务模式决定页面流程和订单状态。',
+      },
+      {
+        key: 'restaurant_menu_scope',
+        label: '菜单大概有多少类/多少菜品，是否有规格、加料、库存或套餐？',
+        reason: '菜单复杂度会直接影响报价。',
+      },
+      {
+        key: 'restaurant_payment_integrations',
+        label: '需要接微信支付、会员优惠、打印小票或现有收银/POS 吗？',
+        reason: '外部接入决定技术难度和资质要求。',
+      },
+      {
+        key: 'restaurant_staff_backend',
+        label: '店员后台需要处理哪些动作：接单、出餐提醒、改价、退款还是核销？',
+        reason: '后台权限和流程要提前定清楚。',
+      },
+      {
+        key: 'restaurant_launch_assets',
+        label: '现在已有小程序账号、营业执照、菜单图片和门店信息吗？',
+        reason: '上线资料会影响能否按期发布。',
+      },
+    ],
+  },
+  {
+    key: 'wechat_mini_program',
+    category: 'web',
+    detect(text) {
+      return hasAny(text, ['小程序', '微信小程序']) && !hasAny(text, ['餐厅', '饭店', '点餐', '菜单'])
+    },
+    questions: [
+      {
+        key: 'mini_program_roles',
+        label: '这个小程序有哪些用户角色，分别要完成什么动作？',
+        reason: '角色边界决定功能拆分。',
+      },
+      {
+        key: 'mini_program_core_flow',
+        label: '用户从进入小程序到完成目标，最核心的 3 步流程是什么？',
+        reason: '先抓主流程，避免功能发散。',
+      },
+      {
+        key: 'mini_program_integrations',
+        label: '需要接微信登录、支付、订阅消息、地图或后台管理吗？',
+        reason: '微信能力接入会影响周期和资质。',
+      },
+      {
+        key: 'mini_program_launch_assets',
+        label: '小程序账号、主体资质、Logo、文案和图片现在准备到哪一步？',
+        reason: '资料缺口会影响上线排期。',
+      },
+    ],
+  },
+]
+
 const commonSignals = [
   '创业',
   '比赛',
@@ -235,6 +324,11 @@ const deadlineDays = [
 
 function normalize(value) {
   return String(value || '').trim().toLowerCase()
+}
+
+function hasAny(text, words) {
+  const normalized = normalize(text)
+  return words.some((word) => normalized.includes(normalize(word)))
 }
 
 function numberOrUndefined(value) {
@@ -280,6 +374,9 @@ function inferCategory(input, matches, signals) {
   const explicit = normalize(input.category)
   if (explicit && explicit !== 'any') return explicit
 
+  const intent = inferIntent(input)
+  if (intent?.category) return intent.category
+
   const categories = Object.keys(categorySignals)
   const signaled = categories.find((category) => signals.includes(category))
   if (signaled) return signaled
@@ -298,6 +395,43 @@ function pushQuestion(questions, question) {
   if (!question?.label) return
   if (questions.some((item) => questionKey(item) === questionKey(question))) return
   questions.push(question)
+}
+
+function inferIntent(input) {
+  const text = demandText(input)
+  return intentProfiles.find((profile) => profile.detect(text)) || null
+}
+
+function isGenericClarifyingQuestion(question) {
+  const key = questionKey(question)
+  const label = normalize(question?.label)
+  if (genericQuestionBank.some((item) => item.key === key || normalize(item.label) === label)) {
+    return true
+  }
+  return /核心问题|交付物|达标|特殊要求|还有什么|补充/.test(label)
+}
+
+function mergeClarifyingQuestions(llmQuestions, ruleQuestions) {
+  if (!Array.isArray(llmQuestions) || llmQuestions.length === 0) return ruleQuestions
+  if (!Array.isArray(ruleQuestions) || ruleQuestions.length === 0) return llmQuestions.slice(0, 4)
+
+  const hasSpecificRuleQuestions = ruleQuestions.some((question) => !isGenericClarifyingQuestion(question))
+  if (!hasSpecificRuleQuestions) return llmQuestions.slice(0, 4)
+
+  const specificLlmQuestions = llmQuestions.filter((question) => !isGenericClarifyingQuestion(question))
+  if (specificLlmQuestions.length >= 2) {
+    const merged = []
+    specificLlmQuestions.forEach((question) => pushQuestion(merged, question))
+    ruleQuestions.forEach((question) => pushQuestion(merged, question))
+    return merged.slice(0, 4)
+  }
+
+  const merged = []
+  ruleQuestions.forEach((question) => pushQuestion(merged, question))
+  specificLlmQuestions.forEach((question) => pushQuestion(merged, question))
+  llmQuestions.forEach((question) => pushQuestion(merged, question))
+
+  return merged.slice(0, 4)
 }
 
 function extractSignals(text) {
@@ -442,6 +576,7 @@ function scoreService(service, input, signals) {
 function questionsFor(input, matches, signals = extractSignals(demandText(input))) {
   const questions = []
   const category = inferCategory(input, matches, signals)
+  const intent = inferIntent(input)
 
   if (!numberOrUndefined(input.budgetCents)) {
     pushQuestion(questions, {
@@ -457,6 +592,10 @@ function questionsFor(input, matches, signals = extractSignals(demandText(input)
       label: '你希望多久内完成？',
       reason: '时限会影响卖家的档期和交付拆分方式。',
     })
+  }
+
+  if (intent?.questions?.length) {
+    intent.questions.forEach((question) => pushQuestion(questions, question))
   }
 
   const categoryQuestions = categoryQuestionBank[category] || genericQuestionBank
@@ -512,14 +651,20 @@ const llmSystemPrompt = `你是 WhiteHive 的 AI 匹配助理。WhiteHive 是一
 
 1. 理解买家结构化需求 + 自由文本描述
 2. 从给定候选服务中挑选最匹配的 3-5 个，给出自然语言的匹配理由和警告
-3. 根据买家已经给出的信息，生成 2-4 条「还缺什么我们才能帮你选得更准」的追问
+3. 像真实交易顾问一样，先判断项目类型、使用对象、核心流程、已有材料、上线/交付依赖，再生成 2-4 条「回答后会改变卖家匹配、报价、周期或验收方式」的追问
 
 严格规则：
 - 只能使用候选服务列表里提供的 id。绝不编造服务。
 - 买家已经填写过的字段（预算、时限、分类、主要目标）不要再追问。
 - reasons / warnings 每条 ≤ 40 字，中文，避免空话如「非常合适」。
+- 不要靠单个关键词套固定表单。必须综合描述、预算、时限、分类、已答内容和候选服务能力判断缺口。
 - 追问 label 要具体、能直接抄答，而不是「你还有什么想法」这种开放题。
-- 追问必须贴合分类语境。比如游戏代肝要问游戏名/区服/目标/账号安全/验收截图，不要问「具体交付物」或「较小版本」这种泛化问题。
+- 禁止泛泛追问「核心问题」「交付物形式」「什么算达标」「有没有特殊要求」，除非买家描述几乎为空。
+- 追问必须贴合真实交易语境。比如：
+  - 餐厅点餐小程序：问堂食/外卖/自提模式、菜单规格与菜品数量、微信支付/会员/打印/POS、店员后台动作、上线资料。
+  - 游戏代肝：问游戏名/区服/目标/账号安全/验收截图。
+  - 官网落地页：问页面结构、转化动作、素材准备、表单/支付/后台接入、参考风格。
+- 每个问题只问一个关键缺口，避免把多个无关问题塞在一起。
 - 输出严格 JSON，键名使用 snake_case，不要包含 markdown 代码块。
 
 输出格式：
@@ -563,7 +708,7 @@ function compactServiceForLlm(service) {
   }
 }
 
-function buildLlmUserPrompt(input, candidates) {
+function buildLlmUserPrompt(input, candidates, ruleQuestionHints = []) {
   const budget = numberOrUndefined(input.budgetCents)
   const answersEntries =
     input.answers && typeof input.answers === 'object'
@@ -585,12 +730,20 @@ function buildLlmUserPrompt(input, candidates) {
     .join('\n')
 
   const servicesJson = JSON.stringify(candidates.map(compactServiceForLlm), null, 0)
+  const hintText = ruleQuestionHints.length
+    ? ruleQuestionHints
+        .map((question) => `  - ${question.label}（${question.reason || '会影响匹配'}）`)
+        .join('\n')
+    : ''
 
   return `买家需求:
 ${buyer}
 
 候选服务 (已按规则预筛，${candidates.length} 条):
 ${servicesJson}
+
+规则层初步发现的缺口线索（仅作参考，不要照抄；如果你能从上下文判断出更关键的问题，请重写）:
+${hintText || '  - 暂无'}
 
 请按系统指令返回 JSON。`
 }
@@ -685,7 +838,9 @@ async function runLlmEnrichment(input, ruleMatches, preFilterSize) {
     return { ok: false, reason: 'no_candidates' }
   }
 
-  const userPrompt = buildLlmUserPrompt(input, candidates)
+  const signals = extractSignals(demandText(input))
+  const ruleQuestionHints = questionsFor(input, ruleMatches, signals).slice(0, 4)
+  const userPrompt = buildLlmUserPrompt(input, candidates, ruleQuestionHints)
 
   const result = await callDeepSeek({
     messages: [
@@ -746,10 +901,11 @@ export async function createMatch(input = {}) {
     ? mergeLlmRankings(llm.rankings, ruleTop, limit)
     : ruleTop.slice(0, limit)
 
+  const ruleClarifyingQuestions = questionsFor(input, finalMatches, signals)
   const clarifyingQuestions =
     llm.ok && llm.clarifyingQuestions.length > 0
-      ? llm.clarifyingQuestions
-      : questionsFor(input, finalMatches, signals)
+      ? mergeClarifyingQuestions(llm.clarifyingQuestions, ruleClarifyingQuestions)
+      : ruleClarifyingQuestions
 
   const top = finalMatches[0]
 
