@@ -158,6 +158,10 @@ describe('matcher · rule fallback (no LLM)', () => {
     expect(labels).toContain('区服/服务器、账号平台和可登录方式')
     expect(labels).toContain('代肝到什么目标')
     expect(labels).not.toContain('具体是哪款游戏')
+    expect(result.matches.every((match) => match.service.category === 'gaming')).toBe(true)
+    if (result.matches.length === 0) {
+      expect(result.suggestedOrderDraft).toBeNull()
+    }
   })
 
   test('clarifyingQuestions infer gaming intent when category is not selected', async () => {

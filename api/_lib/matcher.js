@@ -773,6 +773,7 @@ const llmSystemPrompt = `你是 WhiteHive 的 AI 匹配助理。WhiteHive 是一
 - 不要靠单个关键词套固定表单。必须综合描述、预算、时限、分类、已答内容和候选服务能力判断缺口。
 - 追问 label 要具体、能直接抄答，而不是「你还有什么想法」这种开放题。
 - 禁止泛泛追问「核心问题」「交付物形式」「什么算达标」「有没有特殊要求」，除非买家描述几乎为空。
+- 如果候选服务与买家需求明显不相关，rankings 可以为空；不要为了凑数选择弱相关服务。
 - 追问必须贴合真实交易语境。比如：
   - 餐厅点餐小程序：问堂食/外卖/自提模式、菜单规格与菜品数量、微信支付/会员/打印/POS、店员后台动作、上线资料。
   - 游戏代肝：问游戏名/区服/目标/账号安全/验收截图。
@@ -941,16 +942,21 @@ function mergeLlmRankings(llmRankings, ruleMatches, limit) {
   return merged.sort((a, b) => b.score - a.score)
 }
 
+function knownCategory(category) {
+  return Object.prototype.hasOwnProperty.call(categorySignals, category)
+}
+
+function constrainServicesForCategory(services, category) {
+  if (!knownCategory(category)) return services
+  return services.filter((service) => service.category === category)
+}
+
 async function runLlmEnrichment(input, ruleMatches, preFilterSize) {
   if (!isDeepSeekConfigured()) {
     return { ok: false, reason: 'not_configured' }
   }
 
   const candidates = ruleMatches.slice(0, preFilterSize).map((match) => match.service)
-  if (candidates.length === 0) {
-    return { ok: false, reason: 'no_candidates' }
-  }
-
   const signals = extractSignals(demandText(input))
   const ruleQuestionHints = questionsFor(input, ruleMatches, signals).slice(0, 4)
   const userPrompt = buildLlmUserPrompt(input, candidates, ruleQuestionHints)
@@ -998,9 +1004,11 @@ export async function createMatch(input = {}) {
 
   const signals = extractSignals(text)
   const services = await listServices({ status: 'published' })
+  const targetCategory = inferCategory(input, [], signals)
+  const candidateServices = constrainServicesForCategory(services, targetCategory)
 
   // Rule-based scoring always runs first as pre-filter and safety net.
-  const ruleRanked = services
+  const ruleRanked = candidateServices
     .map((service) => scoreService(service, input, signals))
     .sort((a, b) => b.score - a.score)
 
@@ -1031,6 +1039,7 @@ export async function createMatch(input = {}) {
       llmModel: llm.ok ? llm.model : null,
       llmUsage: llm.ok ? llm.usage : null,
       preFilterSize,
+      matchingCandidates: candidateServices.length,
       totalCandidates: services.length,
     },
     createdAt: nowIso(),
